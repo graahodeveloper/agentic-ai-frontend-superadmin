@@ -1,0 +1,90 @@
+/* src/app/globals.css */
+@import "tailwindcss";
+
+/* Define your custom colors using Tailwind v4 syntax */
+@theme {
+  /* Your project colors */
+  --color-primary-purple: #4318ff;
+  --color-light-purple: #8082ff;
+  --color-purple: #7c75ff;
+  --color-dark-purple: #2b3674;
+  --color-gray-text: #424754;
+  --color-light-gray: #f4f7fe;
+  
+  /* Your exact auth button color #007289 */
+  --color-auth-teal: #007289;
+  --color-auth-teal-hover: #005a6b;
+  --color-auth-teal-active: #004852;
+  --color-auth-teal-light: #0099b3;
+}
+
+/* Custom component styles */
+@layer components {
+  /* Auth button with your exact color */
+  .btn-auth-teal {
+    background-color: #007289;
+    color: white;
+    border-color: #007289;
+    transition: all 0.2s ease-in-out;
+    box-shadow: 0 1px 3px 0 rgba(0, 114, 137, 0.1), 0 1px 2px 0 rgba(0, 114, 137, 0.06);
+  }
+
+  .btn-auth-teal:hover {
+    background-color: #005a6b;
+    border-color: #005a6b;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(0, 114, 137, 0.1), 0 2px 4px -1px rgba(0, 114, 137, 0.06);
+  }
+
+  .btn-auth-teal:active {
+    background-color: #004852;
+    border-color: #004852;
+    transform: translateY(0);
+  }
+
+  .btn-auth-teal:focus {
+    box-shadow: 0 0 0 3px rgba(0, 114, 137, 0.1);
+  }
+
+  /* Gradient version */
+  .btn-gradient-auth-teal {
+    background: linear-gradient(135deg, #007289 0%, #005a6b 100%);
+    color: white;
+    border: none;
+    transition: all 0.2s ease-in-out;
+    box-shadow: 0 1px 3px 0 rgba(0, 114, 137, 0.1), 0 1px 2px 0 rgba(0, 114, 137, 0.06);
+  }
+
+  .btn-gradient-auth-teal:hover {
+    background: linear-gradient(135deg, #005a6b 0%, #004852 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(0, 114, 137, 0.1), 0 2px 4px -1px rgba(0, 114, 137, 0.06);
+  }
+
+  .btn-gradient-auth-teal:active {
+    transform: translateY(0);
+  }
+
+  .btn-gradient-auth-teal:focus {
+    box-shadow: 0 0 0 3px rgba(0, 114, 137, 0.1);
+  }
+}
+
+/* Additional utility classes */
+@layer utilities {
+  .text-auth-teal {
+    color: #007289;
+  }
+  
+  .border-auth-teal {
+    border-color: #007289;
+  }
+  
+  .bg-auth-teal {
+    background-color: #007289;
+  }
+}
+
+.shadow-strong {
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+}

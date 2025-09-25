@@ -1,0 +1,27 @@
+:root {
+  /* Primary Colors */
+  --primary-purple: #4318ff;
+  --light-purple: #8082ff;
+  --purple: #7c75ff;
+  --dark-purple: #2b3674;
+  
+  /* Auth Button Colors - Exact color from your design */
+  --auth-teal: #007289;
+  --auth-teal-hover: #005a6b;
+  --auth-teal-active: #004852;
+  --auth-teal-light: #0099b3;
+  
+  /* Gradients */
+  --gradient-for-auth: linear-gradient(-90deg, #fff -11.17%, #8082ff 100%);
+  --gradient-for-button: linear-gradient(90deg, #7c75ff 0%, #4318ff 153.31%);
+  --gradient-auth-teal: linear-gradient(90deg, #007289 0%, #005a6b 100%);
+  --gradient-for-layout: linear-gradient(90deg, #fff -11.17%, #8082ff 100%);
+  
+  /* Text Colors */
+  --gray-text: #424754;
+  --default-text-color: #000000;
+  
+  /* Background Colors */
+  --light-gray: #f4f7fe;
+  --layout-content-background-color: #f4f7fe;
+}

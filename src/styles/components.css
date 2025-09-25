@@ -1,0 +1,74 @@
+/* Custom Button Styles */
+.btn-primary-purple {
+  background-color: var(--primary-purple);
+  border-color: var(--primary-purple);
+}
+
+.btn-primary-purple:hover {
+  background-color: var(--primary-purple-hover);
+  border-color: var(--primary-purple-hover);
+}
+
+.btn-purple {
+  background-color: var(--purple);
+  border-color: var(--purple);
+}
+
+.btn-purple:hover {
+  background-color: var(--purple-hover);
+  border-color: var(--purple-hover);
+}
+
+/* Auth Teal Button - Your exact color #007289 */
+.btn-auth-teal {
+  background-color: var(--auth-teal);
+  border-color: var(--auth-teal);
+  color: white;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 114, 137, 0.2);
+}
+
+.btn-auth-teal:hover {
+  background-color: var(--auth-teal-hover);
+  border-color: var(--auth-teal-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 114, 137, 0.3);
+}
+
+.btn-auth-teal:active {
+  background-color: var(--auth-teal-active);
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 114, 137, 0.2);
+}
+
+.btn-auth-teal:focus {
+  box-shadow: 0 0 0 3px rgba(0, 114, 137, 0.1);
+}
+
+/* Gradient version with your exact color */
+.btn-gradient-auth-teal {
+  background: var(--gradient-auth-teal);
+  border: none;
+  transition: all 0.3s ease;
+  color: white;
+  box-shadow: 0 2px 4px rgba(0, 114, 137, 0.2);
+}
+
+.btn-gradient-auth-teal:hover {
+  background: linear-gradient(90deg, #005a6b 0%, #004852 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 114, 137, 0.3);
+}
+
+/* Other existing styles... */
+.btn-gradient {
+  background: var(--gradient-for-button);
+  border: none;
+  transition: all 0.3s ease;
+}
+
+.btn-gradient:hover {
+  background: linear-gradient(90deg, #6b64ff 0%, #3311dd 153.31%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(67, 24, 255, 0.3);
+}
