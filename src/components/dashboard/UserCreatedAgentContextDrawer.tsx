@@ -36,8 +36,8 @@ const UserCreatedAgentContextDrawer: React.FC<UserCreatedAgentContextDrawerProps
   useEffect(() => {
     if (agent) {
       // For agent instances, context might be stored in instance_config or activation_data
-      const existingContext = agent.instance_config?.context || agent.activation_data?.context || '';
-      const existingAgentRoles = agent.instance_config?.agent_roles || agent.activation_data?.agent_roles || '';
+      const existingContext = agent.instance_config?.context || agent.instance_config?.context || '';
+      const existingAgentRoles = agent.instance_config?.agent_roles || agent.instance_config?.agent_roles || '';
       
       setContext(existingContext);
       setAgentRolesContext(existingAgentRoles);
@@ -337,31 +337,42 @@ const UserCreatedAgentContextDrawer: React.FC<UserCreatedAgentContextDrawerProps
       } else {
         throw new Error('Unexpected response from server');
       }
-    } catch (error: any) {
+    } 
+    
+    catch (error: unknown) {
       console.error('Error updating agent instance config:', error);
+
       let errorMessage = 'Failed to update agent configuration. Please try again.';
-      
-      // Handle RTK Query error format
-      if (error?.data) {
-        if (typeof error.data === 'string') {
-          errorMessage = error.data;
-        } else if (error.data.detail) {
-          errorMessage = error.data.detail;
-        } else if (error.data.message) {
-          errorMessage = error.data.message;
+
+      if (typeof error === 'object' && error !== null) {
+        const e = error as {
+          data?: string | { detail?: string; message?: string };
+          message?: string;
+        };
+
+        if (typeof e.data === 'string') {
+          errorMessage = e.data;
+        } else if (e.data?.detail) {
+          errorMessage = e.data.detail;
+        } else if (e.data?.message) {
+          errorMessage = e.data.message;
+        } else if (e.message) {
+          errorMessage = e.message;
         }
-      } else if (error?.message) {
-        errorMessage = error.message;
       }
 
       setSaveMessage({ type: 'error', text: errorMessage });
+
       if (messageTimeoutRef.current) {
         clearTimeout(messageTimeoutRef.current);
       }
       messageTimeoutRef.current = setTimeout(() => {
         setSaveMessage(null);
       }, 5000);
-    } finally {
+    }
+
+    
+    finally {
       setIsSaving(false);
     }
   };
@@ -444,7 +455,7 @@ const UserCreatedAgentContextDrawer: React.FC<UserCreatedAgentContextDrawerProps
                   value={agentRolesContext}
                   onChange={handleAgentRolesChange}
                   placeholder={`Example:
-You are ${agent.name}, a ${agent.agent_type_display || agent.agent_type} agent.
+You are ${agent.name}, a ${ agent.agent_type} agent.
 Business Description: ${agent.description}
 Your primary role is to assist customers with their inquiries and provide excellent service.
 Communication Style:

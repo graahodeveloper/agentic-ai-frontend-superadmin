@@ -70,7 +70,6 @@ const Dashboard = () => {
   // Fetch agent templates for super admin
   const {
     data: agentTemplatesData,
-    error: agentTemplatesError,
     isLoading: isAgentTemplatesLoading,
     refetch: refetchAgentTemplates,
   } = useGetAgentTemplatesByAdminIdQuery(adminId!, {

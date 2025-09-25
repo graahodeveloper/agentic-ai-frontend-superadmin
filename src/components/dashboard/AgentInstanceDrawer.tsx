@@ -73,12 +73,21 @@ const AgentInstanceDrawer: React.FC<AgentInstanceDrawerProps> = ({ isOpen, onClo
         setMessage(null);
         onClose();
       }, 5000);
-    } catch (error: any) {
-      const errorMessage =
-        error?.name?.[0] ||
-        error?.detail ||
-        'Failed to create agent instance. Please try again.';
-      setMessage({ type: 'error', text: errorMessage });
+    } 
+    
+    catch (error: unknown) {
+      let errorMessage = 'Failed to create agent instance. Please try again.';
+
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        ("name" in error || "detail" in error)
+      ) {
+        const err = error as { name?: string[]; detail?: string };
+        errorMessage = err.name?.[0] || err.detail || errorMessage;
+      }
+
+      setMessage({ type: "error", text: errorMessage });
 
       // Clear message after 5 seconds
       if (messageTimeoutRef.current) {
@@ -87,7 +96,10 @@ const AgentInstanceDrawer: React.FC<AgentInstanceDrawerProps> = ({ isOpen, onClo
       messageTimeoutRef.current = setTimeout(() => {
         setMessage(null);
       }, 5000);
-    } finally {
+    }
+
+    
+    finally {
       setIsProcessing(false);
     }
   };

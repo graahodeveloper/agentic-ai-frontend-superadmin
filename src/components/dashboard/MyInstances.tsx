@@ -101,21 +101,29 @@ const MyInstances: React.FC<MyInstancesProps> = ({ instancesResponse, isLoading,
         setSuccessMessages((prev) => ({ ...prev, [instanceId]: '' }));
       }, 2000);
 
-    } catch (err: any) {
-      console.error('Error activating instance:', err);
-      
-      let errorMessage = 'Failed to activate instance';
-      if (err?.data?.detail) {
-        errorMessage = err.data.detail;
-      } else if (err?.message) {
-        errorMessage = err.message;
-      }
+    } 
+    
+   catch (err: unknown) {
+  console.error('Error activating instance:', err);
 
-      setErrorMessages((prev) => ({
-        ...prev,
-        [instanceId]: errorMessage
-      }));
+  let errorMessage = 'Failed to activate instance';
+
+  if (typeof err === 'object' && err !== null) {
+    const e = err as { data?: { detail?: string }; message?: string };
+
+    if (e.data?.detail) {
+      errorMessage = e.data.detail;
+    } else if (e.message) {
+      errorMessage = e.message;
     }
+  }
+
+  setErrorMessages((prev) => ({
+    ...prev,
+    [instanceId]: errorMessage,
+  }));
+}
+
   };
 
   // Handle deactivation click
@@ -162,21 +170,28 @@ const MyInstances: React.FC<MyInstancesProps> = ({ instancesResponse, isLoading,
         setSuccessMessages((prev) => ({ ...prev, [instanceId]: '' }));
       }, 2000);
 
-    } catch (err: any) {
-      console.error('Error deactivating instance:', err);
-      
-      let errorMessage = 'Failed to deactivate instance';
-      if (err?.data?.detail) {
-        errorMessage = err.data.detail;
-      } else if (err?.message) {
-        errorMessage = err.message;
-      }
-
-      setErrorMessages((prev) => ({
-        ...prev,
-        [instanceId]: errorMessage
-      }));
     }
+  catch (err: unknown) {
+    console.error('Error deactivating instance:', err);
+
+    let errorMessage = 'Failed to deactivate instance';
+
+    if (typeof err === 'object' && err !== null) {
+      const e = err as { data?: { detail?: string }; message?: string };
+
+      if (e.data?.detail) {
+        errorMessage = e.data.detail;
+      } else if (e.message) {
+        errorMessage = e.message;
+      }
+    }
+
+    setErrorMessages((prev) => ({
+      ...prev,
+      [instanceId]: errorMessage,
+    }));
+  }
+
   };
 
   if (!currentUser?.sub_id) {
@@ -197,9 +212,14 @@ const MyInstances: React.FC<MyInstancesProps> = ({ instancesResponse, isLoading,
   }
 
   if (error) {
-    const errorMessage = 'status' in (error as any)
-      ? `Error ${(error as any).status}: ${(error as any).data || 'Failed to fetch instances'}`
-      : 'Failed to fetch instances';
+        const errorMessage = (() => {
+          if (typeof error === 'object' && error !== null && 'status' in error) {
+            const e = error as { status?: number; data?: string };
+            return `Error ${e.status ?? ''}: ${e.data ?? 'Failed to fetch instances'}`;
+          }
+          return 'Failed to fetch instances';
+        })();
+
 
     return (
       <div className="bg-red-50 border border-red-200 rounded-xl p-6 shadow-sm">

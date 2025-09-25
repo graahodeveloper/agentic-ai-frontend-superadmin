@@ -31,8 +31,8 @@ const ConfigurationDrawer: React.FC<ConfigurationDrawerProps> = ({
   // Updated to check instance_config first, then activation_data as fallback
   const getContextFromAgent = (agent: AgentInstance): boolean => {
     const instanceContext = agent.instance_config?.context;
-    const activationContext = agent.activation_data?.context;
-    const context = instanceContext || activationContext;
+    // const activationContext = agent.activation_data?.context;
+    const context = instanceContext ;
     return !!(context && context.trim() !== '');
   };
 

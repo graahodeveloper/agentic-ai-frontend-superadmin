@@ -142,13 +142,52 @@ export interface AgentInstance {
   is_instance: boolean;
   is_active: boolean;
   is_public: boolean;
-  template_config: Record<string, any>;
-  instance_config: Record<string, any>;
-  effective_config: Record<string, any>;
+
+  // Replace `any` with exact shape
+  template_config: {
+    name: string;
+    description: string;
+    icon: string | null;
+    agent_type: string;
+    agent_variant: string;
+    website: string | null;
+  };
+
+  instance_config: {
+    created_by_admin: string;
+    template_source: string;
+    created_at: string;
+    context: string;
+    agent_roles: string;
+    language: string;
+    tone: string;
+    last_updated: string;
+    updated_by: string;
+  };
+
+  effective_config: {
+    name: string;
+    description: string;
+    icon: string | null;
+    agent_type: string;
+    agent_variant: string;
+    website: string | null;
+    created_by_admin: string;
+    template_source: string;
+    created_at: string;
+    context: string;
+    agent_roles: string;
+    language: string;
+    tone: string;
+    last_updated: string;
+    updated_by: string;
+  };
+
   activations_count: number;
   active_activations_count: number;
   created_at: string;
   updated_at: string;
+
   activations: Array<{
     id: string;
     user: {
@@ -158,11 +197,19 @@ export interface AgentInstance {
       email: string;
       role: string;
       is_active: boolean;
+      activation_code?: string | null;
+      country?: string;
+      customer_used_token?: number;
+      password_set?: boolean;
+      agent_roles?: string;
+      context?: string;
     };
     status: boolean;
     context: string | null;
     agent_roles: string | null;
-    activation_config: Record<string, any> | null;
+    activation_config: {
+      [key: string]: string | number | boolean; // typed based on usage
+    } | null;
     activated_by: {
       id: string;
       full_name: string;
@@ -172,6 +219,7 @@ export interface AgentInstance {
     created_at: string;
     updated_at: string;
   }>;
+
   activations_summary: {
     total_count: number;
     active_count: number;
@@ -179,6 +227,7 @@ export interface AgentInstance {
     has_activations: boolean;
   };
 }
+
 
 export interface AgentInstancesResponse {
   count: number;
@@ -210,36 +259,45 @@ export interface CreateAgentTemplateRequest {
 }
 
 export interface CreateAgentTemplateResponse {
-  id: string;
-  agent_id: string;
-  agent_category: string;
-  name: string;
-  description: string;
-  icon: string | null;
-  agent_type: string;
-  agent_variant: string | null;
-  website: string | null;
-  user_sub_id: string | null;
-  created_by: string;
-  creator_name: string;
-  created_by_details: {
+  template: {
     id: string;
-    sub_id: string | null;
-    full_name: string;
-    email: string;
-    role: string;
+    agent_id: string;
+    agent_category: string;
+    name: string;
+    description: string;
+    icon: string | null;
+    agent_type: string;
+    agent_variant: string | null;
+    website: string | null;
+    user_sub_id: string | null;
+    created_by: string;
+    creator_name: string;
+    created_by_details: {
+      id: string;
+      sub_id: string | null;
+      full_name: string;
+      email: string;
+      role: string;
+      is_active: boolean;
+    };
+    is_template: boolean;
     is_active: boolean;
+    is_public: boolean;
+    activations_count: number;
+    active_activations_count: number;
+    instances_count: number;
+    active_instances_count: number;
+    created_at: string;
+    updated_at: string;
   };
-  is_template: boolean;
-  is_active: boolean;
-  is_public: boolean;
-  activations_count: number;
-  active_activations_count: number;
-  instances_count: number;
-  active_instances_count: number;
-  created_at: string;
-  updated_at: string;
+  message: string;
+  creator: {
+    id: string;
+    full_name: string;
+    role: string;
+  };
 }
+
 
 export interface UpdateAgentTemplateRequest {
   name?: string;
@@ -293,7 +351,9 @@ export interface CreateActivationResponse {
     status: boolean;
     context: string;
     agent_roles: string;
-    activation_config: Record<string, any>;
+       activation_config: {
+      [key: string]: string | number | boolean; // typed based on usage
+    } | null;
     user_details: {
       id: string;
       sub_id: string;
@@ -325,7 +385,23 @@ export interface CreateActivationResponse {
       role: string;
       is_active: boolean;
     };
-    effective_agent_config: Record<string, any>;
+    effective_agent_config:{
+    name: string;
+    description: string;
+    icon: string | null;
+    agent_type: string;
+    agent_variant: string;
+    website: string | null;
+    created_by_admin: string;
+    template_source: string;
+    created_at: string;
+    context: string;
+    agent_roles: string;
+    language: string;
+    tone: string;
+    last_updated: string;
+    updated_by: string;
+  };
     created_at: string;
     updated_at: string;
   };
@@ -339,11 +415,7 @@ export interface CreateActivationResponse {
 export interface UpdateAgentInstanceConfigRequest {
   context: string;
   agent_roles: string;
-  additional_config: {
-    language?: string;
-    tone?: string;
-    [key: string]: any;
-  };
+
 }
 
 export interface UpdateAgentInstanceConfigResponse {
@@ -384,9 +456,42 @@ export interface UpdateAgentInstanceConfigResponse {
     is_instance: boolean;
     is_active: boolean;
     is_public: boolean;
-    template_config: Record<string, any>;
-    instance_config: Record<string, any>;
-    effective_config: Record<string, any>;
+     template_config: {
+    name: string;
+    description: string;
+    icon: string | null;
+    agent_type: string;
+    agent_variant: string;
+    website: string | null;
+  };
+      instance_config: {
+    created_by_admin: string;
+    template_source: string;
+    created_at: string;
+    context: string;
+    agent_roles: string;
+    language: string;
+    tone: string;
+    last_updated: string;
+    updated_by: string;
+  };
+ effective_config: {
+    name: string;
+    description: string;
+    icon: string | null;
+    agent_type: string;
+    agent_variant: string;
+    website: string | null;
+    created_by_admin: string;
+    template_source: string;
+    created_at: string;
+    context: string;
+    agent_roles: string;
+    language: string;
+    tone: string;
+    last_updated: string;
+    updated_by: string;
+  };
     activations_count: number;
     active_activations_count: number;
     created_at: string;
@@ -739,17 +844,60 @@ export const agentTemplateApi = createApi({
         { type: 'AgentTemplate', id: admin_id },
         'AgentTemplate'
       ],
-      transformResponse: (response: unknown) => {
-        if (
-          typeof response === 'object' &&
-          response !== null &&
-          'id' in response &&
-          'agent_id' in response
-        ) {
-          return response as CreateAgentTemplateResponse;
-        }
-        throw new Error('Invalid response format');
+    transformResponse: (response: unknown): CreateAgentTemplateResponse => {
+  if (
+    typeof response === 'object' &&
+    response !== null &&
+    'id' in response &&
+    'agent_id' in response
+  ) {
+    const r = response as { id: string; agent_id: string };
+
+    // Construct a full CreateAgentTemplateResponse object
+    return {
+      message: 'Template updated successfully',
+      template: {
+        id: r.id,
+        agent_id: r.agent_id,
+        agent_category: '',     // fill default values or map if available
+        name: '',
+        description: '',
+        icon: null,
+        agent_type: '',
+        agent_variant: null,
+        website: null,
+        user_sub_id: null,
+        created_by: '',
+        creator_name: '',
+        created_by_details: {
+          id: '',
+          sub_id: null,
+          full_name: '',
+          email: '',
+          role: '',
+          is_active: false,
+        },
+        is_template: false,
+        is_active: false,
+        is_public: false,
+        activations_count: 0,
+        active_activations_count: 0,
+        instances_count: 0,
+        active_instances_count: 0,
+        created_at: '',
+        updated_at: '',
       },
+      creator: {
+        id: '',
+        full_name: '',
+        role: '',
+      },
+    };
+  }
+
+  throw new Error('Invalid response format');
+},
+
     }),
 
     deleteAgentTemplate: builder.mutation<{ message: string }, { id: string; admin_id: string }>({

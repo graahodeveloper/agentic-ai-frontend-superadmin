@@ -4,7 +4,6 @@ import {
   AgentTemplate, 
   useAssignAdminToTemplateMutation,
   getAdminIdFromStorage,
-  APIError 
 } from '@/features/agentTemplateApi/agentTemplateApi';
 import { User } from '@/types/auth';
 
@@ -203,50 +202,65 @@ const AssignAdminDrawer: React.FC<AssignAdminDrawerProps> = ({
         onClose();
       }, 2000);
 
-    } catch (error: unknown) {
-      console.error('Error assigning admin to template:', error);
+    } 
+  catch (error: unknown) {
+  console.error('Error assigning admin to template:', error);
 
-      const e = error as any; // More flexible typing for server error responses
-      let errorMessage = 'Failed to assign admin to template. Please try again.';
+  let errorMessage = 'Failed to assign admin to template. Please try again.';
 
-      // Handle specific server error formats
-      if (e.data) {
-        // Check for non_field_errors (like unique constraint violations)
-        if (e.data.non_field_errors && Array.isArray(e.data.non_field_errors)) {
-          const nonFieldError = e.data.non_field_errors[0];
-          if (nonFieldError.includes('must make a unique set')) {
-            const selectedAdmin = adminUsers.find(admin => admin.id === formData.selectedAdminId);
-            errorMessage = `Admin "${selectedAdmin?.full_name || 'this user'}" is already assigned to template "${template?.name}". Please select a different admin or check existing assignments.`;
-          } else {
-            errorMessage = nonFieldError;
-          }
+  if (typeof error === 'object' && error !== null) {
+    // Narrow the shape of error safely
+    const e = error as {
+      data?: {
+        non_field_errors?: string[];
+        detail?: string;
+        agent_template?: string[];
+        admin_user?: string[];
+      };
+      message?: string;
+    };
+
+    if (e.data) {
+      // Check for non_field_errors
+      if (Array.isArray(e.data.non_field_errors)) {
+        const nonFieldError = e.data.non_field_errors[0];
+        if (nonFieldError?.includes('must make a unique set')) {
+          const selectedAdmin = adminUsers.find(admin => admin.id === formData.selectedAdminId);
+          errorMessage = `Admin "${selectedAdmin?.full_name || 'this user'}" is already assigned to template "${template?.name}". Please select a different admin or check existing assignments.`;
+        } else if (typeof nonFieldError === 'string') {
+          errorMessage = nonFieldError;
         }
-        // Check for detail field
-        else if (e.data.detail) {
-          errorMessage = e.data.detail;
-        }
-        // Check for field-specific errors
-        else if (e.data.agent_template || e.data.admin_user) {
-          const fieldErrors = [];
-          if (e.data.agent_template) fieldErrors.push(`Template: ${e.data.agent_template[0]}`);
-          if (e.data.admin_user) fieldErrors.push(`Admin: ${e.data.admin_user[0]}`);
-          errorMessage = fieldErrors.join(', ');
-        }
-      } 
-      // Fallback to message field
-      else if (e.message) {
-        errorMessage = e.message;
       }
-
-      setSaveMessage({ type: 'error', text: errorMessage });
-      // Clear message after 5 seconds
-      if (messageTimeoutRef.current) {
-        clearTimeout(messageTimeoutRef.current);
+      // Check for detail field
+      else if (typeof e.data.detail === 'string') {
+        errorMessage = e.data.detail;
       }
-      messageTimeoutRef.current = setTimeout(() => {
-        setSaveMessage(null);
-      }, 5000);
+      // Check for field-specific errors
+      else {
+        const fieldErrors: string[] = [];
+        if (Array.isArray(e.data.agent_template)) fieldErrors.push(`Template: ${e.data.agent_template[0]}`);
+        if (Array.isArray(e.data.admin_user)) fieldErrors.push(`Admin: ${e.data.admin_user[0]}`);
+        if (fieldErrors.length) errorMessage = fieldErrors.join(', ');
+      }
     }
+    // Fallback to message
+    else if (typeof e.message === 'string') {
+      errorMessage = e.message;
+    }
+  }
+
+  setSaveMessage({ type: 'error', text: errorMessage });
+
+  // Clear message after 5 seconds
+  if (messageTimeoutRef.current) {
+    clearTimeout(messageTimeoutRef.current);
+  }
+  messageTimeoutRef.current = setTimeout(() => {
+    setSaveMessage(null);
+  }, 5000);
+}
+
+
   };
 
   const getDefaultExpiryDate = () => {
@@ -444,7 +458,7 @@ const AssignAdminDrawer: React.FC<AssignAdminDrawerProps> = ({
                       <h3 className="text-sm font-medium text-blue-800">Admin Assignment</h3>
                       <div className="mt-2 text-sm text-blue-700">
                         <p>
-                          You are assigning admin privileges for the template "<strong>{template?.name}</strong>". 
+                          You are assigning admin privileges for the template &quot;<strong>{template?.name}</strong>&quot;.
                           The selected admin will be able to manage this template according to the permissions you configure in the next step.
                         </p>
                       </div>
@@ -580,7 +594,7 @@ const AssignAdminDrawer: React.FC<AssignAdminDrawerProps> = ({
                               formData.can_modify_instances && 'modify instances'
                             ].filter(Boolean).join(', ')}
                           </strong>{' '}
-                          permissions for template "<strong>{template?.name}</strong>".
+                           Permissions for template &quot;<strong>{template?.name}</strong>&quot;.
                           {formData.expires_at && (
                             <span> Access expires on <strong>{new Date(formData.expires_at).toLocaleDateString()}</strong>.</span>
                           )}

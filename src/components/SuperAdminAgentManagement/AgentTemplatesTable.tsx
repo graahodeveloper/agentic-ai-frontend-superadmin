@@ -226,7 +226,8 @@ const AgentTemplatesTable: React.FC<AgentTemplatesTableProps> = ({
             </svg>
           </div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">No Templates Found</h3>
-          <p className="text-gray-600">You haven't created any agent templates yet.</p>
+          <p className="text-gray-600">You haven&apos;t created any agent templates yet.</p>
+
         </div>
       </div>
     );
