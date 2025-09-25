@@ -257,7 +257,7 @@ const amplifyBaseQuery: BaseQueryFn<AuthArgs, AuthResult, AuthError> = async (ar
 
 // Django baseQuery for admin authentication
 const djangoBaseQuery = fetchBaseQuery({
-  baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000',
+  baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1/',
   prepareHeaders: (headers) => {
     headers.set('Content-Type', 'application/json');
     return headers;
@@ -315,7 +315,7 @@ export const authApi = createApi({
         try {
           const result = await djangoBaseQuery(
             {
-              url: '/api/v1/login/',
+              url: 'login/',
               method: 'POST',
               body: credentials,
             },
@@ -391,7 +391,7 @@ export const authApi = createApi({
           // Make request to Django admin logout endpoint
           await djangoBaseQuery(
             {
-              url: '/admin/logout/',
+              url: 'admin/logout/',
               method: 'POST',
             },
             api,
