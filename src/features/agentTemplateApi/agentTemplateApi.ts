@@ -533,6 +533,32 @@ export interface AgentInstanceAPIError {
   detail?: string;
 }
 
+
+export interface TemplateInstance {
+  id: string;
+  agent_id: string;
+  name: string;
+  user_sub_id: string;
+  instance_creator_name: string;
+  is_active: boolean;
+  is_public: boolean;
+  activations_count: number;
+  active_activations_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TemplateInstancesResponse {
+  template: {
+    id: string;
+    name: string;
+    agent_id: string;
+  };
+  instances_count: number;
+  active_instances_count: number;
+  instances: TemplateInstance[];
+}
+
 const getBaseUrl = () => {
   return process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000/api/v1/';
 };
@@ -550,6 +576,28 @@ export const agentTemplateApi = createApi({
   baseQuery: baseQueryWithoutAuth,
   tagTypes: ['AgentTemplate', 'AdminAssignment', 'TemplateAssignment', 'AgentInstance', 'Activation'],
   endpoints: (builder) => ({
+
+    getTemplateInstances: builder.query<TemplateInstancesResponse, { templateId: string; admin_id: string }>({
+  query: ({ templateId, admin_id }) => ({
+    url: `agent-templates/${templateId}/instances/?admin_id=${encodeURIComponent(admin_id)}`,
+    method: 'GET',
+  }),
+  providesTags: (result, error, { templateId }) => [
+    { type: 'AgentInstance', id: templateId },
+    'AgentInstance'
+  ],
+  transformResponse: (response: unknown) => {
+    if (
+      typeof response === 'object' &&
+      response !== null &&
+      'template' in response &&
+      'instances' in response
+    ) {
+      return response as TemplateInstancesResponse;
+    }
+    throw new Error('Invalid response format');
+  },
+    }),
     // NEW ENDPOINT: Upsert activation
     upsertActivation: builder.mutation<
       CreateActivationResponse,
@@ -932,6 +980,7 @@ export const agentTemplateApi = createApi({
 });
 
 export const {
+  useGetTemplateInstancesQuery,
   useCreateActivationMutation,
   useUpsertActivationMutation,
   useUpdateAgentInstanceConfigMutation,

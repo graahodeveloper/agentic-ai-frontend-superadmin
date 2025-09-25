@@ -4,7 +4,7 @@ import {
   useUpdateAgentTemplateMutation,
   getAdminIdFromStorage 
 } from '@/features/agentTemplateApi/agentTemplateApi';
-import AssignAdminDrawer from './AssignAdminDrawer'; // Import the new drawer component
+import ViewInstancesDrawer from './ViewInstancesDrawer'; // Import the new drawer component
 
 interface AgentTemplatesTableProps {
   templates: AgentTemplate[];
@@ -22,9 +22,9 @@ const AgentTemplatesTable: React.FC<AgentTemplatesTableProps> = ({
   const [updateAgentTemplate, { isLoading: isUpdating }] = useUpdateAgentTemplateMutation();
   const [actionMessages, setActionMessages] = useState<{ [key: string]: { type: 'success' | 'error'; text: string } }>({});
   
-  // State for Assign Admin Drawer
-  const [isAssignAdminDrawerOpen, setIsAssignAdminDrawerOpen] = useState(false);
-  const [selectedTemplateForAssignment, setSelectedTemplateForAssignment] = useState<AgentTemplate | null>(null);
+  // State for View Instances Drawer
+  const [isViewInstancesDrawerOpen, setIsViewInstancesDrawerOpen] = useState(false);
+  const [selectedTemplateForViewing, setSelectedTemplateForViewing] = useState<AgentTemplate | null>(null);
 
   // Get admin ID from localStorage
   const adminId = getAdminIdFromStorage();
@@ -133,21 +133,16 @@ const AgentTemplatesTable: React.FC<AgentTemplatesTableProps> = ({
     onEditTemplate?.(template);
   };
 
-  // New function to handle assign admin click
-  const handleAssignAdminClick = (template: AgentTemplate) => {
-    setSelectedTemplateForAssignment(template);
-    setIsAssignAdminDrawerOpen(true);
+  // New function to handle view instances click
+  const handleViewInstancesClick = (template: AgentTemplate) => {
+    setSelectedTemplateForViewing(template);
+    setIsViewInstancesDrawerOpen(true);
   };
 
-  // Handle assignment completion
-  const handleAssignmentComplete = () => {
-    onRefresh(); // Refresh the templates list
-  };
-
-  // Close assign admin drawer
-  const handleCloseAssignAdminDrawer = () => {
-    setIsAssignAdminDrawerOpen(false);
-    setSelectedTemplateForAssignment(null);
+  // Close view instances drawer
+  const handleCloseViewInstancesDrawer = () => {
+    setIsViewInstancesDrawerOpen(false);
+    setSelectedTemplateForViewing(null);
   };
 
   const formatDate = (dateString: string) => {
@@ -377,14 +372,14 @@ const AgentTemplatesTable: React.FC<AgentTemplatesTableProps> = ({
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-2">
-                      {/* Assign Admins Button */}
+                      {/* View Instances Button */}
                       <button
-                        onClick={() => handleAssignAdminClick(template)}
-                        className="text-purple-600 hover:text-purple-900 transition-colors duration-200 p-1 rounded"
-                        title="Assign admin"
+                        onClick={() => handleViewInstancesClick(template)}
+                        className="text-blue-600 hover:text-blue-900 transition-colors duration-200 p-1 rounded"
+                        title="View instances"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14-2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V9a2 2 0 012-2h10a2 2 0 012 2zm-4-4V3a2 2 0 00-2-2H9a2 2 0 00-2 2v2" />
                         </svg>
                       </button>
                       
@@ -407,12 +402,11 @@ const AgentTemplatesTable: React.FC<AgentTemplatesTableProps> = ({
         </div>
       </div>
 
-      {/* Assign Admin Drawer */}
-      <AssignAdminDrawer
-        isOpen={isAssignAdminDrawerOpen}
-        onClose={handleCloseAssignAdminDrawer}
-        onAssignmentComplete={handleAssignmentComplete}
-        template={selectedTemplateForAssignment}
+      {/* View Instances Drawer */}
+      <ViewInstancesDrawer
+        isOpen={isViewInstancesDrawerOpen}
+        onClose={handleCloseViewInstancesDrawer}
+        template={selectedTemplateForViewing}
       />
     </>
   );
