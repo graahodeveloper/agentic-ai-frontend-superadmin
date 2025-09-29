@@ -7,10 +7,12 @@ import {
 } from '@/features/agentTemplateApi/agentTemplateApi';
 import Image from 'next/image';
 import AgentTemplatesTable from '@/components/SuperAdminAgentManagement/AgentTemplatesTable';
-import UserCreatedAgentDrawer from '@/components/dashboard/UserCreatedAgentDrawer';
+import SuperAdminCreateAgentTemplateDrawer from '@/components/SuperAdminAgentManagement/SuperAdminCreateAgentTemplateDrawer';
 import { User } from '@/types/auth';
 import UserManagementInterface from '@/components/settings/manage-user/ManageUser';
 import Summary from '@/components/settings/Summary/Summary';
+
+
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('Agent Templates');
@@ -115,8 +117,8 @@ const Dashboard = () => {
       name: 'Agent Templates',
       icon: (
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.82,11.69,4.82,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
-        </svg>
+        <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2M17 10H20C21.1 10 22 10.9 22 12V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V12C2 10.9 2.9 10 4 10H7V8C7 6.9 7.9 6 9 6H12.3C12.1 6.6 12 7.3 12 8V10H9C8.4 10 8 10.4 8 11V20H16V11C16 10.4 15.6 10 15 10H14V8C14 7.3 13.9 6.6 13.7 6H15C16.1 6 17 6.9 17 8V10M9.5 12C10.3 12 11 12.7 11 13.5C11 14.3 10.3 15 9.5 15C8.7 15 8 14.3 8 13.5C8 12.7 8.7 12 9.5 12M14.5 12C15.3 12 16 12.7 16 13.5C16 14.3 15.3 15 14.5 15C13.7 15 13 14.3 13 13.5C13 12.7 13.7 12 14.5 12M10 17H14C14 18.1 13.1 19 12 19C10.9 19 10 18.1 10 17Z"/>
+      </svg>
       ),
     },
   ];
@@ -335,7 +337,7 @@ console.log('isSuperAdminLoggedIn:');
         </div>
         <div className="flex-1 relative">
           <div className="h-full overflow-auto pb-32">{renderContent()}</div>
-          <UserCreatedAgentDrawer
+          <SuperAdminCreateAgentTemplateDrawer
             isOpen={isCreateTemplateDrawerOpen}
             onClose={() => {
               setIsCreateTemplateDrawerOpen(false);

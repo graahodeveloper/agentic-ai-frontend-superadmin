@@ -4,7 +4,7 @@ import {
   useUpdateAgentTemplateMutation,
   getAdminIdFromStorage 
 } from '@/features/agentTemplateApi/agentTemplateApi';
-import ViewInstancesDrawer from './ViewInstancesDrawer'; // Import the new drawer component
+import ViewInstancesDrawer from './ViewInstancesDrawer';
 
 interface AgentTemplatesTableProps {
   templates: AgentTemplate[];
@@ -12,6 +12,26 @@ interface AgentTemplatesTableProps {
   onRefresh: () => void;
   onEditTemplate?: (template: AgentTemplate) => void;
 }
+
+// Agent role mapping to display readable labels
+const AGENT_ROLE_LABELS: { [key: string]: string } = {
+  'customer_support': 'Customer Support Agent/FAQ Agent',
+  'product_recommendation': 'Product Recommendation Agent',
+  'sales_lead_generation': 'Sales & Lead Generation Agent',
+  'engagement_feedback': 'Engagement & Feedback Agent',
+  'onboarding_new_user': 'Onboarding /New User Guide Agent',
+  'elearning_tutor': 'E-Learning / Tutor Agent',
+  'healthcare_clinic': 'Healthcare / Clinic Assistant Agent',
+  'technical_troubleshooting': 'Technical Troubleshooting Agent',
+  'content_marketing': 'Content & Marketing Agent',
+  'survey_feedback': 'Survey & Feedback Agent',
+  'engagement': 'Engagement Agent',
+  'community_brand': 'Community / Brand Ambassador Agent',
+  'travel_hospitality': 'Travel / Hospitality Info Agent',
+  'event_information': 'Event Information Agent',
+  'real_estate': 'Real Estate Info Agent',
+  'hr_career': 'HR / Career Info Agent',
+};
 
 const AgentTemplatesTable: React.FC<AgentTemplatesTableProps> = ({
   templates,
@@ -155,6 +175,11 @@ const AgentTemplatesTable: React.FC<AgentTemplatesTableProps> = ({
     });
   };
 
+  const getAgentRoleLabel = (agentRole: string | undefined | null) => {
+    if (!agentRole) return null;
+    return AGENT_ROLE_LABELS[agentRole] || agentRole;
+  };
+
   const getAgentTypeIcon = (agentType: string) => {
     switch (agentType.toLowerCase()) {
       case 'website':
@@ -222,7 +247,6 @@ const AgentTemplatesTable: React.FC<AgentTemplatesTableProps> = ({
           </div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">No Templates Found</h3>
           <p className="text-gray-600">You haven&apos;t created any agent templates yet.</p>
-
         </div>
       </div>
     );
@@ -240,6 +264,9 @@ const AgentTemplatesTable: React.FC<AgentTemplatesTableProps> = ({
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Type
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Agent Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
@@ -302,6 +329,17 @@ const AgentTemplatesTable: React.FC<AgentTemplatesTableProps> = ({
                         </span>
                       )}
                     </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    {(template as AgentTemplate).agent_role ? (
+                      <div className="max-w-xs">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                          {getAgentRoleLabel((template as AgentTemplate).agent_role)}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400 italic">Not specified</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <button

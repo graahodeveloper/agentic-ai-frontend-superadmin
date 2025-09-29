@@ -31,6 +31,7 @@ export interface AgentTemplate {
   active_instances_count: number;
   created_at: string;
   updated_at: string;
+  agent_role: string | null | undefined;
 }
 
 export interface AgentTemplatesResponse {
