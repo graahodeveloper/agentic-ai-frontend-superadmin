@@ -459,12 +459,12 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Agent Role <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="text"
+                    <textarea
                       value={formData.agent_role}
                       onChange={(e) => handleInputChange('agent_role', e.target.value)}
                       placeholder="e.g., Customer Support Agent, Sales Agent, etc."
-                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors ${
+                      rows={3}
+                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors resize-none ${
                         errors.agent_role ? 'border-red-300 bg-red-50' : 'border-gray-300'
                       }`}
                     />
