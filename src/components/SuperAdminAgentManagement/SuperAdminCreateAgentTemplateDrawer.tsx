@@ -17,32 +17,10 @@ interface FormData {
   name: string;
   description: string;
   agent_type: string;
-  agent_variant: string;
   agent_role: string;
-  website: string;
   is_active: boolean;
   is_public: boolean;
 }
-
-// Agent role options from the spreadsheet
-const AGENT_ROLES = [
-  { value: 'customer_support', label: 'Customer Support Agent/FAQ Agent' },
-  { value: 'product_recommendation', label: 'Product Recommendation Agent' },
-  { value: 'sales_lead_generation', label: 'Sales & Lead Generation Agent' },
-  { value: 'engagement_feedback', label: 'Engagement & Feedback Agent' },
-  { value: 'onboarding_new_user', label: 'Onboarding /New User Guide Agent' },
-  { value: 'elearning_tutor', label: 'E-Learning / Tutor Agent' },
-  { value: 'healthcare_clinic', label: 'Healthcare / Clinic Assistant Agent' },
-  { value: 'technical_troubleshooting', label: 'Technical Troubleshooting Agent' },
-  { value: 'content_marketing', label: 'Content & Marketing Agent' },
-  { value: 'survey_feedback', label: 'Survey & Feedback Agent' },
-  { value: 'engagement', label: 'Engagement Agent' },
-  { value: 'community_brand', label: 'Community / Brand Ambassador Agent' },
-  { value: 'travel_hospitality', label: 'Travel / Hospitality Info Agent' },
-  { value: 'event_information', label: 'Event Information Agent' },
-  { value: 'real_estate', label: 'Real Estate Info Agent' },
-  { value: 'hr_career', label: 'HR / Career Info Agent' },
-];
 
 const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplateDrawerProps> = ({
   isOpen,
@@ -57,9 +35,7 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
     name: '',
     description: '',
     agent_type: 'internal',
-    agent_variant: 'website',
     agent_role: '',
-    website: '',
     is_active: true,
     is_public: false,
   });
@@ -105,9 +81,7 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
           name: templateData.name,
           description: templateData.description,
           agent_type: templateData.agent_type || 'internal',
-          agent_variant: templateData.agent_variant || 'website',
           agent_role: (templateData as AgentTemplate).agent_role || '',
-          website: templateData.website || '',
           is_active: templateData.is_active,
           is_public: templateData.is_public,
         });
@@ -118,9 +92,7 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
           name: editTemplate.name,
           description: editTemplate.description,
           agent_type: editTemplate.agent_type || 'internal',
-          agent_variant: editTemplate.agent_variant || 'website',
           agent_role: (editTemplate as AgentTemplate).agent_role || '',
-          website: editTemplate.website || '',
           is_active: editTemplate.is_active,
           is_public: editTemplate.is_public,
         });
@@ -130,9 +102,7 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
           name: '',
           description: '',
           agent_type: 'internal',
-          agent_variant: 'website',
           agent_role: '',
-          website: '',
           is_active: true,
           is_public: false,
         });
@@ -148,10 +118,6 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
     } else if (formData.name.trim().length < 2) {
       newErrors.name = 'Template name must be at least 2 characters';
     }
-
-    if (!formData.agent_role) {
-      newErrors.agent_role = 'Agent role is required';
-    }
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -160,19 +126,18 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
   const validateStep2 = (): boolean => {
     const newErrors: Partial<FormData> = {};
     
-    // Website validation (only if provided)
-    if (formData.website && formData.website.trim()) {
-      const urlPattern = /^https?:\/\/.+/i;
-      if (!urlPattern.test(formData.website.trim())) {
-        newErrors.website = 'Website must start with http:// or https://';
-      }
-    }
-    
     // Description validation
     if (!formData.description.trim()) {
       newErrors.description = 'Description is required';
     } else if (formData.description.trim().length < 10) {
       newErrors.description = 'Description must be at least 10 characters';
+    }
+
+    // Agent role validation
+    if (!formData.agent_role.trim()) {
+      newErrors.agent_role = 'Agent role is required';
+    } else if (formData.agent_role.trim().length < 2) {
+      newErrors.agent_role = 'Agent role must be at least 2 characters';
     }
     
     setErrors(newErrors);
@@ -218,9 +183,7 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
         name: formData.name.trim(),
         description: formData.description.trim(),
         agent_type: formData.agent_type,
-        agent_variant: formData.agent_variant,
-        agent_role: formData.agent_role,
-        website: formData.website.trim() || undefined,
+        agent_role: formData.agent_role.trim(),
         is_active: formData.is_active,
         is_public: formData.is_public,
       };
@@ -424,45 +387,6 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
                     </select>
                   </div>
 
-                  {/* Agent Variant */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Agent Variant <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={formData.agent_variant}
-                      onChange={(e) => handleInputChange('agent_variant', e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors bg-white"
-                    >
-                      <option value="website">Website</option>
-                      <option value="facebook">Facebook</option>
-                    </select>
-                  </div>
-
-                  {/* Agent Role */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Agent Role <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={formData.agent_role}
-                      onChange={(e) => handleInputChange('agent_role', e.target.value)}
-                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors bg-white ${
-                        errors.agent_role ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                      }`}
-                    >
-                      <option value="">Select agent role</option>
-                      {AGENT_ROLES.map((role) => (
-                        <option key={role.value} value={role.value}>
-                          {role.label}
-                        </option>
-                      ))}
-                    </select>
-                    {errors.agent_role && (
-                      <p className="mt-1 text-sm text-red-600">{errors.agent_role}</p>
-                    )}
-                  </div>
-
                   {/* Template Name */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -497,7 +421,7 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
                         <h3 className="text-sm font-medium text-indigo-800">Getting Started</h3>
                         <div className="mt-2 text-sm text-indigo-700">
                           <p>
-                            Create a template that can be used by multiple users across the platform. Select an agent role that best describes the purpose of this template.
+                            Create a template that can be used by multiple users across the platform. Choose an agent type and provide a descriptive name.
                           </p>
                         </div>
                       </div>
@@ -507,28 +431,6 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
               ) : (
                 <div className="space-y-6">
                   <h3 className="text-lg font-medium text-gray-900 mb-4">Configuration</h3>
-
-                  {/* Website - Optional */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Website <span className="text-gray-500 text-xs">(Optional)</span>
-                    </label>
-                    <input
-                      type="url"
-                      value={formData.website}
-                      onChange={(e) => handleInputChange('website', e.target.value)}
-                      placeholder="https://example.com"
-                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors ${
-                        errors.website ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                      }`}
-                    />
-                    {errors.website && (
-                      <p className="mt-1 text-sm text-red-600">{errors.website}</p>
-                    )}
-                    <p className="mt-1 text-sm text-gray-500">
-                      Add a website URL if this template is related to a specific website
-                    </p>
-                  </div>
 
                   {/* Description */}
                   <div>
@@ -549,6 +451,28 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
                     )}
                     <p className="mt-1 text-sm text-gray-500">
                       {formData.description.length} characters (minimum 10 required)
+                    </p>
+                  </div>
+
+                  {/* Agent Role */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Agent Role <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.agent_role}
+                      onChange={(e) => handleInputChange('agent_role', e.target.value)}
+                      placeholder="e.g., Customer Support Agent, Sales Agent, etc."
+                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors ${
+                        errors.agent_role ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                      }`}
+                    />
+                    {errors.agent_role && (
+                      <p className="mt-1 text-sm text-red-600">{errors.agent_role}</p>
+                    )}
+                    <p className="mt-1 text-sm text-gray-500">
+                      Specify the role or purpose of this agent
                     </p>
                   </div>
 
