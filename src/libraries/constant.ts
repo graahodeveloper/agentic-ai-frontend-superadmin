@@ -6,6 +6,8 @@ const getAIBaseURL = (): string => {
       return process.env.NEXT_PUBLIC_DEMO_AI_BASE_URL || '';
     case 'dev':
       return process.env.NEXT_PUBLIC_DEV_AI_BASE_URL || '';
+    case 'aws_marketplace_prod':
+      return process.env.NEXT_PUBLIC_PROD_AI_BASE_URL || '';
     default:
       return process.env.NEXT_PUBLIC_DEV_AI_BASE_URL || '';
   }
