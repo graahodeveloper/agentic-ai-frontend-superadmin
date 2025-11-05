@@ -42,13 +42,13 @@ const AuthPage = () => {
       {/* Right Side - Auth Form */}
       <div className="w-1/2 flex flex-col justify-center items-center p-14 ">
         <div className="w-full h-full bg-white rounded-3xl shadow-lg p-8 flex justify-center">
-          <div className="w-full max-w-md justify-center items-center mb-20">
+          <div className="w-full max-w-md justify-center items-center">
             <div className="mb-10 text-center">
-              <div className="flex justify-center mb-15">
+              <div className="flex justify-center">
                 <Image 
                   src="/graaho_logo.png" 
                   alt="Graaho Logo"
-                  width={120}
+                  width={180}
                   height={60}
                 />
               </div>

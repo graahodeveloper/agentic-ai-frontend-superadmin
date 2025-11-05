@@ -508,6 +508,31 @@ export interface APIError {
   message?: string;
 }
 
+// Workspace interfaces
+export interface WorkspaceCreatedBy {
+  id: string;
+  email: string;
+  full_name: string;
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  domain: string;
+  created_by: string;
+  created_by_details: WorkspaceCreatedBy;
+  members_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkspacesResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: Workspace[];
+}
+
 export interface CreateAgentInstanceRequest {
   template_id: string;
   name: string;
@@ -560,6 +585,11 @@ export interface TemplateInstancesResponse {
   instances: TemplateInstance[];
 }
 
+export interface AgentTemplatesQueryParams {
+  admin_id: string;
+  page?: number;
+}
+
 const getBaseUrl = () => {
   return process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000/api/v1/';
 };
@@ -575,8 +605,27 @@ const baseQueryWithoutAuth = fetchBaseQuery({
 export const agentTemplateApi = createApi({
   reducerPath: 'agentTemplateApi',
   baseQuery: baseQueryWithoutAuth,
-  tagTypes: ['AgentTemplate', 'AdminAssignment', 'TemplateAssignment', 'AgentInstance', 'Activation'],
+  tagTypes: ['AgentTemplate', 'AdminAssignment', 'TemplateAssignment', 'AgentInstance', 'Activation', 'Workspace'],
   endpoints: (builder) => ({
+
+    // Workspace endpoints
+    getWorkspaces: builder.query<WorkspacesResponse, { page?: number }>({
+      query: ({ page = 1 }) => ({
+        url: `workspaces/?page=${page}`,
+        method: 'GET',
+      }),
+      providesTags: ['Workspace'],
+      transformResponse: (response: unknown) => {
+        if (
+          typeof response === 'object' &&
+          response !== null &&
+          'results' in response
+        ) {
+          return response as WorkspacesResponse;
+        }
+        throw new Error('Invalid response format');
+      },
+    }),
 
     getTemplateInstances: builder.query<TemplateInstancesResponse, { templateId: string; admin_id: string }>({
   query: ({ templateId, admin_id }) => ({
@@ -764,26 +813,27 @@ export const agentTemplateApi = createApi({
       },
     }),
 
-    getAgentTemplatesByAdminId: builder.query<AgentTemplatesResponse, string>({
-      query: (admin_id) => ({
-        url: `agent-templates/?admin_id=${encodeURIComponent(admin_id)}`,
-        method: 'GET',
-      }),
-      providesTags: (result, error, admin_id) => [
-        { type: 'AgentTemplate', id: admin_id },
-        'AgentTemplate'
-      ],
-      transformResponse: (response: unknown) => {
-        if (
-          typeof response === 'object' &&
-          response !== null &&
-          'results' in response
-        ) {
-          return response as AgentTemplatesResponse;
-        }
-        throw new Error('Invalid response format');
-      },
+ // Keep it simple - just fetch all data
+  getAgentTemplatesByAdminId: builder.query<AgentTemplatesResponse, string>({
+    query: (admin_id) => ({
+      url: `agent-templates/?admin_id=${encodeURIComponent(admin_id)}`,
+      method: 'GET',
     }),
+    providesTags: (result, error, admin_id) => [
+      { type: 'AgentTemplate', id: admin_id },
+      'AgentTemplate'
+    ],
+    transformResponse: (response: unknown) => {
+      if (
+        typeof response === 'object' &&
+        response !== null &&
+        'results' in response
+      ) {
+        return response as AgentTemplatesResponse;
+      }
+      throw new Error('Invalid response format');
+    },
+  }),
 
     getTemplateAssignmentsByAdminId: builder.query<TemplateAssignmentsResponse, string>({
       query: (admin_id) => ({
@@ -981,6 +1031,7 @@ export const agentTemplateApi = createApi({
 });
 
 export const {
+  useGetWorkspacesQuery,
   useGetTemplateInstancesQuery,
   useCreateActivationMutation,
   useUpsertActivationMutation,

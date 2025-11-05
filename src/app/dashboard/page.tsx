@@ -7,12 +7,11 @@ import {
 } from '@/features/agentTemplateApi/agentTemplateApi';
 import Image from 'next/image';
 import AgentTemplatesTable from '@/components/SuperAdminAgentManagement/AgentTemplatesTable';
+import WorkspacesTable from '@/components/SuperAdminAgentManagement/WorkspacesTable';
 import SuperAdminCreateAgentTemplateDrawer from '@/components/SuperAdminAgentManagement/SuperAdminCreateAgentTemplateDrawer';
 import { User } from '@/types/auth';
 import UserManagementInterface from '@/components/settings/manage-user/ManageUser';
 import Summary from '@/components/settings/Summary/Summary';
-
-
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('Agent Templates');
@@ -26,7 +25,8 @@ const Dashboard = () => {
   const [editTemplate, setEditTemplate] = useState<AgentTemplate | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const showingErrorMessage = 'Something went wrong,\nplease try again later.';
-
+  const [currentPage, setCurrentPage] = useState(1);
+  
   // Initialize authentication for super admin
   useEffect(() => {
     const initializeAuth = async () => {
@@ -89,9 +89,16 @@ const Dashboard = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (activeTab === 'Agent Templates') {
+      setCurrentPage(1);
+    }
+  }, [activeTab]);
+
   const handleAgentCreated = () => {
     refetchAgentTemplates(); // Refresh templates list
     setEditTemplate(null); // Clear edit template state
+    setCurrentPage(1);
   };
 
   const handleEditTemplate = (template: AgentTemplate) => {
@@ -112,24 +119,36 @@ const Dashboard = () => {
     }
   };
 
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
   const navigationItems = [
     {
       name: 'Agent Templates',
       icon: (
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2M17 10H20C21.1 10 22 10.9 22 12V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V12C2 10.9 2.9 10 4 10H7V8C7 6.9 7.9 6 9 6H12.3C12.1 6.6 12 7.3 12 8V10H9C8.4 10 8 10.4 8 11V20H16V11C16 10.4 15.6 10 15 10H14V8C14 7.3 13.9 6.6 13.7 6H15C16.1 6 17 6.9 17 8V10M9.5 12C10.3 12 11 12.7 11 13.5C11 14.3 10.3 15 9.5 15C8.7 15 8 14.3 8 13.5C8 12.7 8.7 12 9.5 12M14.5 12C15.3 12 16 12.7 16 13.5C16 14.3 15.3 15 14.5 15C13.7 15 13 14.3 13 13.5C13 12.7 13.7 12 14.5 12M10 17H14C14 18.1 13.1 19 12 19C10.9 19 10 18.1 10 17Z"/>
-      </svg>
+          <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2M17 10H20C21.1 10 22 10.9 22 12V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V12C2 10.9 2.9 10 4 10H7V8C7 6.9 7.9 6 9 6H12.3C12.1 6.6 12 7.3 12 8V10H9C8.4 10 8 10.4 8 11V20H16V11C16 10.4 15.6 10 15 10H14V8C14 7.3 13.9 6.6 13.7 6H15C16.1 6 17 6.9 17 8V10M9.5 12C10.3 12 11 12.7 11 13.5C11 14.3 10.3 15 9.5 15C8.7 15 8 14.3 8 13.5C8 12.7 8.7 12 9.5 12M14.5 12C15.3 12 16 12.7 16 13.5C16 14.3 15.3 15 14.5 15C13.7 15 13 14.3 13 13.5C13 12.7 13.7 12 14.5 12M10 17H14C14 18.1 13.1 19 12 19C10.9 19 10 18.1 10 17Z"/>
+        </svg>
+      ),
+    },
+    {
+      name: 'Workspaces',
+      icon: (
+        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/>
+        </svg>
       ),
     },
   ];
-console.log('isSuperAdminLoggedIn:');
+
   const renderContent = () => {
     if (userData?.role === 'super_admin' && isAdminUser) {
       switch (activeTab) {
         case 'Agent Templates':
           return (
-            <div className="p-8 h-full relative">
-              <div className="flex items-center justify-between mb-8">
+            <div className="p-8 h-full flex flex-col">
+              <div className="flex items-center justify-between mb-8 flex-shrink-0">
                 <div>
                   <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Agent Templates</h1>
                   <p className="text-sm text-gray-500 mt-2">Manage and create agent templates for the platform</p>
@@ -152,12 +171,28 @@ console.log('isSuperAdminLoggedIn:');
                   <span>Create Template</span>
                 </button>
               </div>
-              <AgentTemplatesTable
-                templates={agentTemplatesData?.results || []}
-                isLoading={isAgentTemplatesLoading}
-                onRefresh={refetchAgentTemplates}
-                onEditTemplate={handleEditTemplate}
-              />
+              {/* Table container with proper bottom gap */}
+              <div className="flex-1 min-h-0 mb-32">
+                <AgentTemplatesTable
+                  templates={agentTemplatesData?.results || []}
+                  isLoading={isAgentTemplatesLoading}
+                  onRefresh={refetchAgentTemplates}
+                  onEditTemplate={handleEditTemplate}
+                />
+              </div>
+            </div>
+          );
+        case 'Workspaces':
+          return (
+            <div className="p-8 h-full flex flex-col">
+              <div className="mb-8 flex-shrink-0">
+                <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Workspaces</h1>
+                <p className="text-sm text-gray-500 mt-2">View and manage all workspaces on the platform</p>
+              </div>
+              {/* FIXED: Same structure as AgentTemplatesTable with bottom gap */}
+              <div className="flex-1 min-h-0 mb-62">
+                <WorkspacesTable />
+              </div>
             </div>
           );
         case 'Settings - Manage User':
@@ -219,13 +254,14 @@ console.log('isSuperAdminLoggedIn:');
   if (userData) {
     return (
       <div className="min-h-screen bg-gray-50 flex">
-        <div className="w-75 bg-[linear-gradient(90deg,_#fff_-11.17%,_#c9c7ea_100%)] pl-3 pr-3 pt-6 pb-8">
-          <div className="flex flex-col items-center justify-center space-y-3 mb-12">
+        {/* Sidebar */}
+        <div className="w-75 bg-[linear-gradient(90deg,_#fff_-11.17%,_#c9c7ea_100%)] pl-3 pr-3 pt-6 pb-8 flex-shrink-0">
+          <div className="flex flex-col items-center justify-center space-y-3">
             <Image
               src="/graaho_logo.png"
               alt="Graaho Logo"
-              width={120}
-              height={50}
+              width={180}
+              height={60}
               className="object-cover"
               priority={false}
             />
@@ -335,20 +371,26 @@ console.log('isSuperAdminLoggedIn:');
             </button>
           </div>
         </div>
-        <div className="flex-1 relative">
-          <div className="h-full overflow-auto pb-32">{renderContent()}</div>
-          <SuperAdminCreateAgentTemplateDrawer
-            isOpen={isCreateTemplateDrawerOpen}
-            onClose={() => {
-              setIsCreateTemplateDrawerOpen(false);
-              setEditTemplate(null);
-            }}
-            onAgentCreated={handleAgentCreated}
-            currentUser={userData}
-            isEditMode={!!editTemplate}
-            editTemplate={editTemplate}
-          />
+
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col min-w-0">
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {renderContent()}
+          </div>
         </div>
+
+        <SuperAdminCreateAgentTemplateDrawer
+          isOpen={isCreateTemplateDrawerOpen}
+          onClose={() => {
+            setIsCreateTemplateDrawerOpen(false);
+            setEditTemplate(null);
+          }}
+          onAgentCreated={handleAgentCreated}
+          currentUser={userData}
+          isEditMode={!!editTemplate}
+          editTemplate={editTemplate}
+        />
+
         <footer className="fixed bottom-0 left-75 right-0 bg-gradient-to-r from-slate-50 to-gray-50 border-t border-slate-200/60 backdrop-blur-sm z-40">
           <div className="px-8 py-6">
             <div className="flex items-center justify-between">
