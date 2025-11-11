@@ -35,6 +35,28 @@ interface FormData {
   is_public: boolean;
 }
 
+interface APIFieldResponse {
+  id: string;
+  agent_template: string;
+  field_name: string;
+  field_label: string;
+  field_type: string;
+  is_required: boolean;
+  is_sensitive: boolean;
+  min_length: number | null;
+  max_length: number | null;
+  min_value: number | null;
+  max_value: number | null;
+  default_value: string;
+  placeholder: string;
+  help_text: string;
+  choices: FieldChoice[];
+  display_order: number;
+  field_group: string;
+  created_at: string;
+  updated_at: string;
+}
+
 const FIELD_TYPES = [
   { value: 'text', label: 'Text', icon: '📝' },
   { value: 'textarea', label: 'Textarea', icon: '📄' },
@@ -120,6 +142,13 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
     { skip: !isEditMode || !editTemplate?.id || !adminId }
   );
 
+  // Debug log to see raw API response
+  useEffect(() => {
+    if (templateFieldsData) {
+      console.log('Raw templateFieldsData:', JSON.stringify(templateFieldsData, null, 2));
+    }
+  }, [templateFieldsData]);
+
   // Clear timeout when component unmounts
   useEffect(() => {
     return () => {
@@ -142,7 +171,7 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
       if (isEditMode && templateData) {
         setFormData({
           name: templateData.name,
-          agent_variant: (templateData as any).agent_variant || 'facebook',
+          agent_variant: (templateData as AgentTemplate & { agent_variant?: string }).agent_variant || 'facebook',
           description: templateData.description,
           agent_type: templateData.agent_type || 'internal',
           agent_role: (templateData as AgentTemplate).agent_role || '',
@@ -153,7 +182,7 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
         console.warn('Failed to fetch latest template data, using cached version');
         setFormData({
           name: editTemplate.name,
-          agent_variant: (editTemplate as any).agent_variant || 'facebook',
+          agent_variant: (editTemplate as AgentTemplate & { agent_variant?: string }).agent_variant || 'facebook',
           description: editTemplate.description,
           agent_type: editTemplate.agent_type || 'internal',
           agent_role: (editTemplate as AgentTemplate).agent_role || '',
@@ -176,27 +205,72 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
 
   // Prepopulate fields when template fields data is loaded
   useEffect(() => {
-    if (isEditMode && templateFieldsData && templateFieldsData.fields) {
-      console.log('Prepopulating fields:', templateFieldsData.fields);
-      const prepopulatedFields = templateFieldsData.fields.map((field) => ({
-        id: field.id,
-        field_name: field.field_name,
-        field_label: field.field_label,
-        field_type: field.field_type as TemplateField['field_type'],
-        is_required: field.is_required,
-        is_sensitive: field.is_sensitive,
-        min_length: field.min_length || undefined,
-        max_length: field.max_length || undefined,
-        min_value: field.min_value || undefined,
-        max_value: field.max_value || undefined,
-        default_value: field.default_value,
-        placeholder: field.placeholder,
-        help_text: field.help_text,
-        choices: field.choices,
-        display_order: field.display_order,
-        field_group: field.field_group,
-      }));
-      setTemplateFields(prepopulatedFields);
+    if (isEditMode && templateFieldsData) {
+      console.log('Template fields data received:', templateFieldsData);
+      
+      // Handle different possible response structures
+      let fieldsArray: APIFieldResponse[] = [];
+      
+      if (Array.isArray(templateFieldsData)) {
+        // If the response is directly an array
+        fieldsArray = templateFieldsData;
+      } else if (templateFieldsData.fields && Array.isArray(templateFieldsData.fields)) {
+        // If the response has a 'fields' property
+        fieldsArray = templateFieldsData.fields;
+      }
+      
+      if (fieldsArray.length > 0) {
+        console.log('Prepopulating fields from array:', fieldsArray);
+        
+        const prepopulatedFields: TemplateField[] = fieldsArray.map((field: APIFieldResponse) => {
+          const mappedField: TemplateField = {
+            id: field.id,
+            field_name: field.field_name || '',
+            field_label: field.field_label || '',
+            field_type: field.field_type as TemplateField['field_type'],
+            is_required: field.is_required ?? false,
+            is_sensitive: field.is_sensitive ?? false,
+            display_order: field.display_order ?? 0,
+            field_group: field.field_group || 'configuration',
+            placeholder: field.placeholder || '',
+            default_value: field.default_value || '',
+            help_text: field.help_text || '',
+          };
+
+          // Only add optional fields if they have values
+          if (field.min_length !== null && field.min_length !== undefined) {
+            mappedField.min_length = field.min_length;
+          }
+          if (field.max_length !== null && field.max_length !== undefined) {
+            mappedField.max_length = field.max_length;
+          }
+          if (field.min_value !== null && field.min_value !== undefined) {
+            mappedField.min_value = field.min_value;
+          }
+          if (field.max_value !== null && field.max_value !== undefined) {
+            mappedField.max_value = field.max_value;
+          }
+          
+          // Handle choices array
+          if (field.choices && Array.isArray(field.choices) && field.choices.length > 0) {
+            mappedField.choices = field.choices.map((choice: FieldChoice) => ({
+              value: choice.value || '',
+              label: choice.label || ''
+            }));
+          }
+
+          return mappedField;
+        });
+        
+        // Sort by display_order to maintain correct order
+        prepopulatedFields.sort((a, b) => a.display_order - b.display_order);
+        
+        console.log('Fields prepopulated successfully:', prepopulatedFields);
+        setTemplateFields(prepopulatedFields);
+      } else {
+        console.log('No fields found in template data');
+        setTemplateFields([]);
+      }
     }
   }, [isEditMode, templateFieldsData]);
 
@@ -427,7 +501,7 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
         }
 
         try {
-          const fieldData: any = {
+          const fieldData: Record<string, string | number | boolean | FieldChoice[] | undefined> = {
             field_name: field.field_name.toLowerCase().replace(/\s+/g, '_'),
             field_label: field.field_label,
             field_type: field.field_type,

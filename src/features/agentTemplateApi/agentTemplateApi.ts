@@ -285,7 +285,7 @@ export interface CreateAgentTemplateResponse {
     is_template: boolean;
     is_active: boolean;
     is_public: boolean;
-    additional_info?: Record<string, any>;
+    additional_info?: Record<string, unknown>;  // Changed from any to unknown
     activations_count: number;
     active_activations_count: number;
     instances_count: number;
@@ -1041,7 +1041,7 @@ export const agentTemplateApi = createApi({
               is_template: boolean;
               is_active: boolean;
               is_public: boolean;
-              additional_info: Record<string, any>;
+              additional_info: Record<string, unknown>;
               activations_count: number;
               active_activations_count: number;
               instances_count: number;
