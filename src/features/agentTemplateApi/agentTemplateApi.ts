@@ -144,7 +144,6 @@ export interface AgentInstance {
   is_active: boolean;
   is_public: boolean;
 
-  // Replace `any` with exact shape
   template_config: {
     name: string;
     description: string;
@@ -209,7 +208,7 @@ export interface AgentInstance {
     context: string | null;
     agent_roles: string | null;
     activation_config: {
-      [key: string]: string | number | boolean; // typed based on usage
+      [key: string]: string | number | boolean;
     } | null;
     activated_by: {
       id: string;
@@ -228,7 +227,6 @@ export interface AgentInstance {
     has_activations: boolean;
   };
 }
-
 
 export interface AgentInstancesResponse {
   count: number;
@@ -253,6 +251,7 @@ export interface CreateAgentTemplateRequest {
   name: string;
   description: string;
   agent_type: string;
+  agent_role: string;
   agent_variant?: string;
   website?: string;
   is_active: boolean;
@@ -260,6 +259,7 @@ export interface CreateAgentTemplateRequest {
 }
 
 export interface CreateAgentTemplateResponse {
+  message: string;
   template: {
     id: string;
     agent_id: string;
@@ -269,6 +269,7 @@ export interface CreateAgentTemplateResponse {
     icon: string | null;
     agent_type: string;
     agent_variant: string | null;
+    agent_role?: string;
     website: string | null;
     user_sub_id: string | null;
     created_by: string;
@@ -284,6 +285,7 @@ export interface CreateAgentTemplateResponse {
     is_template: boolean;
     is_active: boolean;
     is_public: boolean;
+    additional_info?: Record<string, any>;
     activations_count: number;
     active_activations_count: number;
     instances_count: number;
@@ -291,7 +293,6 @@ export interface CreateAgentTemplateResponse {
     created_at: string;
     updated_at: string;
   };
-  message: string;
   creator: {
     id: string;
     full_name: string;
@@ -299,11 +300,11 @@ export interface CreateAgentTemplateResponse {
   };
 }
 
-
 export interface UpdateAgentTemplateRequest {
   name?: string;
   description?: string;
   agent_type?: string;
+  agent_role?: string;
   agent_variant?: string;
   website?: string;
   is_active?: boolean;
@@ -352,8 +353,8 @@ export interface CreateActivationResponse {
     status: boolean;
     context: string;
     agent_roles: string;
-       activation_config: {
-      [key: string]: string | number | boolean; // typed based on usage
+    activation_config: {
+      [key: string]: string | number | boolean;
     } | null;
     user_details: {
       id: string;
@@ -386,23 +387,23 @@ export interface CreateActivationResponse {
       role: string;
       is_active: boolean;
     };
-    effective_agent_config:{
-    name: string;
-    description: string;
-    icon: string | null;
-    agent_type: string;
-    agent_variant: string;
-    website: string | null;
-    created_by_admin: string;
-    template_source: string;
-    created_at: string;
-    context: string;
-    agent_roles: string;
-    language: string;
-    tone: string;
-    last_updated: string;
-    updated_by: string;
-  };
+    effective_agent_config: {
+      name: string;
+      description: string;
+      icon: string | null;
+      agent_type: string;
+      agent_variant: string;
+      website: string | null;
+      created_by_admin: string;
+      template_source: string;
+      created_at: string;
+      context: string;
+      agent_roles: string;
+      language: string;
+      tone: string;
+      last_updated: string;
+      updated_by: string;
+    };
     created_at: string;
     updated_at: string;
   };
@@ -416,7 +417,6 @@ export interface CreateActivationResponse {
 export interface UpdateAgentInstanceConfigRequest {
   context: string;
   agent_roles: string;
-
 }
 
 export interface UpdateAgentInstanceConfigResponse {
@@ -457,42 +457,42 @@ export interface UpdateAgentInstanceConfigResponse {
     is_instance: boolean;
     is_active: boolean;
     is_public: boolean;
-     template_config: {
-    name: string;
-    description: string;
-    icon: string | null;
-    agent_type: string;
-    agent_variant: string;
-    website: string | null;
-  };
-      instance_config: {
-    created_by_admin: string;
-    template_source: string;
-    created_at: string;
-    context: string;
-    agent_roles: string;
-    language: string;
-    tone: string;
-    last_updated: string;
-    updated_by: string;
-  };
- effective_config: {
-    name: string;
-    description: string;
-    icon: string | null;
-    agent_type: string;
-    agent_variant: string;
-    website: string | null;
-    created_by_admin: string;
-    template_source: string;
-    created_at: string;
-    context: string;
-    agent_roles: string;
-    language: string;
-    tone: string;
-    last_updated: string;
-    updated_by: string;
-  };
+    template_config: {
+      name: string;
+      description: string;
+      icon: string | null;
+      agent_type: string;
+      agent_variant: string;
+      website: string | null;
+    };
+    instance_config: {
+      created_by_admin: string;
+      template_source: string;
+      created_at: string;
+      context: string;
+      agent_roles: string;
+      language: string;
+      tone: string;
+      last_updated: string;
+      updated_by: string;
+    };
+    effective_config: {
+      name: string;
+      description: string;
+      icon: string | null;
+      agent_type: string;
+      agent_variant: string;
+      website: string | null;
+      created_by_admin: string;
+      template_source: string;
+      created_at: string;
+      context: string;
+      agent_roles: string;
+      language: string;
+      tone: string;
+      last_updated: string;
+      updated_by: string;
+    };
     activations_count: number;
     active_activations_count: number;
     created_at: string;
@@ -559,7 +559,6 @@ export interface AgentInstanceAPIError {
   detail?: string;
 }
 
-
 export interface TemplateInstance {
   id: string;
   agent_id: string;
@@ -585,6 +584,130 @@ export interface TemplateInstancesResponse {
   instances: TemplateInstance[];
 }
 
+// Template Field interfaces
+export interface FieldChoice {
+  value: string;
+  label: string;
+}
+
+export interface TemplateField {
+  id?: string;
+  field_name: string;
+  field_label: string;
+  field_type: 'text' | 'textarea' | 'email' | 'url' | 'number' | 'select' | 'multiselect' | 'radio' | 'checkbox' | 'date' | 'datetime' | 'file' | 'password';
+  is_required?: boolean;
+  is_sensitive?: boolean;
+  min_length?: number;
+  max_length?: number;
+  min_value?: number;
+  max_value?: number;
+  default_value?: string;
+  placeholder?: string;
+  help_text?: string;
+  choices?: FieldChoice[];
+  display_order: number;
+  field_group?: string;
+}
+
+export interface BulkCreateFieldsRequest {
+  agent_template: string;
+  fields: TemplateField[];
+}
+
+export interface BulkCreateFieldsResponse {
+  message: string;
+  created_count: number;
+  errors_count: number;
+  template: {
+    id: string;
+    name: string;
+  };
+  created_fields: Array<{
+    id: string;
+    field_name: string;
+    field_label: string;
+    display_order: number;
+  }>;
+  errors?: Array<{
+    index: number;
+    field_name: string;
+    error: string;
+  }>;
+}
+
+export interface GetTemplateFieldsResponse {
+  template: {
+    id: string;
+    name: string;
+    agent_id: string;
+  };
+  fields_count: number;
+  fields: Array<{
+    id: string;
+    agent_template: string;
+    field_name: string;
+    field_label: string;
+    field_type: string;
+    is_required: boolean;
+    is_sensitive: boolean;
+    min_length: number | null;
+    max_length: number | null;
+    min_value: number | null;
+    max_value: number | null;
+    default_value: string;
+    placeholder: string;
+    help_text: string;
+    choices: FieldChoice[];
+    display_order: number;
+    field_group: string;
+    created_at: string;
+    updated_at: string;
+  }>;
+}
+
+export interface UpdateTemplateFieldRequest {
+  field_name?: string;
+  field_label?: string;
+  field_type?: 'text' | 'textarea' | 'email' | 'url' | 'number' | 'select' | 'multiselect' | 'radio' | 'checkbox' | 'date' | 'datetime' | 'file' | 'password';
+  is_required?: boolean;
+  is_sensitive?: boolean;
+  min_length?: number;
+  max_length?: number;
+  min_value?: number;
+  max_value?: number;
+  default_value?: string;
+  placeholder?: string;
+  help_text?: string;
+  choices?: FieldChoice[];
+  display_order?: number;
+  field_group?: string;
+}
+
+export interface UpdateTemplateFieldResponse {
+  message: string;
+  field: {
+    id: string;
+    agent_template: string;
+    field_name: string;
+    field_label: string;
+    field_type: string;
+    is_required: boolean;
+    is_sensitive: boolean;
+    min_length: number | null;
+    max_length: number | null;
+    min_value: number | null;
+    max_value: number | null;
+    default_value: string;
+    placeholder: string;
+    help_text: string;
+    choices: FieldChoice[];
+    display_order: number;
+    field_group: string;
+    created_at: string;
+    updated_at: string;
+  };
+}
+
 export interface AgentTemplatesQueryParams {
   admin_id: string;
   page?: number;
@@ -605,7 +728,7 @@ const baseQueryWithoutAuth = fetchBaseQuery({
 export const agentTemplateApi = createApi({
   reducerPath: 'agentTemplateApi',
   baseQuery: baseQueryWithoutAuth,
-  tagTypes: ['AgentTemplate', 'AdminAssignment', 'TemplateAssignment', 'AgentInstance', 'Activation', 'Workspace'],
+  tagTypes: ['AgentTemplate', 'AdminAssignment', 'TemplateAssignment', 'AgentInstance', 'Activation', 'Workspace', 'TemplateField'],
   endpoints: (builder) => ({
 
     // Workspace endpoints
@@ -628,27 +751,28 @@ export const agentTemplateApi = createApi({
     }),
 
     getTemplateInstances: builder.query<TemplateInstancesResponse, { templateId: string; admin_id: string }>({
-  query: ({ templateId, admin_id }) => ({
-    url: `agent-templates/${templateId}/instances/?admin_id=${encodeURIComponent(admin_id)}`,
-    method: 'GET',
-  }),
-  providesTags: (result, error, { templateId }) => [
-    { type: 'AgentInstance', id: templateId },
-    'AgentInstance'
-  ],
-  transformResponse: (response: unknown) => {
-    if (
-      typeof response === 'object' &&
-      response !== null &&
-      'template' in response &&
-      'instances' in response
-    ) {
-      return response as TemplateInstancesResponse;
-    }
-    throw new Error('Invalid response format');
-  },
+      query: ({ templateId, admin_id }) => ({
+        url: `agent-templates/${templateId}/instances/?admin_id=${encodeURIComponent(admin_id)}`,
+        method: 'GET',
+      }),
+      providesTags: (result, error, { templateId }) => [
+        { type: 'AgentInstance', id: templateId },
+        'AgentInstance'
+      ],
+      transformResponse: (response: unknown) => {
+        if (
+          typeof response === 'object' &&
+          response !== null &&
+          'template' in response &&
+          'instances' in response
+        ) {
+          return response as TemplateInstancesResponse;
+        }
+        throw new Error('Invalid response format');
+      },
     }),
-    // NEW ENDPOINT: Upsert activation
+
+    // Upsert activation
     upsertActivation: builder.mutation<
       CreateActivationResponse,
       { admin_sub_id: string; data: CreateActivationRequest }
@@ -813,27 +937,26 @@ export const agentTemplateApi = createApi({
       },
     }),
 
- // Keep it simple - just fetch all data
-  getAgentTemplatesByAdminId: builder.query<AgentTemplatesResponse, string>({
-    query: (admin_id) => ({
-      url: `agent-templates/?admin_id=${encodeURIComponent(admin_id)}`,
-      method: 'GET',
+    getAgentTemplatesByAdminId: builder.query<AgentTemplatesResponse, string>({
+      query: (admin_id) => ({
+        url: `agent-templates/?admin_id=${encodeURIComponent(admin_id)}`,
+        method: 'GET',
+      }),
+      providesTags: (result, error, admin_id) => [
+        { type: 'AgentTemplate', id: admin_id },
+        'AgentTemplate'
+      ],
+      transformResponse: (response: unknown) => {
+        if (
+          typeof response === 'object' &&
+          response !== null &&
+          'results' in response
+        ) {
+          return response as AgentTemplatesResponse;
+        }
+        throw new Error('Invalid response format');
+      },
     }),
-    providesTags: (result, error, admin_id) => [
-      { type: 'AgentTemplate', id: admin_id },
-      'AgentTemplate'
-    ],
-    transformResponse: (response: unknown) => {
-      if (
-        typeof response === 'object' &&
-        response !== null &&
-        'results' in response
-      ) {
-        return response as AgentTemplatesResponse;
-      }
-      throw new Error('Invalid response format');
-    },
-  }),
 
     getTemplateAssignmentsByAdminId: builder.query<TemplateAssignmentsResponse, string>({
       query: (admin_id) => ({
@@ -882,54 +1005,89 @@ export const agentTemplateApi = createApi({
       }),
       invalidatesTags: ['AgentTemplate'],
       transformResponse: (response: unknown): CreateAgentTemplateResponse => {
+        console.log('Raw create template response:', response);
+        
         if (
           typeof response === 'object' &&
           response !== null &&
           'message' in response &&
           'template' in response &&
-          'creator' in response
+          'created_by' in response
         ) {
-          return response as CreateAgentTemplateResponse;
-        }
-        return {
-          message: 'Invalid response format received',
-          template: {
-            id: '',
-            agent_id: '',
-            agent_category: '',
-            name: '',
-            description: '',
-            icon: null,
-            agent_type: '',
-            agent_variant: null,
-            website: null,
-            user_sub_id: null,
-            created_by: '',
-            creator_name: '',
-            created_by_details: {
-              id: '',
-              sub_id: null,
-              full_name: '',
-              email: '',
-              role: '',
-              is_active: false,
+          const apiResponse = response as {
+            message: string;
+            template: {
+              id: string;
+              agent_id: string;
+              agent_category: string;
+              name: string;
+              description: string;
+              icon: string | null;
+              agent_type: string;
+              agent_variant: string | null;
+              agent_role: string;
+              website: string | null;
+              user_sub_id: string | null;
+              created_by: string;
+              creator_name: string;
+              created_by_details: {
+                id: string;
+                sub_id: string | null;
+                full_name: string;
+                email: string;
+                role: string;
+                is_active: boolean;
+              };
+              is_template: boolean;
+              is_active: boolean;
+              is_public: boolean;
+              additional_info: Record<string, any>;
+              activations_count: number;
+              active_activations_count: number;
+              instances_count: number;
+              active_instances_count: number;
+              created_at: string;
+              updated_at: string;
+            };
+            created_by: {
+              id: string;
+              full_name: string;
+              role: string;
+            };
+          };
+
+          return {
+            message: apiResponse.message,
+            template: {
+              id: apiResponse.template.id,
+              agent_id: apiResponse.template.agent_id,
+              agent_category: apiResponse.template.agent_category,
+              name: apiResponse.template.name,
+              description: apiResponse.template.description,
+              icon: apiResponse.template.icon,
+              agent_type: apiResponse.template.agent_type,
+              agent_variant: apiResponse.template.agent_variant,
+              website: apiResponse.template.website,
+              user_sub_id: apiResponse.template.user_sub_id,
+              created_by: apiResponse.template.created_by,
+              creator_name: apiResponse.template.creator_name,
+              created_by_details: apiResponse.template.created_by_details,
+              is_template: apiResponse.template.is_template,
+              is_active: apiResponse.template.is_active,
+              is_public: apiResponse.template.is_public,
+              activations_count: apiResponse.template.activations_count,
+              active_activations_count: apiResponse.template.active_activations_count,
+              instances_count: apiResponse.template.instances_count,
+              active_instances_count: apiResponse.template.active_instances_count,
+              created_at: apiResponse.template.created_at,
+              updated_at: apiResponse.template.updated_at,
             },
-            is_template: false,
-            is_active: false,
-            is_public: false,
-            activations_count: 0,
-            active_activations_count: 0,
-            instances_count: 0,
-            active_instances_count: 0,
-            created_at: '',
-            updated_at: '',
-          },
-          creator: {
-            id: '',
-            full_name: '',
-            role: '',
-          },
-        };
+            creator: apiResponse.created_by,
+          };
+        }
+        
+        console.error('Invalid response format received:', response);
+        throw new Error('Invalid response format received from template creation API');
       },
     }),
 
@@ -943,60 +1101,58 @@ export const agentTemplateApi = createApi({
         { type: 'AgentTemplate', id: admin_id },
         'AgentTemplate'
       ],
-    transformResponse: (response: unknown): CreateAgentTemplateResponse => {
-  if (
-    typeof response === 'object' &&
-    response !== null &&
-    'id' in response &&
-    'agent_id' in response
-  ) {
-    const r = response as { id: string; agent_id: string };
+      transformResponse: (response: unknown): CreateAgentTemplateResponse => {
+        if (
+          typeof response === 'object' &&
+          response !== null &&
+          'id' in response &&
+          'agent_id' in response
+        ) {
+          const r = response as { id: string; agent_id: string };
 
-    // Construct a full CreateAgentTemplateResponse object
-    return {
-      message: 'Template updated successfully',
-      template: {
-        id: r.id,
-        agent_id: r.agent_id,
-        agent_category: '',     // fill default values or map if available
-        name: '',
-        description: '',
-        icon: null,
-        agent_type: '',
-        agent_variant: null,
-        website: null,
-        user_sub_id: null,
-        created_by: '',
-        creator_name: '',
-        created_by_details: {
-          id: '',
-          sub_id: null,
-          full_name: '',
-          email: '',
-          role: '',
-          is_active: false,
-        },
-        is_template: false,
-        is_active: false,
-        is_public: false,
-        activations_count: 0,
-        active_activations_count: 0,
-        instances_count: 0,
-        active_instances_count: 0,
-        created_at: '',
-        updated_at: '',
+          return {
+            message: 'Template updated successfully',
+            template: {
+              id: r.id,
+              agent_id: r.agent_id,
+              agent_category: '',
+              name: '',
+              description: '',
+              icon: null,
+              agent_type: '',
+              agent_variant: null,
+              website: null,
+              user_sub_id: null,
+              created_by: '',
+              creator_name: '',
+              created_by_details: {
+                id: '',
+                sub_id: null,
+                full_name: '',
+                email: '',
+                role: '',
+                is_active: false,
+              },
+              is_template: false,
+              is_active: false,
+              is_public: false,
+              activations_count: 0,
+              active_activations_count: 0,
+              instances_count: 0,
+              active_instances_count: 0,
+              created_at: '',
+              updated_at: '',
+            },
+            creator: {
+              id: '',
+              full_name: '',
+              role: '',
+            },
+          };
+        }
+
+        throw new Error('Invalid response format');
       },
-      creator: {
-        id: '',
-        full_name: '',
-        role: '',
-      },
-    };
-  }
-
-  throw new Error('Invalid response format');
-},
-
     }),
 
     deleteAgentTemplate: builder.mutation<{ message: string }, { id: string; admin_id: string }>({
@@ -1027,6 +1183,101 @@ export const agentTemplateApi = createApi({
         throw new Error('Invalid response format');
       },
     }),
+
+    // Bulk create template fields
+    bulkCreateTemplateFields: builder.mutation<BulkCreateFieldsResponse, { admin_id: string; data: BulkCreateFieldsRequest }>({
+      query: ({ admin_id, data }) => ({
+        url: `template-fields/bulk-create/?admin_id=${encodeURIComponent(admin_id)}`,
+        method: 'POST',
+        body: data,
+      }),
+      invalidatesTags: ['TemplateField', 'AgentTemplate'],
+      transformResponse: (response: unknown) => {
+        console.log('Bulk create fields response:', response);
+        if (
+          typeof response === 'object' &&
+          response !== null &&
+          'message' in response &&
+          'created_count' in response
+        ) {
+          return response as BulkCreateFieldsResponse;
+        }
+        throw new Error('Invalid response format');
+      },
+      transformErrorResponse: (response: unknown) => {
+        console.log('Bulk create fields error:', response);
+        if (
+          typeof response === 'object' &&
+          response !== null &&
+          'data' in response &&
+          typeof response.data === 'object'
+        ) {
+          return response.data as APIError;
+        }
+        return { detail: 'An unexpected error occurred during bulk field creation' };
+      },
+    }),
+
+    // Get template fields by template ID
+    getTemplateFieldsByTemplateId: builder.query<GetTemplateFieldsResponse, { template_id: string; admin_id: string }>({
+      query: ({ template_id, admin_id }) => ({
+        url: `template-fields/by-template/?template_id=${encodeURIComponent(template_id)}&admin_id=${encodeURIComponent(admin_id)}`,
+        method: 'GET',
+      }),
+      providesTags: (result, error, { template_id }) => [
+        { type: 'TemplateField', id: template_id },
+        'TemplateField'
+      ],
+      transformResponse: (response: unknown) => {
+        console.log('Get template fields response:', response);
+        if (
+          typeof response === 'object' &&
+          response !== null &&
+          'template' in response &&
+          'fields' in response
+        ) {
+          return response as GetTemplateFieldsResponse;
+        }
+        throw new Error('Invalid response format');
+      },
+    }),
+
+    // Update template field
+    updateTemplateField: builder.mutation<UpdateTemplateFieldResponse, { field_id: string; admin_id: string; data: UpdateTemplateFieldRequest }>({
+      query: ({ field_id, admin_id, data }) => ({
+        url: `template-fields/${field_id}/?admin_id=${encodeURIComponent(admin_id)}`,
+        method: 'PATCH',
+        body: data,
+      }),
+      invalidatesTags: (result, error, { field_id }) => [
+        { type: 'TemplateField', id: field_id },
+        'TemplateField'
+      ],
+      transformResponse: (response: unknown) => {
+        console.log('Update template field response:', response);
+        if (
+          typeof response === 'object' &&
+          response !== null &&
+          'message' in response &&
+          'field' in response
+        ) {
+          return response as UpdateTemplateFieldResponse;
+        }
+        throw new Error('Invalid response format');
+      },
+      transformErrorResponse: (response: unknown) => {
+        console.log('Update template field error:', response);
+        if (
+          typeof response === 'object' &&
+          response !== null &&
+          'data' in response &&
+          typeof response.data === 'object'
+        ) {
+          return response.data as APIError;
+        }
+        return { detail: 'An unexpected error occurred during field update' };
+      },
+    }),
   }),
 });
 
@@ -1045,6 +1296,9 @@ export const {
   useUpdateAgentTemplateMutation,
   useDeleteAgentTemplateMutation,
   useAssignAdminToTemplateMutation,
+  useBulkCreateTemplateFieldsMutation,
+  useGetTemplateFieldsByTemplateIdQuery,
+  useUpdateTemplateFieldMutation,
 } = agentTemplateApi;
 
 export const getAdminIdFromStorage = (): string | null => {
