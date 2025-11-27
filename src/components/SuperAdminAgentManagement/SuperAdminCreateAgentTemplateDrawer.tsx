@@ -89,11 +89,14 @@ const AGENT_VARIANTS = [
   { value: 'website', label: 'Website' },
 ];
 
-// Predefined field names for the dropdown
+// Predefined field names for the dropdown - Updated with WhatsApp fields
 const PREDEFINED_FIELD_NAMES = [
   { value: 'app_secret', label: 'App Secret' },
   { value: 'page_access_token', label: 'Page Access Token' },
   { value: 'verify_token', label: 'Verify Token' },
+  { value: 'access_token', label: 'WhatsApp Access Token' },
+  { value: 'business_account_id', label: 'Business Account ID' },
+  { value: 'phone_number_id', label: 'Phone Number ID' },
   { value: 'custom', label: 'Choose Field Name' }
 ];
 
