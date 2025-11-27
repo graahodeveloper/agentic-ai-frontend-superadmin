@@ -392,11 +392,11 @@ const Dashboard = () => {
         />
 
         <footer className="fixed bottom-0 left-75 right-0 bg-gradient-to-r from-slate-50 to-gray-50 border-t border-slate-200/60 backdrop-blur-sm z-40">
-          <div className="px-8 py-6">
+          <div className="px-8 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <div className="flex items-center space-x-3">
-                  <div className="relative">
+                  {/* <div className="relative">
                     <Image
                       src="/graaho_logo.png"
                       alt="Graaho Logo"
@@ -405,21 +405,21 @@ const Dashboard = () => {
                       className="object-contain brightness-105"
                       priority={false}
                     />
-                  </div>
-                  <div className="h-8 w-px bg-gradient-to-b from-transparent via-slate-300 to-transparent"></div>
-                  <div className="space-y-0.5">
+                  </div> */}
+                  {/* <div className="h-8 w-px bg-gradient-to-b from-transparent via-slate-300 to-transparent"></div> */}
+                  {/* <div className="space-y-0.5">
                     <div className="flex items-center space-x-2 text-xs text-slate-500">
                       <span className="hover:text-slate-700 cursor-pointer transition-colors">Privacy Policy</span>
                       <div className="w-1 h-1 bg-slate-400 rounded-full"></div>
                       <span className="hover:text-slate-700 cursor-pointer transition-colors">Terms of Service</span>
                     </div>
-                  </div>
+                  </div> */}
                 </div>
               </div>
               <div className="text-right">
                 <div className="flex flex-col items-end space-y-1">
                   <p className="text-xs font-medium text-slate-700">© 2025 Graaho Technologies</p>
-                  <p className="text-xs text-slate-500">All rights reserved</p>
+                  {/* <p className="text-xs text-slate-500">All rights reserved</p> */}
                 </div>
               </div>
             </div>
