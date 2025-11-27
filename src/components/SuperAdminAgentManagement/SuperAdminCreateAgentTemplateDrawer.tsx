@@ -89,6 +89,14 @@ const AGENT_VARIANTS = [
   { value: 'website', label: 'Website' },
 ];
 
+// Predefined field names for the dropdown
+const PREDEFINED_FIELD_NAMES = [
+  { value: 'app_secret', label: 'App Secret' },
+  { value: 'page_access_token', label: 'Page Access Token' },
+  { value: 'verify_token', label: 'Verify Token' },
+  { value: 'custom', label: 'Choose Field Name' }
+];
+
 const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplateDrawerProps> = ({
   isOpen,
   onClose,
@@ -405,6 +413,21 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
     const field = templateFields[fieldIndex];
     const choices = (field.choices || []).filter((_, i) => i !== choiceIndex);
     updateField(fieldIndex, { choices });
+  };
+
+  // Handle field name selection from dropdown or custom input
+  const handleFieldNameChange = (index: number, selectedValue: string, customValue: string = '') => {
+    let finalFieldName = '';
+    
+    if (selectedValue === 'custom') {
+      // Use custom field value
+      finalFieldName = customValue.toLowerCase().replace(/\s+/g, '_');
+    } else {
+      // Use predefined value
+      finalFieldName = selectedValue;
+    }
+    
+    updateField(index, { field_name: finalFieldName });
   };
 
   const createTemplateFields = async (templateId: string): Promise<boolean> => {
@@ -1067,329 +1090,372 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {templateFields.map((field, index) => (
-                        <div
-                          key={field.id || index}
-                          className="border border-gray-300 rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow"
-                        >
-                          {/* Field Header */}
-                          <div className="p-4 flex items-center justify-between bg-gradient-to-r from-gray-50 to-gray-100">
-                            <div className="flex items-center space-x-3 flex-1">
-                              <div className="flex flex-col space-y-1">
+                      {templateFields.map((field, index) => {
+                        // Determine if the current field name matches any predefined value
+                        const currentPredefinedValue = PREDEFINED_FIELD_NAMES.find(
+                          item => item.value === field.field_name
+                        )?.value || 'custom';
+                        
+                        // Extract custom field name if not predefined
+                        const customFieldName = PREDEFINED_FIELD_NAMES.some(
+                          item => item.value === field.field_name
+                        ) ? '' : field.field_name;
+
+                        return (
+                          <div
+                            key={field.id || index}
+                            className="border border-gray-300 rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow"
+                          >
+                            {/* Field Header */}
+                            <div className="p-4 flex items-center justify-between bg-gradient-to-r from-gray-50 to-gray-100">
+                              <div className="flex items-center space-x-3 flex-1">
+                                <div className="flex flex-col space-y-1">
+                                  <button
+                                    onClick={() => moveField(index, 'up')}
+                                    disabled={index === 0}
+                                    className={`p-1 rounded ${
+                                      index === 0
+                                        ? 'text-gray-300 cursor-not-allowed'
+                                        : 'text-gray-500 hover:bg-white hover:text-indigo-600'
+                                    }`}
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    onClick={() => moveField(index, 'down')}
+                                    disabled={index === templateFields.length - 1}
+                                    className={`p-1 rounded ${
+                                      index === templateFields.length - 1
+                                        ? 'text-gray-300 cursor-not-allowed'
+                                        : 'text-gray-500 hover:bg-white hover:text-indigo-600'
+                                    }`}
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  </button>
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-2xl">
+                                      {FIELD_TYPES.find(t => t.value === field.field_type)?.icon || '📝'}
+                                    </span>
+                                    <div>
+                                      <p className="font-medium text-gray-900">
+                                        {field.field_label || 'Untitled Field'}
+                                      </p>
+                                      <p className="text-sm text-gray-500">
+                                        {field.field_name || 'field_name'} • {FIELD_TYPES.find(t => t.value === field.field_type)?.label || field.field_type}
+                                        {field.is_required && <span className="ml-2 text-red-500">Required</span>}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-2">
                                 <button
-                                  onClick={() => moveField(index, 'up')}
-                                  disabled={index === 0}
-                                  className={`p-1 rounded ${
-                                    index === 0
-                                      ? 'text-gray-300 cursor-not-allowed'
-                                      : 'text-gray-500 hover:bg-white hover:text-indigo-600'
-                                  }`}
+                                  onClick={() => setExpandedFieldIndex(expandedFieldIndex === index ? null : index)}
+                                  className="p-2 rounded-lg hover:bg-white text-gray-600 hover:text-indigo-600 transition-colors"
                                 >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                                  </svg>
-                                </button>
-                                <button
-                                  onClick={() => moveField(index, 'down')}
-                                  disabled={index === templateFields.length - 1}
-                                  className={`p-1 rounded ${
-                                    index === templateFields.length - 1
-                                      ? 'text-gray-300 cursor-not-allowed'
-                                      : 'text-gray-500 hover:bg-white hover:text-indigo-600'
-                                  }`}
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <svg
+                                    className={`w-5 h-5 transition-transform ${expandedFieldIndex === index ? 'rotate-180' : ''}`}
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                   </svg>
                                 </button>
-                              </div>
-                              <div className="flex-1">
-                                <div className="flex items-center space-x-2">
-                                  <span className="text-2xl">
-                                    {FIELD_TYPES.find(t => t.value === field.field_type)?.icon || '📝'}
-                                  </span>
-                                  <div>
-                                    <p className="font-medium text-gray-900">
-                                      {field.field_label || 'Untitled Field'}
-                                    </p>
-                                    <p className="text-sm text-gray-500">
-                                      {field.field_name || 'field_name'} • {FIELD_TYPES.find(t => t.value === field.field_type)?.label || field.field_type}
-                                      {field.is_required && <span className="ml-2 text-red-500">Required</span>}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <button
-                                onClick={() => setExpandedFieldIndex(expandedFieldIndex === index ? null : index)}
-                                className="p-2 rounded-lg hover:bg-white text-gray-600 hover:text-indigo-600 transition-colors"
-                              >
-                                <svg
-                                  className={`w-5 h-5 transition-transform ${expandedFieldIndex === index ? 'rotate-180' : ''}`}
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
+                                <button
+                                  onClick={() => removeField(index)}
+                                  className="p-2 rounded-lg hover:bg-red-50 text-red-600 hover:text-red-700 transition-colors"
                                 >
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                              </button>
-                              <button
-                                onClick={() => removeField(index)}
-                                className="p-2 rounded-lg hover:bg-red-50 text-red-600 hover:text-red-700 transition-colors"
-                              >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              </button>
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
                             </div>
-                          </div>
 
-                          {/* Field Configuration (Expandable) */}
-                          {expandedFieldIndex === index && (
-                            <div className="p-4 space-y-4 border-t border-gray-200 bg-white">
-                              <div className="grid grid-cols-2 gap-4">
-                                {/* Field Name */}
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Field Name <span className="text-red-500">*</span>
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={field.field_name}
-                                    onChange={(e) => updateField(index, { field_name: e.target.value })}
-                                    placeholder="api_key"
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                                  />
-                                  <p className="mt-1 text-xs text-gray-500">Unique identifier (use underscore)</p>
-                                </div>
-
-                                {/* Field Label */}
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Field Label <span className="text-red-500">*</span>
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={field.field_label}
-                                    onChange={(e) => updateField(index, { field_label: e.target.value })}
-                                    placeholder="API Key"
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                                  />
-                                  <p className="mt-1 text-xs text-gray-500">Display label for users</p>
-                                </div>
-
-                                {/* Field Type */}
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Field Type <span className="text-red-500">*</span>
-                                  </label>
-                                  <select
-                                    value={field.field_type}
-                                    onChange={(e) => updateField(index, { 
-                                      field_type: e.target.value as TemplateField['field_type'],
-                                      choices: needsChoices(e.target.value) ? (field.choices || []) : undefined
-                                    })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white"
-                                  >
-                                    {FIELD_TYPES.map(type => (
-                                      <option key={type.value} value={type.value}>
-                                        {type.icon} {type.label}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-
-                                {/* Field Group */}
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Field Group
-                                  </label>
-                                  <select
-                                    value={field.field_group || 'configuration'}
-                                    onChange={(e) => updateField(index, { field_group: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white"
-                                  >
-                                    {FIELD_GROUPS.map(group => (
-                                      <option key={group} value={group}>
-                                        {group.charAt(0).toUpperCase() + group.slice(1)}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                              </div>
-
-                              {/* Placeholder & Help Text */}
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Placeholder
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={field.placeholder || ''}
-                                    onChange={(e) => updateField(index, { placeholder: e.target.value })}
-                                    placeholder="Enter placeholder text..."
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                                  />
-                                </div>
-
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Default Value
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={field.default_value || ''}
-                                    onChange={(e) => updateField(index, { default_value: e.target.value })}
-                                    placeholder="Default value..."
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                                  />
-                                </div>
-                              </div>
-
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                  Help Text
-                                </label>
-                                <textarea
-                                  value={field.help_text || ''}
-                                  onChange={(e) => updateField(index, { help_text: e.target.value })}
-                                  placeholder="Additional guidance for users..."
-                                  rows={2}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none"
-                                />
-                              </div>
-
-                              {/* Validation Rules (for applicable types) */}
-                              {['text', 'textarea', 'password'].includes(field.field_type) && (
-                                <div className="grid grid-cols-2 gap-4">
+                            {/* Field Configuration (Expandable) */}
+                            {expandedFieldIndex === index && (
+                              <div className="p-4 space-y-4 border-t border-gray-200 bg-white">
+                                {/* Field Name Configuration - Updated with dropdown and custom input */}
+                                <div className="grid grid-cols-1 gap-4">
                                   <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                      Min Length
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                      Field Name <span className="text-red-500">*</span>
                                     </label>
-                                    <input
-                                      type="number"
-                                      value={field.min_length || ''}
-                                      onChange={(e) => updateField(index, { min_length: parseInt(e.target.value) || undefined })}
-                                      placeholder="0"
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                      Max Length
-                                    </label>
-                                    <input
-                                      type="number"
-                                      value={field.max_length || ''}
-                                      onChange={(e) => updateField(index, { max_length: parseInt(e.target.value) || undefined })}
-                                      placeholder="255"
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                                    />
-                                  </div>
-                                </div>
-                              )}
-
-                              {field.field_type === 'number' && (
-                                <div className="grid grid-cols-2 gap-4">
-                                  <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                      Min Value
-                                    </label>
-                                    <input
-                                      type="number"
-                                      value={field.min_value || ''}
-                                      onChange={(e) => updateField(index, { min_value: parseFloat(e.target.value) || undefined })}
-                                      placeholder="0"
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                      Max Value
-                                    </label>
-                                    <input
-                                      type="number"
-                                      value={field.max_value || ''}
-                                      onChange={(e) => updateField(index, { max_value: parseFloat(e.target.value) || undefined })}
-                                      placeholder="100"
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                                    />
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Choices (for select, multiselect, radio) */}
-                              {needsChoices(field.field_type) && (
-                                <div>
-                                  <div className="flex items-center justify-between mb-2">
-                                    <label className="block text-sm font-medium text-gray-700">
-                                      Choices <span className="text-red-500">*</span>
-                                    </label>
-                                    <button
-                                      onClick={() => addChoice(index)}
-                                      className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
-                                    >
-                                      + Add Choice
-                                    </button>
-                                  </div>
-                                  <div className="space-y-2">
-                                    {(field.choices || []).map((choice, choiceIndex) => (
-                                      <div key={choiceIndex} className="flex items-center space-x-2">
-                                        <input
-                                          type="text"
-                                          value={choice.value}
-                                          onChange={(e) => updateChoice(index, choiceIndex, { value: e.target.value })}
-                                          placeholder="value"
-                                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                                        />
-                                        <input
-                                          type="text"
-                                          value={choice.label}
-                                          onChange={(e) => updateChoice(index, choiceIndex, { label: e.target.value })}
-                                          placeholder="Label"
-                                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                                        />
-                                        <button
-                                          onClick={() => removeChoice(index, choiceIndex)}
-                                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      {/* Dropdown for predefined field names */}
+                                      <div>
+                                        <label className="block text-xs text-gray-500 mb-1">Select Field Type</label>
+                                        <select
+                                          value={currentPredefinedValue}
+                                          onChange={(e) => handleFieldNameChange(index, e.target.value, customFieldName)}
+                                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white"
                                         >
-                                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                          </svg>
-                                        </button>
+                                          {PREDEFINED_FIELD_NAMES.map(item => (
+                                            <option key={item.value} value={item.value}>
+                                              {item.label}
+                                            </option>
+                                          ))}
+                                        </select>
                                       </div>
-                                    ))}
+                                      
+                                      {/* Custom field input - only show when "custom" is selected */}
+                                      {currentPredefinedValue === 'custom' && (
+                                        <div>
+                                          <label className="block text-xs text-gray-500 mb-1">Custom Field Name</label>
+                                          <input
+                                            type="text"
+                                            value={customFieldName}
+                                            onChange={(e) => handleFieldNameChange(index, 'custom', e.target.value)}
+                                            placeholder="Enter custom field name"
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                          />
+                                        </div>
+                                      )}
+                                    </div>
+                                    <p className="mt-1 text-xs text-gray-500">
+                                      {currentPredefinedValue === 'custom' 
+                                        ? 'Enter a custom field name (will be converted to lowercase with underscores)'
+                                        : 'Select a predefined field name or choose "Custom Field" to enter your own'
+                                      }
+                                    </p>
                                   </div>
                                 </div>
-                              )}
 
-                              {/* Checkboxes */}
-                              <div className="flex items-center space-x-6 pt-2">
-                                <label className="flex items-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={field.is_required || false}
-                                    onChange={(e) => updateField(index, { is_required: e.target.checked })}
-                                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                                <div className="grid grid-cols-2 gap-4">
+                                  {/* Field Label */}
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                      Field Label <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={field.field_label}
+                                      onChange={(e) => updateField(index, { field_label: e.target.value })}
+                                      placeholder="API Key"
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                    />
+                                    <p className="mt-1 text-xs text-gray-500">Display label for users</p>
+                                  </div>
+
+                                  {/* Field Type */}
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                      Field Type <span className="text-red-500">*</span>
+                                    </label>
+                                    <select
+                                      value={field.field_type}
+                                      onChange={(e) => updateField(index, { 
+                                        field_type: e.target.value as TemplateField['field_type'],
+                                        choices: needsChoices(e.target.value) ? (field.choices || []) : undefined
+                                      })}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white"
+                                    >
+                                      {FIELD_TYPES.map(type => (
+                                        <option key={type.value} value={type.value}>
+                                          {type.icon} {type.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+
+                                  {/* Field Group */}
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                      Field Group
+                                    </label>
+                                    <select
+                                      value={field.field_group || 'configuration'}
+                                      onChange={(e) => updateField(index, { field_group: e.target.value })}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white"
+                                    >
+                                      {FIELD_GROUPS.map(group => (
+                                        <option key={group} value={group}>
+                                          {group.charAt(0).toUpperCase() + group.slice(1)}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+
+                                {/* Placeholder & Help Text */}
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                      Placeholder
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={field.placeholder || ''}
+                                      onChange={(e) => updateField(index, { placeholder: e.target.value })}
+                                      placeholder="Enter placeholder text..."
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                      Default Value
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={field.default_value || ''}
+                                      onChange={(e) => updateField(index, { default_value: e.target.value })}
+                                      placeholder="Default value..."
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Help Text
+                                  </label>
+                                  <textarea
+                                    value={field.help_text || ''}
+                                    onChange={(e) => updateField(index, { help_text: e.target.value })}
+                                    placeholder="Additional guidance for users..."
+                                    rows={2}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none"
                                   />
-                                  <span className="ml-2 text-sm text-gray-700">Required Field</span>
-                                </label>
-                                <label className="flex items-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={field.is_sensitive || false}
-                                    onChange={(e) => updateField(index, { is_sensitive: e.target.checked })}
-                                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                                  />
-                                  <span className="ml-2 text-sm text-gray-700">Sensitive Data</span>
-                                </label>
+                                </div>
+
+                                {/* Validation Rules (for applicable types) */}
+                                {['text', 'textarea', 'password'].includes(field.field_type) && (
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Min Length
+                                      </label>
+                                      <input
+                                        type="number"
+                                        value={field.min_length || ''}
+                                        onChange={(e) => updateField(index, { min_length: parseInt(e.target.value) || undefined })}
+                                        placeholder="0"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Max Length
+                                      </label>
+                                      <input
+                                        type="number"
+                                        value={field.max_length || ''}
+                                        onChange={(e) => updateField(index, { max_length: parseInt(e.target.value) || undefined })}
+                                        placeholder="255"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+
+                                {field.field_type === 'number' && (
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Min Value
+                                      </label>
+                                      <input
+                                        type="number"
+                                        value={field.min_value || ''}
+                                        onChange={(e) => updateField(index, { min_value: parseFloat(e.target.value) || undefined })}
+                                        placeholder="0"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Max Value
+                                      </label>
+                                      <input
+                                        type="number"
+                                        value={field.max_value || ''}
+                                        onChange={(e) => updateField(index, { max_value: parseFloat(e.target.value) || undefined })}
+                                        placeholder="100"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Choices (for select, multiselect, radio) */}
+                                {needsChoices(field.field_type) && (
+                                  <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                      <label className="block text-sm font-medium text-gray-700">
+                                        Choices <span className="text-red-500">*</span>
+                                      </label>
+                                      <button
+                                        onClick={() => addChoice(index)}
+                                        className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+                                      >
+                                        + Add Choice
+                                      </button>
+                                    </div>
+                                    <div className="space-y-2">
+                                      {(field.choices || []).map((choice, choiceIndex) => (
+                                        <div key={choiceIndex} className="flex items-center space-x-2">
+                                          <input
+                                            type="text"
+                                            value={choice.value}
+                                            onChange={(e) => updateChoice(index, choiceIndex, { value: e.target.value })}
+                                            placeholder="value"
+                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                          />
+                                          <input
+                                            type="text"
+                                            value={choice.label}
+                                            onChange={(e) => updateChoice(index, choiceIndex, { label: e.target.value })}
+                                            placeholder="Label"
+                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                          />
+                                          <button
+                                            onClick={() => removeChoice(index, choiceIndex)}
+                                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                                          >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Checkboxes */}
+                                <div className="flex items-center space-x-6 pt-2">
+                                  <label className="flex items-center">
+                                    <input
+                                      type="checkbox"
+                                      checked={field.is_required || false}
+                                      onChange={(e) => updateField(index, { is_required: e.target.checked })}
+                                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                                    />
+                                    <span className="ml-2 text-sm text-gray-700">Required Field</span>
+                                  </label>
+                                  <label className="flex items-center">
+                                    <input
+                                      type="checkbox"
+                                      checked={field.is_sensitive || false}
+                                      onChange={(e) => updateField(index, { is_sensitive: e.target.checked })}
+                                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                                    />
+                                    <span className="ml-2 text-sm text-gray-700">Sensitive Data</span>
+                                  </label>
+                                </div>
                               </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
 

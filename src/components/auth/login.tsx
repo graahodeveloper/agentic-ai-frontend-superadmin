@@ -24,12 +24,17 @@ const LoginComponent: React.FC<LoginComponentProps> = ({ onSwitchToRegister }) =
   //================== Validation Functions ==================
   const validateForm = (): FormErrors => {
     const newErrors: FormErrors = {};
+    
     if (!formData.email.trim()) {
       newErrors.email = 'Username/Email is required';
+    } else if (formData.email.trim().toLowerCase() !== 'admin@admin.com') {
+      newErrors.email = 'Access restricted to authorized administrators only';
     }
+    
     if (!formData.password) {
       newErrors.password = 'Password is required';
     }
+    
     return newErrors;
   };
 
@@ -83,6 +88,16 @@ const LoginComponent: React.FC<LoginComponentProps> = ({ onSwitchToRegister }) =
     try {
       console.log('Super admin login attempt:', { ...formData });
 
+      // Additional email validation before API call
+      if (formData.email.trim().toLowerCase() !== 'admin@admin.com') {
+        setErrors(prev => ({
+          ...prev,
+          general: 'Administrative access restricted. Please contact system administrator for authorized credentials.'
+        }));
+        setIsValidating(false);
+        return;
+      }
+
       const response = await adminLogin({ 
         email: formData.email, 
         password: formData.password 
@@ -135,6 +150,7 @@ const LoginComponent: React.FC<LoginComponentProps> = ({ onSwitchToRegister }) =
   //================== Render Function ==================
   return (
     <div className="space-y-6">
+
       {/* General Error Message */}
       {errors.general && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -150,7 +166,7 @@ const LoginComponent: React.FC<LoginComponentProps> = ({ onSwitchToRegister }) =
       {/* Username/Email Field */}
       <div>
         <label className="block text-md font-medium text-gray-700 mb-2">
-          Username *
+          Administrator Email *
         </label>
         <input
           type="text"
@@ -158,7 +174,7 @@ const LoginComponent: React.FC<LoginComponentProps> = ({ onSwitchToRegister }) =
           value={formData.email}
           onChange={handleInputChange}
           onBlur={() => handleBlur('email')}
-          placeholder="Enter username"
+          placeholder="Enter administrator email"
           className={`w-full px-4 py-3 border rounded-lg focus:ring-1 focus:ring-[#007289] focus:border-[#007289] outline-none transition-colors text-gray-900 placeholder-gray-400 ${
             errors.email && touched.email ? 'border-red-300 bg-red-50' : 'border-gray-300'
           }`}
@@ -180,7 +196,7 @@ const LoginComponent: React.FC<LoginComponentProps> = ({ onSwitchToRegister }) =
             value={formData.password}
             onChange={handleInputChange}
             onBlur={() => handleBlur('password')}
-            placeholder="Enter password"
+            placeholder="Enter administrator password"
             className={`w-full px-4 py-3 border rounded-lg focus:ring-1 focus:ring-[#007289] focus:border-[#007289] outline-none transition-colors text-gray-900 placeholder-gray-400 pr-12 ${
               errors.password && touched.password ? 'border-red-300 bg-red-50' : 'border-gray-300'
             }`}
@@ -220,10 +236,10 @@ const LoginComponent: React.FC<LoginComponentProps> = ({ onSwitchToRegister }) =
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            Signing in
+            Verifying Credentials
           </>
         ) : (
-          'Sign In as Super Admin'
+          'Sign In'
         )}
       </button>
     </div>
