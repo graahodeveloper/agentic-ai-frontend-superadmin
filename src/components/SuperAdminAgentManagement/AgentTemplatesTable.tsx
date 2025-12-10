@@ -657,7 +657,7 @@ const AgentTemplatesTable: React.FC<AgentTemplatesTableProps> = ({
             </div>
           </div>
 
-          {/* Desktop Pagination - Outside of scrollable area */}
+
           {totalPages > 1 && (
             <div className="border-t border-gray-200 bg-gradient-to-r from-gray-50 to-white px-6 py-4">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
