@@ -166,7 +166,7 @@ const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 
   return (
     <>
-      {/* Mobile View (Cards) */}
+
       <div className="lg:hidden space-y-4">
         {workspacesData.results.map(workspace => renderMobileCard(workspace))}
         
