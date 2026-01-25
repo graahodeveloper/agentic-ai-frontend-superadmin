@@ -7,6 +7,9 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000'
 // INTERFACES & TYPES
 // ============================================
 
+// Type for JSON values that can be stored in features/cost_variables
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
 export interface Plan {
   id: string;
   name: string;
@@ -26,8 +29,8 @@ export interface Plan {
   is_public: boolean;
   has_trial: boolean;
   trial_period_days: number;
-  features: Record<string, any>;
-  cost_variables: Record<string, any>;
+  features: Record<string, JsonValue>;
+  cost_variables: Record<string, JsonValue>;
   display_order: number;
   featured: boolean;
   badge_text: string | null;
@@ -50,7 +53,7 @@ export interface PlanFeature {
   feature_key: string;
   feature_name: string;
   feature_type: 'resource' | 'limit' | 'access' | 'support' | 'feature' | 'integration' | 'custom';
-  value: any;
+  value: JsonValue;
   description: string | null;
   display_order: number;
   is_highlighted: boolean;
@@ -96,8 +99,8 @@ export interface CreatePlanRequest {
   is_public?: boolean;
   has_trial?: boolean;
   trial_period_days?: number;
-  features?: Record<string, any>;
-  cost_variables?: Record<string, any>;
+  features?: Record<string, JsonValue>;
+  cost_variables?: Record<string, JsonValue>;
   display_order?: number;
   featured?: boolean;
   badge_text?: string;
@@ -121,8 +124,8 @@ export interface UpdatePlanRequest {
   is_public?: boolean;
   has_trial?: boolean;
   trial_period_days?: number;
-  features?: Record<string, any>;
-  cost_variables?: Record<string, any>;
+  features?: Record<string, JsonValue>;
+  cost_variables?: Record<string, JsonValue>;
   display_order?: number;
   featured?: boolean;
   badge_text?: string;
@@ -158,6 +161,7 @@ export const getAdminIdFromStorage = (): string | null => {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem('admin_id');
 };
+
 export const planApi = createApi({
   reducerPath: 'planApi',
   baseQuery: fetchBaseQuery({
@@ -167,20 +171,19 @@ export const planApi = createApi({
       if (token) {
         headers.set('Authorization', `Bearer ${token}`);
       }
-       const adminId = getAdminIdFromStorage();
+      const adminId = getAdminIdFromStorage();
       if (adminId) {
         headers.set('X-Admin-ID', adminId);
       }
       return headers;
     },
-    
   }),
   tagTypes: ['Plan', 'PlanFeature', 'PlanAgent', 'PlanStats'],
   endpoints: (builder) => ({
     // ============================================
     // GET ALL PLANS (with pagination & filters)
     // ============================================
- getPlans: builder.query<PlansResponse, GetPlansParams | void>({
+    getPlans: builder.query<PlansResponse, GetPlansParams | void>({
       query: (params) => {
         const queryParams = new URLSearchParams();
         const p = params || {};
@@ -226,7 +229,7 @@ export const planApi = createApi({
     // ============================================
     // CREATE PLAN
     // ============================================
-createPlan: builder.mutation<Plan, CreatePlanRequest>({
+    createPlan: builder.mutation<Plan, CreatePlanRequest>({
       query: (data) => {
         const adminId = getAdminIdFromStorage();
         return {
@@ -238,7 +241,6 @@ createPlan: builder.mutation<Plan, CreatePlanRequest>({
       },
       invalidatesTags: [{ type: 'Plan', id: 'LIST' }, 'PlanStats'],
     }),
-
 
     // ============================================
     // UPDATE PLAN
