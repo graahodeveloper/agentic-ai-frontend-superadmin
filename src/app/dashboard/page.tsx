@@ -12,6 +12,8 @@ import SuperAdminCreateAgentTemplateDrawer from '@/components/SuperAdminAgentMan
 import { User } from '@/types/auth';
 import UserManagementInterface from '@/components/settings/manage-user/ManageUser';
 import Summary from '@/components/settings/Summary/Summary';
+import PlansManagement from '@/components/subscription-model/plan/PlansManagement';
+
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('Agent Templates');
@@ -20,10 +22,12 @@ const Dashboard = () => {
   const [adminId, setAdminId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [subscriptionDropdownOpen, setSubscriptionDropdownOpen] = useState(false);
   const [isAdminUser, setIsAdminUser] = useState(true);
   const [isCreateTemplateDrawerOpen, setIsCreateTemplateDrawerOpen] = useState(false);
   const [editTemplate, setEditTemplate] = useState<AgentTemplate | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const subscriptionDropdownRef = useRef<HTMLDivElement>(null);
   const showingErrorMessage = 'Something went wrong,\nplease try again later.';
   const [currentPage, setCurrentPage] = useState(1);
   
@@ -84,6 +88,9 @@ const Dashboard = () => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setDropdownOpen(false);
       }
+      if (subscriptionDropdownRef.current && !subscriptionDropdownRef.current.contains(event.target as Node)) {
+        setSubscriptionDropdownOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -131,6 +138,7 @@ const Dashboard = () => {
           <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2M17 10H20C21.1 10 22 10.9 22 12V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V12C2 10.9 2.9 10 4 10H7V8C7 6.9 7.9 6 9 6H12.3C12.1 6.6 12 7.3 12 8V10H9C8.4 10 8 10.4 8 11V20H16V11C16 10.4 15.6 10 15 10H14V8C14 7.3 13.9 6.6 13.7 6H15C16.1 6 17 6.9 17 8V10M9.5 12C10.3 12 11 12.7 11 13.5C11 14.3 10.3 15 9.5 15C8.7 15 8 14.3 8 13.5C8 12.7 8.7 12 9.5 12M14.5 12C15.3 12 16 12.7 16 13.5C16 14.3 15.3 15 14.5 15C13.7 15 13 14.3 13 13.5C13 12.7 13.7 12 14.5 12M10 17H14C14 18.1 13.1 19 12 19C10.9 19 10 18.1 10 17Z"/>
         </svg>
       ),
+      hasSubmenu: false,
     },
     {
       name: 'Workspaces',
@@ -139,7 +147,17 @@ const Dashboard = () => {
           <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/>
         </svg>
       ),
+      hasSubmenu: false,
     },
+    // {
+    //   name: 'Subscription Model',
+    //   icon: (
+    //     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+    //       <path d="M20 4H4C2.89 4 2.01 4.89 2.01 6L2 18C2 19.11 2.89 20 4 20H20C21.11 20 22 19.11 22 18V6C22 4.89 21.11 4 20 4M20 18H4V12H20V18M20 8H4V6H20V8M14 14V16H18V14H14Z"/>
+    //     </svg>
+    //   ),
+    //   hasSubmenu: true,
+    // },
   ];
 
   const renderContent = () => {
@@ -193,6 +211,12 @@ const Dashboard = () => {
               <div className="flex-1 min-h-0 mb-62">
                 <WorkspacesTable />
               </div>
+            </div>
+          );
+        case 'Subscription Model - Plans':
+          return (
+            <div className="h-full">
+              <PlansManagement />
             </div>
           );
         case 'Settings - Manage User':
@@ -290,20 +314,67 @@ const Dashboard = () => {
             </div>
           </div>
           <nav className="space-y-2 mb-6">
-            {navigationItems.map((item) => (
-              <button
-                key={item.name}
-                onClick={() => setActiveTab(item.name)}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left cursor-pointer transition-colors ${
-                  activeTab === item.name
-                    ? 'bg-white text-[var(--color-primary-purple)] font-black shadow-md'
-                    : 'text-gray-700 hover:bg-white/60'
-                }`}
-              >
-                {item.icon}
-                <span className="font-medium">{item.name}</span>
-              </button>
-            ))}
+            {navigationItems.map((item) => {
+              if (item.hasSubmenu && item.name === 'Subscription Model') {
+                return (
+                  <div key={item.name} className="relative" ref={subscriptionDropdownRef}>
+                    <button
+                      onClick={() => setSubscriptionDropdownOpen(!subscriptionDropdownOpen)}
+                      className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-left cursor-pointer transition-all duration-300 group ${
+                        activeTab.startsWith('Subscription Model')
+                          ? 'bg-white text-[var(--color-primary-purple)] font-black shadow-md'
+                          : 'text-gray-700 hover:bg-white/60'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        {item.icon}
+                        <span className="font-medium">{item.name}</span>
+                      </div>
+                      <svg
+                        className={`w-4 h-4 transition-transform duration-300 ${subscriptionDropdownOpen ? 'rotate-180' : ''}`}
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                    <div
+                      className={`absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-100 overflow-hidden transition-all duration-300 z-50 ${
+                        subscriptionDropdownOpen ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible -translate-y-2'
+                      }`}
+                    >
+                      <button
+                        onClick={() => {
+                          setActiveTab('Subscription Model - Plans');
+                          setSubscriptionDropdownOpen(false);
+                        }}
+                        className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors duration-200 flex items-center space-x-3 group"
+                      >
+                        <svg className="w-4 h-4 text-gray-500 group-hover:text-gray-700" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M9 12H15M9 16H15M17 21H7C5.89543 21 5 20.1046 5 19V5C5 3.89543 5.89543 3 7 3H12.5858C12.851 3 13.1054 3.10536 13.2929 3.29289L18.7071 8.70711C18.8946 8.89464 19 9.149 19 9.41421V19C19 20.1046 18.1046 21 17 21Z"/>
+                        </svg>
+                        <span className="font-medium text-gray-700 group-hover:text-gray-900">Plans</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+              
+              return (
+                <button
+                  key={item.name}
+                  onClick={() => setActiveTab(item.name)}
+                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left cursor-pointer transition-colors ${
+                    activeTab === item.name
+                      ? 'bg-white text-[var(--color-primary-purple)] font-black shadow-md'
+                      : 'text-gray-700 hover:bg-white/60'
+                  }`}
+                >
+                  {item.icon}
+                  <span className="font-medium">{item.name}</span>
+                </button>
+              );
+            })}
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -396,30 +467,11 @@ const Dashboard = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <div className="flex items-center space-x-3">
-                  {/* <div className="relative">
-                    <Image
-                      src="/graaho_logo.png"
-                      alt="Graaho Logo"
-                      width={85}
-                      height={34}
-                      className="object-contain brightness-105"
-                      priority={false}
-                    />
-                  </div> */}
-                  {/* <div className="h-8 w-px bg-gradient-to-b from-transparent via-slate-300 to-transparent"></div> */}
-                  {/* <div className="space-y-0.5">
-                    <div className="flex items-center space-x-2 text-xs text-slate-500">
-                      <span className="hover:text-slate-700 cursor-pointer transition-colors">Privacy Policy</span>
-                      <div className="w-1 h-1 bg-slate-400 rounded-full"></div>
-                      <span className="hover:text-slate-700 cursor-pointer transition-colors">Terms of Service</span>
-                    </div>
-                  </div> */}
                 </div>
               </div>
               <div className="text-right">
                 <div className="flex flex-col items-end space-y-1">
                   <p className="text-xs font-medium text-slate-700">© 2025 Graaho Technologies</p>
-                  {/* <p className="text-xs text-slate-500">All rights reserved</p> */}
                 </div>
               </div>
             </div>

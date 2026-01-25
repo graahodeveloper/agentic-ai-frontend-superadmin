@@ -6,6 +6,7 @@ import { authApi } from '@/features/auth/authApi';
 import { activationApi } from '@/features/activation/activationApi';
 import { fileApi } from './features/fileApi';
 import { agentTemplateApi } from './features/agentTemplateApi/agentTemplateApi';
+import { planApi } from '@/features/plan/planApi';
 
 export const store = configureStore({
   reducer: {
@@ -16,6 +17,7 @@ export const store = configureStore({
     [activationApi.reducerPath]: activationApi.reducer,
     [agentTemplateApi.reducerPath]: agentTemplateApi.reducer, // Add this line
     [fileApi.reducerPath]: fileApi.reducer,
+    [planApi.reducerPath]: planApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
@@ -31,7 +33,9 @@ export const store = configureStore({
     .concat(authApi.middleware)
     .concat(activationApi.middleware)
     .concat(agentTemplateApi.middleware) // Add this line
-    .concat(fileApi.middleware),
+    .concat(fileApi.middleware)
+    .concat(planApi.middleware),
+    
 });
 
 export type RootState = ReturnType<typeof store.getState>;
