@@ -1,3 +1,4 @@
+// Updated Dashboard component with expanded subscription model submenu
 'use client';
 import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
@@ -13,7 +14,8 @@ import { User } from '@/types/auth';
 import UserManagementInterface from '@/components/settings/manage-user/ManageUser';
 import Summary from '@/components/settings/Summary/Summary';
 import PlansManagement from '@/components/subscription-model/plan/PlansManagement';
-
+import PlanComponentsManagement from '@/components/subscription-model/plan/PlanComponentsManagement';
+import AgentPricingManagement from '@/components/subscription-model/plan/AgentPricingManagement';
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('Agent Templates');
@@ -149,15 +151,15 @@ const Dashboard = () => {
       ),
       hasSubmenu: false,
     },
-    // {
-    //   name: 'Subscription Model',
-    //   icon: (
-    //     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-    //       <path d="M20 4H4C2.89 4 2.01 4.89 2.01 6L2 18C2 19.11 2.89 20 4 20H20C21.11 20 22 19.11 22 18V6C22 4.89 21.11 4 20 4M20 18H4V12H20V18M20 8H4V6H20V8M14 14V16H18V14H14Z"/>
-    //     </svg>
-    //   ),
-    //   hasSubmenu: true,
-    // },
+    {
+      name: 'Subscription Model',
+      icon: (
+        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M20 4H4C2.89 4 2.01 4.89 2.01 6L2 18C2 19.11 2.89 20 4 20H20C21.11 20 22 19.11 22 18V6C22 4.89 21.11 4 20 4M20 18H4V12H20V18M20 8H4V6H20V8M14 14V16H18V14H14Z"/>
+        </svg>
+      ),
+      hasSubmenu: true,
+    },
   ];
 
   const renderContent = () => {
@@ -217,6 +219,18 @@ const Dashboard = () => {
           return (
             <div className="h-full">
               <PlansManagement />
+            </div>
+          );
+        case 'Subscription Model - Components':
+          return (
+            <div className="h-full">
+              <PlanComponentsManagement />
+            </div>
+          );
+        case 'Subscription Model - Agent Pricing':
+          return (
+            <div className="h-full">
+              <AgentPricingManagement />
             </div>
           );
         case 'Settings - Manage User':
@@ -317,7 +331,7 @@ const Dashboard = () => {
             {navigationItems.map((item) => {
               if (item.hasSubmenu && item.name === 'Subscription Model') {
                 return (
-                  <div key={item.name} className="relative" ref={subscriptionDropdownRef}>
+                  <div key="Subscription Model" className="relative" ref={subscriptionDropdownRef}>
                     <button
                       onClick={() => setSubscriptionDropdownOpen(!subscriptionDropdownOpen)}
                       className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-left cursor-pointer transition-all duration-300 group ${
@@ -327,8 +341,10 @@ const Dashboard = () => {
                       }`}
                     >
                       <div className="flex items-center space-x-3">
-                        {item.icon}
-                        <span className="font-medium">{item.name}</span>
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M20 4H4C2.89 4 2.01 4.89 2.01 6L2 18C2 19.11 2.89 20 4 20H20C21.11 20 22 19.11 22 18V6C22 4.89 21.11 4 20 4M20 18H4V12H20V18M20 8H4V6H20V8M14 14V16H18V14H14Z"/>
+                        </svg>
+                        <span className="font-medium">Subscription Model</span>
                       </div>
                       <svg
                         className={`w-4 h-4 transition-transform duration-300 ${subscriptionDropdownOpen ? 'rotate-180' : ''}`}
@@ -354,6 +370,30 @@ const Dashboard = () => {
                           <path d="M9 12H15M9 16H15M17 21H7C5.89543 21 5 20.1046 5 19V5C5 3.89543 5.89543 3 7 3H12.5858C12.851 3 13.1054 3.10536 13.2929 3.29289L18.7071 8.70711C18.8946 8.89464 19 9.149 19 9.41421V19C19 20.1046 18.1046 21 17 21Z"/>
                         </svg>
                         <span className="font-medium text-gray-700 group-hover:text-gray-900">Plans</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveTab('Subscription Model - Components');
+                          setSubscriptionDropdownOpen(false);
+                        }}
+                        className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors duration-200 flex items-center space-x-3 group"
+                      >
+                        <svg className="w-4 h-4 text-gray-500 group-hover:text-gray-700" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM9 17H7V10H9V17ZM13 17H11V7H13V17ZM17 17H15V13H17V17Z"/>
+                        </svg>
+                        <span className="font-medium text-gray-700 group-hover:text-gray-900">Components</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveTab('Subscription Model - Agent Pricing');
+                          setSubscriptionDropdownOpen(false);
+                        }}
+                        className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors duration-200 flex items-center space-x-3 group"
+                      >
+                        <svg className="w-4 h-4 text-gray-500 group-hover:text-gray-700" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                        <span className="font-medium text-gray-700 group-hover:text-gray-900">Agent Pricing</span>
                       </button>
                     </div>
                   </div>
