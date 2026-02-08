@@ -1,4 +1,4 @@
-// Updated Dashboard component with expanded subscription model submenu
+// app/super-admin/dashboard/page.tsx
 'use client';
 import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
@@ -16,6 +16,9 @@ import Summary from '@/components/settings/Summary/Summary';
 import PlansManagement from '@/components/subscription-model/plan/PlansManagement';
 import PlanComponentsManagement from '@/components/subscription-model/plan/PlanComponentsManagement';
 import AgentPricingManagement from '@/components/subscription-model/plan/AgentPricingManagement';
+import PlanComponentInclusionManagement from '@/components/subscription-model/plan/PlanComponentInclusionManagement';
+import PlanAgentInclusionManagement from '@/components/subscription-model/plan/PlanAgentInclusionManagement';
+import PlanSummary from '@/components/subscription-model/plan/PlanSummary';
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('Agent Templates');
@@ -33,7 +36,6 @@ const Dashboard = () => {
   const showingErrorMessage = 'Something went wrong,\nplease try again later.';
   const [currentPage, setCurrentPage] = useState(1);
   
-  // Initialize authentication for super admin
   useEffect(() => {
     const initializeAuth = async () => {
       try {
@@ -75,7 +77,6 @@ const Dashboard = () => {
     initializeAuth();
   }, [router]);
 
-  // Fetch agent templates for super admin
   const {
     data: agentTemplatesData,
     isLoading: isAgentTemplatesLoading,
@@ -84,7 +85,6 @@ const Dashboard = () => {
     skip: !adminId || !isAdminUser,
   });
 
-  // Handle click outside dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -105,8 +105,8 @@ const Dashboard = () => {
   }, [activeTab]);
 
   const handleAgentCreated = () => {
-    refetchAgentTemplates(); // Refresh templates list
-    setEditTemplate(null); // Clear edit template state
+    refetchAgentTemplates();
+    setEditTemplate(null);
     setCurrentPage(1);
   };
 
@@ -180,7 +180,7 @@ const Dashboard = () => {
                 </div>
                 <button
                   onClick={() => {
-                    setEditTemplate(null); // Clear edit mode for new template
+                    setEditTemplate(null);
                     setIsCreateTemplateDrawerOpen(true);
                   }}
                   className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors duration-200 shadow-sm hover:shadow-md"
@@ -191,7 +191,6 @@ const Dashboard = () => {
                   <span>Create Template</span>
                 </button>
               </div>
-              {/* Table container with proper bottom gap */}
               <div className="flex-1 min-h-0 mb-32">
                 <AgentTemplatesTable
                   templates={agentTemplatesData?.results || []}
@@ -209,7 +208,6 @@ const Dashboard = () => {
                 <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Workspaces</h1>
                 <p className="text-sm text-gray-500 mt-2">View and manage all workspaces on the platform</p>
               </div>
-              {/* FIXED: Same structure as AgentTemplatesTable with bottom gap */}
               <div className="flex-1 min-h-0 mb-62">
                 <WorkspacesTable />
               </div>
@@ -231,6 +229,24 @@ const Dashboard = () => {
           return (
             <div className="h-full">
               <AgentPricingManagement />
+            </div>
+          );
+        case 'Subscription Model - Link Components':
+          return (
+            <div className="h-full">
+              <PlanComponentInclusionManagement />
+            </div>
+          );
+        case 'Subscription Model - Link Agents':
+          return (
+            <div className="h-full">
+              <PlanAgentInclusionManagement />
+            </div>
+          );
+        case 'Subscription Model - Plan Summary':
+          return (
+            <div className="h-full">
+              <PlanSummary />
             </div>
           );
         case 'Settings - Manage User':
@@ -292,7 +308,6 @@ const Dashboard = () => {
   if (userData) {
     return (
       <div className="min-h-screen bg-gray-50 flex">
-        {/* Sidebar */}
         <div className="w-75 bg-[linear-gradient(90deg,_#fff_-11.17%,_#c9c7ea_100%)] pl-3 pr-3 pt-6 pb-8 flex-shrink-0">
           <div className="flex flex-col items-center justify-center space-y-3">
             <Image
@@ -341,9 +356,7 @@ const Dashboard = () => {
                       }`}
                     >
                       <div className="flex items-center space-x-3">
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M20 4H4C2.89 4 2.01 4.89 2.01 6L2 18C2 19.11 2.89 20 4 20H20C21.11 20 22 19.11 22 18V6C22 4.89 21.11 4 20 4M20 18H4V12H20V18M20 8H4V6H20V8M14 14V16H18V14H14Z"/>
-                        </svg>
+                        {item.icon}
                         <span className="font-medium">Subscription Model</span>
                       </div>
                       <svg
@@ -394,6 +407,42 @@ const Dashboard = () => {
                           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                         </svg>
                         <span className="font-medium text-gray-700 group-hover:text-gray-900">Agent Pricing</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveTab('Subscription Model - Link Components');
+                          setSubscriptionDropdownOpen(false);
+                        }}
+                        className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors duration-200 flex items-center space-x-3 group"
+                      >
+                        <svg className="w-4 h-4 text-gray-500 group-hover:text-gray-700" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/>
+                        </svg>
+                        <span className="font-medium text-gray-700 group-hover:text-gray-900">Link Components</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveTab('Subscription Model - Link Agents');
+                          setSubscriptionDropdownOpen(false);
+                        }}
+                        className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors duration-200 flex items-center space-x-3 group"
+                      >
+                        <svg className="w-4 h-4 text-gray-500 group-hover:text-gray-700" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
+                        </svg>
+                        <span className="font-medium text-gray-700 group-hover:text-gray-900">Link Agents</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveTab('Subscription Model - Plan Summary');
+                          setSubscriptionDropdownOpen(false);
+                        }}
+                        className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors duration-200 flex items-center space-x-3 group"
+                      >
+                        <svg className="w-4 h-4 text-gray-500 group-hover:text-gray-700" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM9 17H7V10H9V17ZM13 17H11V7H13V17ZM17 17H15V13H17V17Z"/>
+                        </svg>
+                        <span className="font-medium text-gray-700 group-hover:text-gray-900">Plan Summary</span>
                       </button>
                     </div>
                   </div>
@@ -483,7 +532,6 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Main Content Area */}
         <div className="flex-1 flex flex-col min-w-0">
           <div className="flex-1 min-h-0 overflow-hidden">
             {renderContent()}

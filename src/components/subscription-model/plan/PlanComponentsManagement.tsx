@@ -27,6 +27,11 @@ const PlanComponentsManagement = () => {
     is_active: true,
     is_renewable: false,
   });
+  
+  // Loading states for different operations
+  const [isCreating, setIsCreating] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const queryParams: any = {};
   if (searchTerm) queryParams.search = searchTerm;
@@ -34,46 +39,58 @@ const PlanComponentsManagement = () => {
   if (statusFilter === 'active') queryParams.is_active = true;
   if (statusFilter === 'inactive') queryParams.is_active = false;
 
-  const { data: componentsData, isLoading, refetch } = useGetPlanComponentsQuery(queryParams);
+  const { data: componentsResponse, isLoading, refetch } = useGetPlanComponentsQuery(queryParams);
   const [createComponent] = useCreatePlanComponentMutation();
   const [updateComponent] = useUpdatePlanComponentMutation();
   const [deleteComponent] = useDeletePlanComponentMutation();
 
-  const components = componentsData || [];
+  const components = componentsResponse?.results || [];
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsCreating(true);
     try {
       await createComponent(formData).unwrap();
       setIsCreateModalOpen(false);
       resetForm();
-      refetch();
+      // RTK Query will automatically refetch due to invalidateTags
     } catch (error) {
       console.error('Failed to create component:', error);
+      alert('Failed to create component. Please try again.');
+    } finally {
+      setIsCreating(false);
     }
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedComponent) return;
+    setIsUpdating(true);
     try {
       await updateComponent({ id: selectedComponent.id, data: formData }).unwrap();
       setIsEditModalOpen(false);
       resetForm();
-      refetch();
+      // RTK Query will automatically refetch due to invalidateTags
     } catch (error) {
       console.error('Failed to update component:', error);
+      alert('Failed to update component. Please try again.');
+    } finally {
+      setIsUpdating(false);
     }
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (window.confirm(`Delete "${name}"? This cannot be undone.`)) {
-      try {
-        await deleteComponent(id).unwrap();
-        refetch();
-      } catch (error) {
-        console.error('Failed to delete component:', error);
-      }
+    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    
+    setDeletingId(id);
+    try {
+      await deleteComponent(id).unwrap();
+      // RTK Query will automatically refetch due to invalidateTags
+    } catch (error) {
+      console.error('Failed to delete component:', error);
+      alert('Failed to delete component. Please try again.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -128,17 +145,27 @@ const PlanComponentsManagement = () => {
                 Plan Components
               </h1>
               <p className="text-gray-600 mt-2">
-                Manage the building blocks of subscription plans ({components.length} total)
+                Manage the building blocks of subscription plans ({componentsResponse?.count || 0} total)
               </p>
             </div>
             <button
               onClick={() => setIsCreateModalOpen(true)}
-              className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors shadow-sm"
+              disabled={isCreating}
+              className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors shadow-sm"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              <span>Create Component</span>
+              {isCreating ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span>Creating...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  <span>Create Component</span>
+                </>
+              )}
             </button>
           </div>
 
@@ -178,9 +205,15 @@ const PlanComponentsManagement = () => {
         {/* Components Table */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           {isLoading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
-              <span className="ml-3 text-gray-600">Loading components...</span>
+            <div className="flex flex-col items-center justify-center py-20">
+              <div className="relative">
+                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600"></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="animate-ping rounded-full h-8 w-8 bg-indigo-100"></div>
+                </div>
+              </div>
+              <span className="mt-4 text-gray-600 font-medium">Loading components...</span>
+              <p className="text-sm text-gray-500 mt-2">Please wait while we fetch your data</p>
             </div>
           ) : components.length === 0 ? (
             <div className="flex items-center justify-center py-20">
@@ -192,9 +225,17 @@ const PlanComponentsManagement = () => {
                 <p className="mt-2 text-gray-600">Get started by creating your first component</p>
                 <button
                   onClick={() => setIsCreateModalOpen(true)}
-                  className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                  disabled={isCreating}
+                  className="mt-4 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center space-x-2 mx-auto"
                 >
-                  Create First Component
+                  {isCreating ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>Creating...</span>
+                    </>
+                  ) : (
+                    'Create First Component'
+                  )}
                 </button>
               </div>
             </div>
@@ -208,6 +249,7 @@ const PlanComponentsManagement = () => {
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Quantity</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Price</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Created</th>
                     <th className="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase">Actions</th>
                   </tr>
                 </thead>
@@ -247,10 +289,16 @@ const PlanComponentsManagement = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4">
+                        <div className="text-xs text-gray-500">
+                          {new Date(component.created_at).toLocaleDateString()}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => handleEdit(component)}
-                            className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                            disabled={isUpdating || isCreating}
+                            className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 disabled:text-gray-400 disabled:hover:bg-transparent disabled:cursor-not-allowed rounded-lg transition-colors"
                             title="Edit"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -259,12 +307,17 @@ const PlanComponentsManagement = () => {
                           </button>
                           <button
                             onClick={() => handleDelete(component.id, component.name)}
-                            className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            disabled={deletingId === component.id}
+                            className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 disabled:text-gray-400 disabled:hover:bg-transparent disabled:cursor-not-allowed rounded-lg transition-colors relative"
                             title="Delete"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
+                            {deletingId === component.id ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                            ) : (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            )}
                           </button>
                         </div>
                       </td>
@@ -292,10 +345,13 @@ const PlanComponentsManagement = () => {
               </div>
               <button
                 onClick={() => {
-                  isCreateModalOpen ? setIsCreateModalOpen(false) : setIsEditModalOpen(false);
-                  resetForm();
+                  if (!isCreating && !isUpdating) {
+                    isCreateModalOpen ? setIsCreateModalOpen(false) : setIsEditModalOpen(false);
+                    resetForm();
+                  }
                 }}
-                className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                disabled={isCreating || isUpdating}
+                className="p-2 rounded-full hover:bg-gray-100 disabled:hover:bg-transparent disabled:opacity-50 transition-colors"
               >
                 <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -313,7 +369,8 @@ const PlanComponentsManagement = () => {
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    disabled={isCreating || isUpdating}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
                     required
                   />
                 </div>
@@ -325,7 +382,8 @@ const PlanComponentsManagement = () => {
                   <select
                     value={formData.component_type}
                     onChange={(e) => setFormData({ ...formData, component_type: e.target.value as PlanComponent['component_type'] })}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    disabled={isCreating || isUpdating}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
                     required
                   >
                     {componentTypeOptions.map((option) => (
@@ -345,7 +403,8 @@ const PlanComponentsManagement = () => {
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   rows={2}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  disabled={isCreating || isUpdating}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -359,7 +418,8 @@ const PlanComponentsManagement = () => {
                     step="0.01"
                     value={formData.quantity}
                     onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    disabled={isCreating || isUpdating}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
                     required
                   />
                 </div>
@@ -372,7 +432,8 @@ const PlanComponentsManagement = () => {
                     type="text"
                     value={formData.unit_label}
                     onChange={(e) => setFormData({ ...formData, unit_label: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    disabled={isCreating || isUpdating}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
                     placeholder="e.g., tokens, GB, calls"
                     required
                   />
@@ -389,7 +450,8 @@ const PlanComponentsManagement = () => {
                       step="0.01"
                       value={formData.price}
                       onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                      className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                      disabled={isCreating || isUpdating}
+                      className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
                       required
                     />
                   </div>
@@ -408,7 +470,8 @@ const PlanComponentsManagement = () => {
                       step="0.01"
                       value={formData.price_per_unit}
                       onChange={(e) => setFormData({ ...formData, price_per_unit: e.target.value })}
-                      className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                      disabled={isCreating || isUpdating}
+                      className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
                     />
                   </div>
                 </div>
@@ -420,7 +483,8 @@ const PlanComponentsManagement = () => {
                     type="checkbox"
                     checked={formData.is_active}
                     onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                    className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                    disabled={isCreating || isUpdating}
+                    className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 disabled:cursor-not-allowed"
                   />
                   <span className="text-sm font-medium text-gray-900">Active</span>
                 </label>
@@ -430,7 +494,8 @@ const PlanComponentsManagement = () => {
                     type="checkbox"
                     checked={formData.is_renewable}
                     onChange={(e) => setFormData({ ...formData, is_renewable: e.target.checked })}
-                    className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                    disabled={isCreating || isUpdating}
+                    className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 disabled:cursor-not-allowed"
                   />
                   <span className="text-sm font-medium text-gray-900">Renewable</span>
                 </label>
@@ -440,18 +505,29 @@ const PlanComponentsManagement = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    isCreateModalOpen ? setIsCreateModalOpen(false) : setIsEditModalOpen(false);
-                    resetForm();
+                    if (!isCreating && !isUpdating) {
+                      isCreateModalOpen ? setIsCreateModalOpen(false) : setIsEditModalOpen(false);
+                      resetForm();
+                    }
                   }}
-                  className="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                  disabled={isCreating || isUpdating}
+                  className="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 bg-gradient-to-r from-[#4318ff] to-[#7c75ff] text-white rounded-lg font-medium hover:from-[#3610d9] hover:to-[#6b63e6] transition-all shadow-sm hover:shadow-md"
+                  disabled={isCreating || isUpdating}
+                  className="px-6 py-2.5 bg-gradient-to-r from-[#4318ff] to-[#7c75ff] text-white rounded-lg font-medium hover:from-[#3610d9] hover:to-[#6b63e6] disabled:from-indigo-400 disabled:to-indigo-400 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md flex items-center space-x-2"
                 >
-                  {isEditModalOpen ? 'Update Component' : 'Create Component'}
+                  {isCreating || isUpdating ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>{isEditModalOpen ? 'Updating...' : 'Creating...'}</span>
+                    </>
+                  ) : (
+                    <span>{isEditModalOpen ? 'Update Component' : 'Create Component'}</span>
+                  )}
                 </button>
               </div>
             </form>

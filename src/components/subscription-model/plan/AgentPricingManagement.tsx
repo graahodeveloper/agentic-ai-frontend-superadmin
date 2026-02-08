@@ -1,6 +1,6 @@
 // components/subscription-model/plan/AgentPricingManagement.tsx
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   useGetAgentPricingQuery,
   useCreateAgentPricingMutation,
@@ -8,6 +8,15 @@ import {
   useDeleteAgentPricingMutation,
   AgentPricing,
 } from '@/features/subscriptionModel/billing/billingApi';
+import { useGetAgentTemplatesByAdminIdQuery } from '@/features/agentTemplateApi/agentTemplateApi';
+
+// Add this interface for agent templates if not already defined
+interface AgentTemplate {
+  id: string;
+  name: string;
+  agent_type: string;
+  agent_category?: string;
+}
 
 const AgentPricingManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -16,9 +25,7 @@ const AgentPricingManagement = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedPricing, setSelectedPricing] = useState<AgentPricing | null>(null);
   const [formData, setFormData] = useState({
-    agent: '',
-    agent_name: '',
-    agent_category: '',
+    agent_id: '',
     name: '',
     description: '',
     price: '',
@@ -28,40 +35,90 @@ const AgentPricingManagement = () => {
     is_default: false,
   });
 
+  // Get admin ID from localStorage
+  const [adminId, setAdminId] = useState<string | null>(null);
+  
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const adminUser = localStorage.getItem('superAdminUser');
+      if (adminUser) {
+        try {
+          const parsed = JSON.parse(adminUser);
+          setAdminId(parsed.id);
+        } catch (error) {
+          console.error('Failed to parse admin user:', error);
+        }
+      }
+    }
+  }, []);
+
+  // Fetch agent templates for dropdown
+  const { data: agentTemplatesData } = useGetAgentTemplatesByAdminIdQuery(adminId!, {
+    skip: !adminId,
+  });
+
   const queryParams: any = {};
   if (searchTerm) queryParams.search = searchTerm;
   if (statusFilter === 'active') queryParams.is_active = true;
   if (statusFilter === 'inactive') queryParams.is_active = false;
 
-  const { data: pricingData, isLoading, refetch } = useGetAgentPricingQuery(queryParams);
+  const { data: pricingResponse, isLoading, isError } = useGetAgentPricingQuery(queryParams);
   const [createPricing] = useCreateAgentPricingMutation();
   const [updatePricing] = useUpdateAgentPricingMutation();
   const [deletePricing] = useDeleteAgentPricingMutation();
 
-  const pricingOptions = pricingData || [];
+  const pricingOptions = pricingResponse?.results || [];
+  const agentTemplates: AgentTemplate[] = agentTemplatesData?.results || [];
+
+  console.log('Pricing Response:', pricingResponse);
+  console.log('Pricing Options:', pricingOptions);
+  console.log('Agent Templates:', agentTemplates);
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createPricing(formData).unwrap();
+      // Find selected agent details
+      const selectedAgent = agentTemplates.find(a => a.id === formData.agent_id);
+      
+      const apiData = {
+        ...formData,
+        agent_name: selectedAgent?.name || '',
+        agent_category: selectedAgent?.agent_category || '',
+      };
+      
+      await createPricing(apiData).unwrap();
+      
       setIsCreateModalOpen(false);
       resetForm();
-      refetch();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create agent pricing:', error);
+      alert(`Failed to create agent pricing: ${error.data?.message || error.message || 'Unknown error'}`);
     }
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPricing) return;
+    
     try {
-      await updatePricing({ id: selectedPricing.id, data: formData }).unwrap();
+      const selectedAgent = agentTemplates.find(a => a.id === formData.agent_id);
+      
+      const apiData = {
+        ...formData,
+        agent_name: selectedAgent?.name || selectedPricing.agent_name,
+        agent_category: selectedAgent?.agent_category || selectedPricing.agent_category,
+      };
+      
+      await updatePricing({
+        id: selectedPricing.id,
+        data: apiData
+      }).unwrap();
+      
       setIsEditModalOpen(false);
       resetForm();
-      refetch();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update agent pricing:', error);
+      alert(`Failed to update agent pricing: ${error.data?.message || error.message || 'Unknown error'}`);
     }
   };
 
@@ -69,9 +126,10 @@ const AgentPricingManagement = () => {
     if (window.confirm(`Delete "${name}"? This cannot be undone.`)) {
       try {
         await deletePricing(id).unwrap();
-        refetch();
-      } catch (error) {
+        // RTK Query will automatically refetch due to invalidateTags
+      } catch (error: any) {
         console.error('Failed to delete agent pricing:', error);
+        alert(`Failed to delete agent pricing: ${error.data?.message || error.message || 'Unknown error'}`);
       }
     }
   };
@@ -79,9 +137,7 @@ const AgentPricingManagement = () => {
   const handleEdit = (pricing: AgentPricing) => {
     setSelectedPricing(pricing);
     setFormData({
-      agent: pricing.agent,
-      agent_name: pricing.agent_name,
-      agent_category: pricing.agent_category,
+      agent_id: pricing.agent_id,
       name: pricing.name,
       description: pricing.description || '',
       price: pricing.price,
@@ -95,9 +151,7 @@ const AgentPricingManagement = () => {
 
   const resetForm = () => {
     setFormData({
-      agent: '',
-      agent_name: '',
-      agent_category: '',
+      agent_id: '',
       name: '',
       description: '',
       price: '',
@@ -120,7 +174,7 @@ const AgentPricingManagement = () => {
                 Agent Pricing
               </h1>
               <p className="text-gray-600 mt-2">
-                Manage pricing options for AI agents ({pricingOptions.length} total)
+                Manage pricing options for AI agents ({pricingResponse?.count || 0} total)
               </p>
             </div>
             <button
@@ -162,6 +216,16 @@ const AgentPricingManagement = () => {
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
               <span className="ml-3 text-gray-600">Loading agent pricing...</span>
             </div>
+          ) : isError ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="text-center">
+                <svg className="mx-auto h-12 w-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <h3 className="mt-4 text-lg font-semibold text-gray-900">Error loading pricing options</h3>
+                <p className="mt-2 text-gray-600">Please try again later</p>
+              </div>
+            </div>
           ) : pricingOptions.length === 0 ? (
             <div className="flex items-center justify-center py-20">
               <div className="text-center">
@@ -189,6 +253,7 @@ const AgentPricingManagement = () => {
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Price</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Est. Resources</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Created</th>
                     <th className="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase">Actions</th>
                   </tr>
                 </thead>
@@ -197,7 +262,7 @@ const AgentPricingManagement = () => {
                     <tr key={pricing.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4">
                         <div className="text-sm font-semibold text-gray-900">{pricing.agent_name}</div>
-                        <div className="text-xs text-gray-500">ID: {pricing.agent.substring(0, 8)}...</div>
+                        <div className="text-xs text-gray-500">ID: {pricing.agent_id.substring(0, 8)}...</div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm font-semibold text-gray-900">{pricing.name}</div>
@@ -230,6 +295,11 @@ const AgentPricingManagement = () => {
                         }`}>
                           {pricing.is_active ? 'Active' : 'Inactive'}
                         </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-xs text-gray-500">
+                          {new Date(pricing.created_at).toLocaleDateString()}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-end gap-2">
@@ -289,63 +359,46 @@ const AgentPricingManagement = () => {
             </div>
 
             <form onSubmit={isEditModalOpen ? handleEditSubmit : handleCreateSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Agent ID *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.agent}
-                    onChange={(e) => setFormData({ ...formData, agent: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Agent Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.agent_name}
-                    onChange={(e) => setFormData({ ...formData, agent_name: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                    required
-                  />
-                </div>
+              {/* Agent Dropdown */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Select Agent Template <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.agent_id}
+                  onChange={(e) => setFormData({ ...formData, agent_id: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  required
+                  disabled={isEditModalOpen}
+                >
+                  <option value="">-- Select an Agent --</option>
+                  {agentTemplates.map((agent) => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.name} ({agent.agent_type})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Choose the agent template this pricing option applies to
+                </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Category
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.agent_category}
-                    onChange={(e) => setFormData({ ...formData, agent_category: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                    placeholder="e.g., chatbot, assistant, analyzer"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Pricing Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                    placeholder="e.g., Basic, Pro, Enterprise"
-                    required
-                  />
-                </div>
+              {/* Pricing Name */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Pricing Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  placeholder="e.g., Basic, Pro, Enterprise"
+                  required
+                />
               </div>
 
+              {/* Description */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Description
@@ -355,13 +408,15 @@ const AgentPricingManagement = () => {
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   rows={2}
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  placeholder="Brief description of this pricing tier..."
                 />
               </div>
 
+              {/* Price and Resource Estimates */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Price *
+                    Price <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
@@ -383,8 +438,9 @@ const AgentPricingManagement = () => {
                   <input
                     type="number"
                     value={formData.estimated_tokens_per_use}
-                    onChange={(e) => setFormData({ ...formData, estimated_tokens_per_use: parseInt(e.target.value) })}
+                    onChange={(e) => setFormData({ ...formData, estimated_tokens_per_use: parseInt(e.target.value) || 0 })}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    placeholder="5000"
                   />
                 </div>
 
@@ -397,10 +453,12 @@ const AgentPricingManagement = () => {
                     value={formData.estimated_storage_mb}
                     onChange={(e) => setFormData({ ...formData, estimated_storage_mb: e.target.value })}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    placeholder="50"
                   />
                 </div>
               </div>
 
+              {/* Status Toggles */}
               <div className="flex items-center gap-6">
                 <label className="flex items-center space-x-3">
                   <input
@@ -423,6 +481,7 @@ const AgentPricingManagement = () => {
                 </label>
               </div>
 
+              {/* Action Buttons */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
                 <button
                   type="button"
