@@ -40,6 +40,12 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
     billing_period: 'monthly' as 'monthly' | 'quarterly' | 'yearly',
     billing_mode: 'prepaid' as 'prepaid' | 'postpaid',
     grace_period_days: '7',
+    // NEW FIELDS
+    cost_per_unit: '',
+    promotion_code: '',
+    promotion_valid_from: '',
+    promotion_valid_until: '',
+    discount_percentage: '',
     is_active: true,
     is_public: false,
     display_order: '',
@@ -58,6 +64,12 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
         billing_period: plan.billing_period,
         billing_mode: plan.billing_mode,
         grace_period_days: plan.grace_period_days?.toString() || '7',
+        // NEW FIELDS
+        cost_per_unit: plan.cost_per_unit?.toString() || '',
+        promotion_code: plan.promotion_code || '',
+        promotion_valid_from: plan.promotion_valid_from ? plan.promotion_valid_from.split('T')[0] : '',
+        promotion_valid_until: plan.promotion_valid_until ? plan.promotion_valid_until.split('T')[0] : '',
+        discount_percentage: plan.discount_percentage?.toString() || '',
         is_active: plan.is_active,
         is_public: plan.is_public,
         display_order: plan.display_order?.toString() || '',
@@ -72,6 +84,11 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
         billing_period: 'monthly',
         billing_mode: 'prepaid',
         grace_period_days: '7',
+        cost_per_unit: '',
+        promotion_code: '',
+        promotion_valid_from: '',
+        promotion_valid_until: '',
+        discount_percentage: '',
         is_active: true,
         is_public: false,
         display_order: '',
@@ -96,6 +113,25 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
       newErrors.grace_period_days = 'Grace period cannot be negative';
     }
 
+    if (formData.cost_per_unit && parseFloat(formData.cost_per_unit) < 0) {
+      newErrors.cost_per_unit = 'Cost per unit cannot be negative';
+    }
+
+    if (formData.discount_percentage) {
+      const discount = parseFloat(formData.discount_percentage);
+      if (discount < 0 || discount > 100) {
+        newErrors.discount_percentage = 'Discount must be between 0 and 100';
+      }
+    }
+
+    if (formData.promotion_valid_from && formData.promotion_valid_until) {
+      const startDate = new Date(formData.promotion_valid_from);
+      const endDate = new Date(formData.promotion_valid_until);
+      if (endDate < startDate) {
+        newErrors.promotion_valid_until = 'End date must be after start date';
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -116,6 +152,12 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
         billing_period: formData.billing_period,
         billing_mode: formData.billing_mode,
         grace_period_days: formData.grace_period_days ? parseInt(formData.grace_period_days) : 7,
+        // NEW FIELDS
+        cost_per_unit: formData.cost_per_unit ? parseFloat(formData.cost_per_unit) : null,
+        promotion_code: formData.promotion_code || null,
+        promotion_valid_from: formData.promotion_valid_from || null,
+        promotion_valid_until: formData.promotion_valid_until || null,
+        discount_percentage: formData.discount_percentage ? parseFloat(formData.discount_percentage) : null,
         is_active: formData.is_active,
         is_public: formData.is_public,
         display_order: formData.display_order ? parseInt(formData.display_order) : 0,
@@ -182,7 +224,8 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
             </div>
             <button
               onClick={onClose}
-              className="p-2.5 rounded-full hover:bg-white/80 transition-all duration-200 text-gray-600 hover:text-gray-900"
+              disabled={isLoading}
+              className="p-2.5 rounded-full hover:bg-white/80 transition-all duration-200 text-gray-600 hover:text-gray-900 disabled:opacity-50"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -202,7 +245,8 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
                   type="text"
                   value={formData.name}
                   onChange={(e) => handleInputChange('name', e.target.value)}
-                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#4318ff]/20 focus:border-[#4318ff] transition-all duration-200 ${
+                  disabled={isLoading}
+                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#4318ff]/20 focus:border-[#4318ff] transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed ${
                     errors.name ? 'border-red-300' : 'border-gray-200'
                   }`}
                   placeholder="e.g., Professional Plan"
@@ -218,8 +262,9 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
                 <textarea
                   value={formData.description}
                   onChange={(e) => handleInputChange('description', e.target.value)}
+                  disabled={isLoading}
                   rows={3}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#4318ff]/20 focus:border-[#4318ff] transition-all duration-200"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#4318ff]/20 focus:border-[#4318ff] transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   placeholder="Brief description of this plan..."
                 />
               </div>
@@ -233,7 +278,8 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
                   <select
                     value={formData.plan_type}
                     onChange={(e) => handleInputChange('plan_type', e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#4318ff]/20 focus:border-[#4318ff] transition-all duration-200"
+                    disabled={isLoading}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#4318ff]/20 focus:border-[#4318ff] transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   >
                     <option value="free">Free</option>
                     <option value="starter">Starter</option>
@@ -251,7 +297,8 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
                     type="number"
                     value={formData.display_order}
                     onChange={(e) => handleInputChange('display_order', e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#4318ff]/20 focus:border-[#4318ff] transition-all duration-200"
+                    disabled={isLoading}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#4318ff]/20 focus:border-[#4318ff] transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed"
                     placeholder="0"
                     min="0"
                   />
@@ -271,7 +318,8 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
                       step="0.01"
                       value={formData.base_price}
                       onChange={(e) => handleInputChange('base_price', e.target.value)}
-                      className={`w-full pl-8 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#4318ff]/20 focus:border-[#4318ff] transition-all duration-200 ${
+                      disabled={isLoading}
+                      className={`w-full pl-8 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#4318ff]/20 focus:border-[#4318ff] transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed ${
                         errors.base_price ? 'border-red-300' : 'border-gray-200'
                       }`}
                       placeholder="0.00"
@@ -289,7 +337,8 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
                   <select
                     value={formData.billing_period}
                     onChange={(e) => handleInputChange('billing_period', e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#4318ff]/20 focus:border-[#4318ff] transition-all duration-200"
+                    disabled={isLoading}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#4318ff]/20 focus:border-[#4318ff] transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   >
                     <option value="monthly">Monthly</option>
                     <option value="quarterly">Quarterly</option>
@@ -307,7 +356,8 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
                   <select
                     value={formData.billing_mode}
                     onChange={(e) => handleInputChange('billing_mode', e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#4318ff]/20 focus:border-[#4318ff] transition-all duration-200"
+                    disabled={isLoading}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#4318ff]/20 focus:border-[#4318ff] transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   >
                     <option value="prepaid">Prepaid (Pay first, use later)</option>
                     <option value="postpaid">Postpaid (Use first, pay later)</option>
@@ -322,7 +372,8 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
                     type="number"
                     value={formData.grace_period_days}
                     onChange={(e) => handleInputChange('grace_period_days', e.target.value)}
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#4318ff]/20 focus:border-[#4318ff] transition-all duration-200 ${
+                    disabled={isLoading}
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#4318ff]/20 focus:border-[#4318ff] transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed ${
                       errors.grace_period_days ? 'border-red-300' : 'border-gray-200'
                     }`}
                     placeholder="7"
@@ -330,6 +381,132 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
                   />
                   {errors.grace_period_days && <p className="mt-1 text-sm text-red-600">{errors.grace_period_days}</p>}
                   <p className="mt-1 text-xs text-gray-500">Days before suspension (for postpaid)</p>
+                </div>
+              </div>
+
+              {/* NEW: Usage-Based Pricing */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Cost Per Unit (Optional)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={formData.cost_per_unit}
+                    onChange={(e) => handleInputChange('cost_per_unit', e.target.value)}
+                    disabled={isLoading}
+                    className={`w-full pl-8 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#4318ff]/20 focus:border-[#4318ff] transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed ${
+                      errors.cost_per_unit ? 'border-red-300' : 'border-gray-200'
+                    }`}
+                    placeholder="0.002"
+                    min="0"
+                  />
+                </div>
+                {errors.cost_per_unit && <p className="mt-1 text-sm text-red-600">{errors.cost_per_unit}</p>}
+                <p className="mt-1 text-xs text-gray-500">For usage-based billing (e.g., $0.002 per token)</p>
+              </div>
+
+              {/* NEW: Promotion Section */}
+              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-5 border border-purple-200">
+                <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center">
+                  <svg className="w-5 h-5 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
+                  </svg>
+                  Promotional Pricing (Optional)
+                </h3>
+
+                <div className="space-y-4">
+                  {/* Promo Code & Discount */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Promotion Code
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.promotion_code}
+                        onChange={(e) => handleInputChange('promotion_code', e.target.value.toUpperCase())}
+                        disabled={isLoading}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        placeholder="SUMMER2024"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Discount (%)
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={formData.discount_percentage}
+                          onChange={(e) => handleInputChange('discount_percentage', e.target.value)}
+                          disabled={isLoading}
+                          className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed ${
+                            errors.discount_percentage ? 'border-red-300' : 'border-gray-200'
+                          }`}
+                          placeholder="20"
+                          min="0"
+                          max="100"
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                      </div>
+                      {errors.discount_percentage && <p className="mt-1 text-sm text-red-600">{errors.discount_percentage}</p>}
+                    </div>
+                  </div>
+
+                  {/* Validity Period */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Valid From
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.promotion_valid_from}
+                        onChange={(e) => handleInputChange('promotion_valid_from', e.target.value)}
+                        disabled={isLoading}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Valid Until
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.promotion_valid_until}
+                        onChange={(e) => handleInputChange('promotion_valid_until', e.target.value)}
+                        disabled={isLoading}
+                        className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed ${
+                          errors.promotion_valid_until ? 'border-red-300' : 'border-gray-200'
+                        }`}
+                      />
+                      {errors.promotion_valid_until && <p className="mt-1 text-sm text-red-600">{errors.promotion_valid_until}</p>}
+                    </div>
+                  </div>
+
+                  {/* Promotion Preview */}
+                  {formData.discount_percentage && formData.base_price && (
+                    <div className="bg-white rounded-lg p-4 border border-purple-200">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-gray-600">Discounted Price</p>
+                          <p className="text-2xl font-bold text-purple-600">
+                            ${(parseFloat(formData.base_price) * (1 - parseFloat(formData.discount_percentage) / 100)).toFixed(2)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-gray-500 line-through">${parseFloat(formData.base_price).toFixed(2)}</p>
+                          <p className="text-sm font-semibold text-green-600">Save {formData.discount_percentage}%</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -346,7 +523,8 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
                   <button
                     type="button"
                     onClick={() => handleInputChange('is_active', !formData.is_active)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    disabled={isLoading}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       formData.is_active ? 'bg-green-600' : 'bg-gray-300'
                     }`}
                   >
@@ -367,7 +545,8 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
                   <button
                     type="button"
                     onClick={() => handleInputChange('is_public', !formData.is_public)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    disabled={isLoading}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       formData.is_public ? 'bg-blue-600' : 'bg-gray-300'
                     }`}
                   >
@@ -388,7 +567,8 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
                   <button
                     type="button"
                     onClick={() => handleInputChange('featured', !formData.featured)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    disabled={isLoading}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       formData.featured ? 'bg-yellow-600' : 'bg-gray-300'
                     }`}
                   >

@@ -59,6 +59,13 @@ export interface AgentPricing {
   name: string;
   description: string | null;
   price: string;
+  // NEW FIELDS
+  unit: 'per_use' | 'per_hour' | 'per_day' | 'per_month' | 'per_transaction' | 'per_request' | 'flat_rate';
+  billing_method: 'prepaid' | 'postpaid' | 'pay_as_you_go' | 'subscription';
+  promotion_code: string | null;
+  promotion_valid_from: string | null;
+  promotion_valid_until: string | null;
+  discount_percentage: string | null;
   estimated_tokens_per_use: number;
   estimated_storage_mb: string;
   is_active: boolean;
@@ -91,6 +98,12 @@ export interface Plan {
   billing_period: 'monthly' | 'quarterly' | 'yearly';
   billing_mode: 'prepaid' | 'postpaid';
   grace_period_days: number;
+  // NEW FIELDS
+  cost_per_unit: string | null;
+  promotion_code: string | null;
+  promotion_valid_from: string | null;
+  promotion_valid_until: string | null;
+  discount_percentage: string | null;
   is_active: boolean;
   is_public: boolean;
   display_order: number;
@@ -133,6 +146,12 @@ export interface CreatePlanRequest {
   billing_period: string;
   billing_mode: string;
   grace_period_days?: number;
+  // NEW FIELDS
+  cost_per_unit?: number | string | null;
+  promotion_code?: string | null;
+  promotion_valid_from?: string | null;
+  promotion_valid_until?: string | null;
+  discount_percentage?: number | string | null;
   is_active?: boolean;
   is_public?: boolean;
   display_order?: number;
@@ -144,21 +163,7 @@ export interface PlanAgentsResponse {
   plan_name: string;
   agents: Array<{
     id: string;
-    agent_pricing: {
-      id: string;
-      agent_id: string;
-      agent_name: string;
-      agent_category: string;
-      name: string;
-      description: string | null;
-      price: string;
-      estimated_tokens_per_use: number;
-      estimated_storage_mb: string;
-      is_active: boolean;
-      is_default: boolean;
-      created_at: string;
-      updated_at: string;
-    };
+    agent_pricing: AgentPricing;
     included_instances: number;
     effective_price: string;
     is_featured: boolean;
@@ -221,6 +226,12 @@ export interface PlanSummaryResponse {
     billing_mode: string;
     billing_mode_display: string;
     grace_period_days: number;
+    // NEW FIELDS
+    cost_per_unit: number | null;
+    promotion_code: string | null;
+    promotion_valid_from: string | null;
+    promotion_valid_until: string | null;
+    discount_percentage: number | null;
     is_active: boolean;
     is_public: boolean;
     featured: boolean;
@@ -270,7 +281,6 @@ export const billingApi = createApi({
     },
   }),
   tagTypes: ['Plan', 'PlanComponent', 'AgentPricing', 'Stats', 'PlanComponentInclusion', 'PlanAgentInclusion', 'PlanSummary'],
-  // Keep cached data for 5 minutes (300 seconds) for better UX when switching between plans
   keepUnusedDataFor: 300,
   endpoints: (builder) => ({
     // ============================================
@@ -281,12 +291,10 @@ export const billingApi = createApi({
         const adminId = getAdminId();
         const queryParams = new URLSearchParams();
         
-        // Add admin_id
         if (adminId) {
           queryParams.append('admin_id', adminId);
         }
         
-        // Add other params
         if (params) {
           Object.entries(params).forEach(([key, value]) => {
             if (value !== undefined && value !== null && value !== '') {
@@ -373,9 +381,6 @@ export const billingApi = createApi({
       providesTags: ['Stats'],
     }),
 
-    // ============================================
-    // NEW: PLAN SUMMARY ENDPOINT (OPTIMIZED)
-    // ============================================
     getPlanSummary: builder.query<PlanSummaryResponse, string>({
       query: (planId) => {
         const adminId = getAdminId();
@@ -385,7 +390,6 @@ export const billingApi = createApi({
         { type: 'PlanSummary', id: planId },
         { type: 'Plan', id: planId },
       ],
-      // Keep this data cached for 5 minutes for smooth transitions between plans
       keepUnusedDataFor: 300,
     }),
 
@@ -397,12 +401,10 @@ export const billingApi = createApi({
         const adminId = getAdminId();
         const queryParams = new URLSearchParams();
         
-        // Add admin_id
         if (adminId) {
           queryParams.append('admin_id', adminId);
         }
         
-        // Add other params
         if (params?.component_type) {
           queryParams.append('component_type', params.component_type);
         }
@@ -535,22 +537,23 @@ export const billingApi = createApi({
     // ============================================
     // AGENT PRICING
     // ============================================
-    getAgentPricing: builder.query<AgentPricingResponse, void | { agent?: string; is_active?: boolean }>({
+    getAgentPricing: builder.query<AgentPricingResponse, void | { agent?: string; is_active?: boolean; search?: string }>({
       query: (params) => {
         const adminId = getAdminId();
         const queryParams = new URLSearchParams();
         
-        // Add admin_id
         if (adminId) {
           queryParams.append('admin_id', adminId);
         }
         
-        // Add other params
         if (params?.agent) {
           queryParams.append('agent', params.agent);
         }
         if (params?.is_active !== undefined) {
           queryParams.append('is_active', String(params.is_active));
+        }
+        if (params?.search) {
+          queryParams.append('search', params.search);
         }
         
         return `/agent-pricing/?${queryParams.toString()}`;
@@ -700,7 +703,6 @@ export const {
   useDuplicatePlanMutation,
   useGetPlanStatsQuery,
   
-  // NEW: Plan Summary Hook
   useGetPlanSummaryQuery,
   
   useGetPlanComponentsQuery,
