@@ -19,6 +19,7 @@ import AgentPricingManagement from '@/components/subscription-model/plan/AgentPr
 import PlanComponentInclusionManagement from '@/components/subscription-model/plan/PlanComponentInclusionManagement';
 import PlanAgentInclusionManagement from '@/components/subscription-model/plan/PlanAgentInclusionManagement';
 import PlanSummary from '@/components/subscription-model/plan/PlanSummary';
+import AgentComponentPricingManagement from '@/components/subscription-model/plan/AgentComponentPricingManagement';
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('Agent Templates');
@@ -249,6 +250,12 @@ const Dashboard = () => {
               <PlanSummary />
             </div>
           );
+        case 'Subscription Model - Agent Component Pricing':
+          return (
+            <div className="h-full">
+              <AgentComponentPricingManagement />
+            </div>
+          );
         case 'Settings - Manage User':
           return (
             <div className="h-full">
@@ -431,6 +438,18 @@ const Dashboard = () => {
                           <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
                         </svg>
                         <span className="font-medium text-gray-700 group-hover:text-gray-900">Link Agents</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveTab('Subscription Model - Agent Component Pricing');
+                          setSubscriptionDropdownOpen(false);
+                        }}
+                        className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors duration-200 flex items-center space-x-3 group"
+                      >
+                        <svg className="w-4 h-4 text-gray-500 group-hover:text-gray-700" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                        </svg>
+                        <span className="font-medium text-gray-700 group-hover:text-gray-900">Agent Component Pricing</span>
                       </button>
                       <button
                         onClick={() => {

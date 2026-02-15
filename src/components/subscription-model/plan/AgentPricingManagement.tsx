@@ -28,9 +28,9 @@ const AgentPricingManagement = () => {
     name: '',
     description: '',
     price: '',
-    // NEW FIELDS
-    unit: 'per_month' as 'per_use' | 'per_hour' | 'per_day' | 'per_month' | 'per_transaction' | 'per_request' | 'flat_rate',
-    billing_method: 'prepaid' as 'prepaid' | 'postpaid' | 'pay_as_you_go' | 'subscription',
+    // NEW FIELDS - COMMENTED OUT
+    // unit: 'per_month' as 'per_use' | 'per_hour' | 'per_day' | 'per_month' | 'per_transaction' | 'per_request' | 'flat_rate',
+    // billing_method: 'prepaid' as 'prepaid' | 'postpaid' | 'pay_as_you_go' | 'subscription',
     promotion_code: '',
     promotion_valid_from: '',
     promotion_valid_until: '',
@@ -123,9 +123,9 @@ const AgentPricingManagement = () => {
         name: formData.name,
         description: formData.description || null,
         price: parseFloat(formData.price),
-        // NEW FIELDS
-        unit: formData.unit,
-        billing_method: formData.billing_method,
+        // NEW FIELDS - COMMENTED OUT
+        // unit: formData.unit,
+        // billing_method: formData.billing_method,
         promotion_code: formData.promotion_code || null,
         promotion_valid_from: formData.promotion_valid_from || null,
         promotion_valid_until: formData.promotion_valid_until || null,
@@ -169,9 +169,9 @@ const AgentPricingManagement = () => {
         name: formData.name,
         description: formData.description || null,
         price: parseFloat(formData.price),
-        // NEW FIELDS
-        unit: formData.unit,
-        billing_method: formData.billing_method,
+        // NEW FIELDS - COMMENTED OUT
+        // unit: formData.unit,
+        // billing_method: formData.billing_method,
         promotion_code: formData.promotion_code || null,
         promotion_valid_from: formData.promotion_valid_from || null,
         promotion_valid_until: formData.promotion_valid_until || null,
@@ -222,9 +222,9 @@ const AgentPricingManagement = () => {
       name: pricing.name,
       description: pricing.description || '',
       price: pricing.price,
-      // NEW FIELDS
-      unit: pricing.unit || 'per_month',
-      billing_method: pricing.billing_method || 'prepaid',
+      // NEW FIELDS - COMMENTED OUT
+      // unit: pricing.unit || 'per_month',
+      // billing_method: pricing.billing_method || 'prepaid',
       promotion_code: pricing.promotion_code || '',
       promotion_valid_from: pricing.promotion_valid_from ? pricing.promotion_valid_from.split('T')[0] : '',
       promotion_valid_until: pricing.promotion_valid_until ? pricing.promotion_valid_until.split('T')[0] : '',
@@ -243,8 +243,8 @@ const AgentPricingManagement = () => {
       name: '',
       description: '',
       price: '',
-      unit: 'per_month',
-      billing_method: 'prepaid',
+      // unit: 'per_month',
+      // billing_method: 'prepaid',
       promotion_code: '',
       promotion_valid_from: '',
       promotion_valid_until: '',
@@ -350,8 +350,9 @@ const AgentPricingManagement = () => {
                   <tr>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Agent</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Pricing Option</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Unit</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Billing</th>
+                    {/* COMMENTED OUT - Unit and Billing columns */}
+                    {/* <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Unit</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Billing</th> */}
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Price</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Promotion</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
@@ -376,7 +377,8 @@ const AgentPricingManagement = () => {
                           </span>
                         )}
                       </td>
-                      <td className="px-6 py-4">
+                      {/* COMMENTED OUT - Unit and Billing display */}
+                      {/* <td className="px-6 py-4">
                         <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 capitalize">
                           {pricing.unit?.replace(/_/g, ' ') || 'Per Month'}
                         </span>
@@ -385,7 +387,7 @@ const AgentPricingManagement = () => {
                         <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 capitalize">
                           {pricing.billing_method?.replace(/_/g, ' ') || 'Prepaid'}
                         </span>
-                      </td>
+                      </td> */}
                       <td className="px-6 py-4">
                         <div className="text-sm font-semibold text-gray-900">${parseFloat(pricing.price).toFixed(2)}</div>
                       </td>
@@ -530,8 +532,30 @@ const AgentPricingManagement = () => {
                 />
               </div>
 
-              {/* Price, Unit, and Billing Method */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Price - SIMPLIFIED (removed Unit and Billing Method) */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Price <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.price}
+                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                    disabled={isOperating}
+                    className={`w-full pl-8 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
+                      errors.price ? 'border-red-300' : 'border-gray-200'
+                    }`}
+                    required
+                  />
+                </div>
+                {errors.price && <p className="mt-1 text-sm text-red-600">{errors.price}</p>}
+              </div>
+
+              {/* COMMENTED OUT - Unit and Billing Method Section */}
+              {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Price <span className="text-red-500">*</span>
@@ -587,7 +611,7 @@ const AgentPricingManagement = () => {
                     <option value="postpaid">Postpaid</option>
                   </select>
                 </div>
-              </div>
+              </div> */}
 
               {/* NEW: Promotion Section */}
               <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-5 border border-purple-200">

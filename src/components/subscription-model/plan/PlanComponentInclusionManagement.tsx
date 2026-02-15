@@ -7,11 +7,10 @@ import {
   useAddComponentToPlanMutation,
   useUpdatePlanComponentInclusionMutation,
   useRemoveComponentFromPlanMutation,
-  PlanComponent as ApiPlanComponent,
-  Plan as ApiPlan,
 } from '@/features/subscriptionModel/billing/billingApi';
 
-// Define local interfaces that match your usage
+// Define local interfaces that match the actual API response structure
+// Note: These may have additional fields compared to the base API types
 interface Plan {
   id: string;
   name: string;
@@ -31,11 +30,14 @@ interface PlanComponent {
   id: string;
   name: string;
   component_type: 'compute_tokens' | 'storage_gb' | 'api_calls' | 'agent_instances' | 'active_agents' | 'custom';
+  component_type_display: string;
   description: string | null;
-  quantity: string;
-  price: string;
+  quantity: string | null;
+  price: string | null;
   unit_label: string;
+  cost_per_unit: string;
   price_per_unit: string;
+  effective_price: string;
   is_active: boolean;
   is_renewable: boolean;
   created_at: string;
@@ -142,20 +144,20 @@ const PlanComponentInclusionManagement = () => {
   const [isPlanChanging, setIsPlanChanging] = useState(false);
   const [formData, setFormData] = useState({
     component: '',
-    quantity_multiplier: '1',
+    // quantity_multiplier: '1', // Commented out - not needed
     is_featured: false,
     display_order: 0,
   });
 
   // Fetch all plans for dropdown
   const { data: plansResponse, isLoading: isLoadingPlans } = useGetPlansQuery({});
-  // Use type assertion or handle the API response properly
-  const plans: Plan[] = (plansResponse?.results || []) as Plan[];
+  // Use safe type assertion via unknown
+  const plans: Plan[] = (plansResponse?.results || []) as unknown as Plan[];
 
   // Fetch all components for dropdown
   const { data: componentsResponse, isLoading: isLoadingComponents } = useGetPlanComponentsQuery({ is_active: true });
-  // Use type assertion or handle the API response properly
-  const components = (componentsResponse?.results || []) as PlanComponent[];
+  // Use safe type assertion via unknown
+  const components = (componentsResponse?.results || []) as unknown as PlanComponent[];
 
   // Fetch inclusions for selected plan using custom hook
   const {
@@ -172,9 +174,15 @@ const PlanComponentInclusionManagement = () => {
   const inclusions = inclusionsData?.components || [];
   const selectedPlan = plans.find(p => p.id === selectedPlanId);
 
-  // Calculate totals from inclusions
-  const totalValue = inclusions.reduce((sum, inclusion) => sum + parseFloat(inclusion.total_price), 0);
-  const totalComponents = inclusions.reduce((sum, inclusion) => sum + parseFloat(inclusion.total_quantity), 0);
+  // Calculate totals from inclusions with null safety
+  const totalValue = inclusions.reduce((sum, inclusion) => {
+    const price = parseFloat(inclusion.total_price);
+    return sum + (isNaN(price) ? 0 : price);
+  }, 0);
+  const totalComponents = inclusions.reduce((sum, inclusion) => {
+    const quantity = parseFloat(inclusion.total_quantity);
+    return sum + (isNaN(quantity) ? 0 : quantity);
+  }, 0);
   
   // Handle plan change with loading state
   const handlePlanChange = (planId: string) => {
@@ -203,7 +211,7 @@ const PlanComponentInclusionManagement = () => {
           components: [
             {
               component_id: formData.component,
-              quantity_multiplier: parseFloat(formData.quantity_multiplier),
+              quantity_multiplier: 1, // Default multiplier set to 1
               is_included: true,
             }
           ]
@@ -232,14 +240,14 @@ const PlanComponentInclusionManagement = () => {
         componentId: selectedInclusion.id 
       }).unwrap();
 
-      // Then add it back with updated values
+      // Then add it back with updated values (keeping original quantity_multiplier)
       await addComponentToPlan({
         planId: selectedPlanId,
         data: {
           components: [
             {
               component_id: selectedInclusion.component.id,
-              quantity_multiplier: parseFloat(formData.quantity_multiplier),
+              quantity_multiplier: parseFloat(selectedInclusion.quantity_multiplier), // Keep original multiplier
               is_included: true,
             }
           ]
@@ -277,7 +285,7 @@ const PlanComponentInclusionManagement = () => {
     setSelectedInclusion(inclusion);
     setFormData({
       component: inclusion.component.id,
-      quantity_multiplier: inclusion.quantity_multiplier,
+      // quantity_multiplier: inclusion.quantity_multiplier, // Commented out
       is_featured: inclusion.is_featured,
       display_order: inclusion.display_order,
     });
@@ -287,7 +295,7 @@ const PlanComponentInclusionManagement = () => {
   const resetForm = () => {
     setFormData({
       component: '',
-      quantity_multiplier: '1',
+      // quantity_multiplier: '1', // Commented out
       is_featured: false,
       display_order: 0,
     });
@@ -302,15 +310,27 @@ const PlanComponentInclusionManagement = () => {
 
   const availableComponents = getAvailableComponents();
 
-  // Helper function to format price
-  const formatPrice = (price: string | number) => {
+  // Helper function to format price - NULL SAFE
+  const formatPrice = (price: string | number | null | undefined) => {
+    if (price === null || price === undefined) {
+      return '$0.00';
+    }
     const num = typeof price === 'string' ? parseFloat(price) : price;
+    if (isNaN(num)) {
+      return '$0.00';
+    }
     return `$${num.toFixed(2)}`;
   };
 
-  // Helper function to format quantity
-  const formatQuantity = (quantity: string | number, unit: string) => {
+  // Helper function to format quantity - NULL SAFE
+  const formatQuantity = (quantity: string | number | null | undefined, unit: string) => {
+    if (quantity === null || quantity === undefined) {
+      return `0 ${unit}`;
+    }
     const num = typeof quantity === 'string' ? parseFloat(quantity) : quantity;
+    if (isNaN(num)) {
+      return `0 ${unit}`;
+    }
     return `${num.toLocaleString()} ${unit}`;
   };
 
@@ -695,7 +715,7 @@ const PlanComponentInclusionManagement = () => {
                   <option value="">-- Select a Component --</option>
                   {availableComponents.map((comp) => (
                     <option key={comp.id} value={comp.id}>
-                      {comp.name} - {formatQuantity(comp.quantity, comp.unit_label)} @ {formatPrice(comp.price)}
+                      {comp.name} ({comp.component_type_display}) - {formatPrice(comp.cost_per_unit)}/{comp.unit_label}
                     </option>
                   ))}
                 </select>
@@ -704,8 +724,8 @@ const PlanComponentInclusionManagement = () => {
                 )}
               </div>
 
-              {/* Quantity Multiplier */}
-              <div>
+              {/* Quantity Multiplier - COMMENTED OUT */}
+              {/* <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Quantity Multiplier <span className="text-red-500">*</span>
                 </label>
@@ -728,7 +748,7 @@ const PlanComponentInclusionManagement = () => {
                 <p className="text-xs text-gray-500 mt-1">
                   How many times the base quantity should be included (e.g., 2.0 = double)
                 </p>
-              </div>
+              </div> */}
 
               {/* Display Order */}
               <div>
@@ -761,8 +781,8 @@ const PlanComponentInclusionManagement = () => {
                 <span className="text-xs text-gray-400">(May not be supported by API)</span>
               </label>
 
-              {/* Preview Info */}
-              {formData.component && (
+              {/* Preview Info - COMMENTED OUT (was using quantity_multiplier) */}
+              {/* {formData.component && (
                 <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
                   <div className="text-sm font-semibold text-gray-900 mb-2">Preview:</div>
                   {(() => {
@@ -780,6 +800,31 @@ const PlanComponentInclusionManagement = () => {
                         <div className="font-semibold text-gray-900">
                           Price: {formatPrice(totalPrice.toFixed(2))}
                         </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )} */}
+
+              {/* New Preview Info without quantity_multiplier */}
+              {formData.component && (
+                <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+                  <div className="text-sm font-semibold text-gray-900 mb-2">Component Details:</div>
+                  {(() => {
+                    const selectedComp = components.find(c => c.id === formData.component);
+                    if (!selectedComp) return null;
+                    return (
+                      <div className="text-sm text-gray-600 space-y-1">
+                        <div><span className="font-medium">Type:</span> {selectedComp.component_type_display}</div>
+                        <div><span className="font-medium">Cost per Unit:</span> {formatPrice(selectedComp.cost_per_unit)}/{selectedComp.unit_label}</div>
+                        {selectedComp.quantity && (
+                          <div><span className="font-medium">Base Quantity:</span> {formatQuantity(selectedComp.quantity, selectedComp.unit_label)}</div>
+                        )}
+                        {selectedComp.price && (
+                          <div className="font-semibold text-indigo-700">
+                            Base Price: {formatPrice(selectedComp.price)}
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
@@ -830,7 +875,7 @@ const PlanComponentInclusionManagement = () => {
                   Update: {selectedInclusion.component.name}
                 </p>
                 <p className="text-xs text-yellow-600 mt-1">
-                  Note: Editing will remove and re-add the component with new values.
+                  Note: Only display order and featured status can be edited. To change quantity, remove and re-add the component.
                 </p>
               </div>
               <button
@@ -860,8 +905,8 @@ const PlanComponentInclusionManagement = () => {
                 </div>
               </div>
 
-              {/* Quantity Multiplier */}
-              <div>
+              {/* Quantity Multiplier - COMMENTED OUT */}
+              {/* <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Quantity Multiplier <span className="text-red-500">*</span>
                 </label>
@@ -880,6 +925,13 @@ const PlanComponentInclusionManagement = () => {
                     ×
                   </div>
                 </div>
+              </div> */}
+
+              {/* Display Current Multiplier (Read-only) */}
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <div className="text-xs text-gray-500 mb-1">Current Multiplier</div>
+                <div className="text-lg font-semibold text-gray-900">×{selectedInclusion.quantity_multiplier}</div>
+                <div className="text-xs text-gray-500 mt-1">Multiplier cannot be edited</div>
               </div>
 
               {/* Display Order */}
@@ -910,18 +962,16 @@ const PlanComponentInclusionManagement = () => {
 
               {/* Preview */}
               <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
-                <div className="text-sm font-semibold text-gray-900 mb-2">Updated Total:</div>
+                <div className="text-sm font-semibold text-gray-900 mb-2">Current Total (Unchanged):</div>
                 <div className="text-sm text-gray-600 space-y-1">
                   <div>
-                    Quantity: {formatQuantity(
-                      (parseFloat(selectedInclusion.component.quantity) * parseFloat(formData.quantity_multiplier)).toFixed(2),
-                      selectedInclusion.component.unit_label
-                    )}
+                    Quantity: {formatQuantity(selectedInclusion.total_quantity, selectedInclusion.component.unit_label)}
                   </div>
                   <div className="font-semibold text-green-700">
-                    Price: {formatPrice(
-                      (parseFloat(selectedInclusion.component.price) * parseFloat(formData.quantity_multiplier)).toFixed(2)
-                    )}
+                    Price: {formatPrice(selectedInclusion.total_price)}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-2">
+                    Note: Only display order and featured status can be edited
                   </div>
                 </div>
               </div>

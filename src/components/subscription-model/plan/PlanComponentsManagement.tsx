@@ -1,6 +1,6 @@
 // components/subscription-model/plan/PlanComponentsManagement.tsx
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   useGetPlanComponentsQuery,
   useCreatePlanComponentMutation,
@@ -8,6 +8,38 @@ import {
   useDeletePlanComponentMutation,
   PlanComponent,
 } from '@/features/subscriptionModel/billing/billingApi';
+
+// Unit label options based on component type
+const unitLabelOptions: Record<string, Array<{ value: string; label: string }>> = {
+  compute_tokens: [
+    { value: 'tokens', label: 'Tokens' },
+    { value: 'thousand_tokens', label: 'Thousand Tokens' },
+    { value: 'million_tokens', label: 'Million Tokens' },
+  ],
+  storage_gb: [
+    { value: 'MB', label: 'Megabytes (MB)' },
+    { value: 'GB', label: 'Gigabytes (GB)' },
+    { value: 'TB', label: 'Terabytes (TB)' },
+  ],
+  api_calls: [
+    { value: 'calls', label: 'Calls' },
+    { value: 'thousand_calls', label: 'Thousand Calls' },
+    { value: 'million_calls', label: 'Million Calls' },
+  ],
+  agent_instances: [
+    { value: 'instances', label: 'Instances' },
+    { value: 'concurrent_instances', label: 'Concurrent Instances' },
+  ],
+  active_agents: [
+    { value: 'agents', label: 'Agents' },
+    { value: 'active_agents', label: 'Active Agents' },
+  ],
+  custom: [
+    { value: 'units', label: 'Units' },
+    { value: 'items', label: 'Items' },
+    { value: 'seats', label: 'Seats' },
+  ],
+};
 
 const PlanComponentsManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -20,18 +52,37 @@ const PlanComponentsManagement = () => {
     name: '',
     component_type: 'compute_tokens' as PlanComponent['component_type'],
     description: '',
-    quantity: '',
-    price: '',
-    unit_label: '',
-    price_per_unit: '',
+    // Removed quantity and price - now optional
+    unit_label: 'tokens',
+    // NEW FIELDS
+    cost_per_unit: '',
+    promotion_code: '',
+    promotion_valid_from: '',
+    promotion_valid_until: '',
+    discount_percentage: '',
     is_active: true,
     is_renewable: false,
   });
+  
+  // Available unit labels based on selected component type
+  const [availableUnitLabels, setAvailableUnitLabels] = useState(unitLabelOptions.compute_tokens);
   
   // Loading states for different operations
   const [isCreating, setIsCreating] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Update available unit labels when component type changes
+  useEffect(() => {
+    setAvailableUnitLabels(unitLabelOptions[formData.component_type] || unitLabelOptions.custom);
+    // Set default unit label based on component type
+    if (unitLabelOptions[formData.component_type]?.length > 0) {
+      setFormData(prev => ({
+        ...prev,
+        unit_label: unitLabelOptions[formData.component_type][0].value
+      }));
+    }
+  }, [formData.component_type]);
 
   const queryParams: any = {};
   if (searchTerm) queryParams.search = searchTerm;
@@ -50,10 +101,24 @@ const PlanComponentsManagement = () => {
     e.preventDefault();
     setIsCreating(true);
     try {
-      await createComponent(formData).unwrap();
+      // Prepare data - quantity and price are not sent as they're now optional
+      const submitData = {
+        ...formData,
+        // Convert empty strings to null for optional fields
+        cost_per_unit: formData.cost_per_unit ? parseFloat(formData.cost_per_unit) : null,
+        discount_percentage: formData.discount_percentage ? parseFloat(formData.discount_percentage) : null,
+        promotion_valid_from: formData.promotion_valid_from || null,
+        promotion_valid_until: formData.promotion_valid_until || null,
+        promotion_code: formData.promotion_code || null,
+      };
+      
+      // Remove any fields that shouldn't be sent
+      delete (submitData as any).quantity;
+      delete (submitData as any).price;
+      
+      await createComponent(submitData).unwrap();
       setIsCreateModalOpen(false);
       resetForm();
-      // RTK Query will automatically refetch due to invalidateTags
     } catch (error) {
       console.error('Failed to create component:', error);
       alert('Failed to create component. Please try again.');
@@ -67,10 +132,24 @@ const PlanComponentsManagement = () => {
     if (!selectedComponent) return;
     setIsUpdating(true);
     try {
-      await updateComponent({ id: selectedComponent.id, data: formData }).unwrap();
+      // Prepare data - quantity and price are not sent as they're now optional
+      const submitData = {
+        ...formData,
+        // Convert empty strings to null for optional fields
+        cost_per_unit: formData.cost_per_unit ? parseFloat(formData.cost_per_unit) : null,
+        discount_percentage: formData.discount_percentage ? parseFloat(formData.discount_percentage) : null,
+        promotion_valid_from: formData.promotion_valid_from || null,
+        promotion_valid_until: formData.promotion_valid_until || null,
+        promotion_code: formData.promotion_code || null,
+      };
+      
+      // Remove any fields that shouldn't be sent
+      delete (submitData as any).quantity;
+      delete (submitData as any).price;
+      
+      await updateComponent({ id: selectedComponent.id, data: submitData }).unwrap();
       setIsEditModalOpen(false);
       resetForm();
-      // RTK Query will automatically refetch due to invalidateTags
     } catch (error) {
       console.error('Failed to update component:', error);
       alert('Failed to update component. Please try again.');
@@ -85,7 +164,6 @@ const PlanComponentsManagement = () => {
     setDeletingId(id);
     try {
       await deleteComponent(id).unwrap();
-      // RTK Query will automatically refetch due to invalidateTags
     } catch (error) {
       console.error('Failed to delete component:', error);
       alert('Failed to delete component. Please try again.');
@@ -100,10 +178,14 @@ const PlanComponentsManagement = () => {
       name: component.name,
       component_type: component.component_type,
       description: component.description || '',
-      quantity: component.quantity,
-      price: component.price,
+      // Removed quantity and price
       unit_label: component.unit_label,
-      price_per_unit: component.price_per_unit,
+      // NEW FIELDS
+      cost_per_unit: component.cost_per_unit?.toString() || '',
+      promotion_code: component.promotion_code || '',
+      promotion_valid_from: component.promotion_valid_from || '',
+      promotion_valid_until: component.promotion_valid_until || '',
+      discount_percentage: component.discount_percentage?.toString() || '',
       is_active: component.is_active,
       is_renewable: component.is_renewable,
     });
@@ -115,10 +197,14 @@ const PlanComponentsManagement = () => {
       name: '',
       component_type: 'compute_tokens',
       description: '',
-      quantity: '',
-      price: '',
-      unit_label: '',
-      price_per_unit: '',
+      // Removed quantity and price
+      unit_label: 'tokens',
+      // NEW FIELDS
+      cost_per_unit: '',
+      promotion_code: '',
+      promotion_valid_from: '',
+      promotion_valid_until: '',
+      discount_percentage: '',
       is_active: true,
       is_renewable: false,
     });
@@ -133,6 +219,27 @@ const PlanComponentsManagement = () => {
     { value: 'active_agents', label: 'Active Agents' },
     { value: 'custom', label: 'Custom' },
   ];
+
+  // Helper function to format currency
+  const formatCurrency = (value: string | number | null | undefined) => {
+    if (value === null || value === undefined || value === '') return '$0.00';
+    const num = typeof value === 'string' ? parseFloat(value) : value;
+    return `$${num.toFixed(6)}`;
+  };
+
+  // Helper function to check if promotion is valid
+  const isPromotionValid = (component: PlanComponent) => {
+    if (!component.promotion_code) return false;
+    
+    const now = new Date();
+    const validFrom = component.promotion_valid_from ? new Date(component.promotion_valid_from) : null;
+    const validUntil = component.promotion_valid_until ? new Date(component.promotion_valid_until) : null;
+    
+    if (validFrom && now < validFrom) return false;
+    if (validUntil && now > validUntil) return false;
+    
+    return true;
+  };
 
   return (
     <div className="w-full min-h-screen p-8">
@@ -246,83 +353,117 @@ const PlanComponentsManagement = () => {
                   <tr>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Component</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Type</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Quantity</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Price</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Unit</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Cost/Unit</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Promotion</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Created</th>
                     <th className="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {components.map((component) => (
-                    <tr key={component.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="text-sm font-semibold text-gray-900">{component.name}</div>
-                        {component.description && (
-                          <div className="text-xs text-gray-500 mt-1 line-clamp-2 max-w-md">{component.description}</div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                          {component.component_type.replace('_', ' ').toUpperCase()}
-                        </span>
-                        {component.is_renewable && (
-                          <span className="ml-2 inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            Renewable
+                  {components.map((component) => {
+                    const promotionValid = isPromotionValid(component);
+                    
+                    return (
+                      <tr key={component.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-semibold text-gray-900">{component.name}</div>
+                          {component.description && (
+                            <div className="text-xs text-gray-500 mt-1 line-clamp-2 max-w-md">{component.description}</div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            {component.component_type.replace('_', ' ').toUpperCase()}
                           </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">
-                          {parseFloat(component.quantity).toLocaleString()} {component.unit_label}
-                        </div>
-                        <div className="text-xs text-gray-500">Per unit: ${component.price_per_unit}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm font-semibold text-gray-900">${parseFloat(component.price).toFixed(2)}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold ${
-                          component.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}>
-                          {component.is_active ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-xs text-gray-500">
-                          {new Date(component.created_at).toLocaleDateString()}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => handleEdit(component)}
-                            disabled={isUpdating || isCreating}
-                            className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 disabled:text-gray-400 disabled:hover:bg-transparent disabled:cursor-not-allowed rounded-lg transition-colors"
-                            title="Edit"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => handleDelete(component.id, component.name)}
-                            disabled={deletingId === component.id}
-                            className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 disabled:text-gray-400 disabled:hover:bg-transparent disabled:cursor-not-allowed rounded-lg transition-colors relative"
-                            title="Delete"
-                          >
-                            {deletingId === component.id ? (
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
-                            ) : (
+                          {component.is_renewable && (
+                            <span className="ml-2 inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              Renewable
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-900">
+                            {component.unit_label || 'units'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-semibold text-gray-900">
+                            {formatCurrency(component.cost_per_unit)}
+                          </div>
+                          {component.price_per_unit && (
+                            <div className="text-xs text-gray-500">
+                              Price/unit: {formatCurrency(component.price_per_unit)}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          {component.promotion_code ? (
+                            <div>
+                              <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                promotionValid ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {component.promotion_code}
+                              </span>
+                              {component.discount_percentage && (
+                                <div className="text-xs mt-1 text-gray-600">
+                                  {component.discount_percentage}% off
+                                </div>
+                              )}
+                              {promotionValid ? (
+                                <span className="text-xs text-green-600 mt-1 block">Active</span>
+                              ) : (
+                                <span className="text-xs text-gray-500 mt-1 block">Inactive</span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">No promotion</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold ${
+                            component.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          }`}>
+                            {component.is_active ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-xs text-gray-500">
+                            {new Date(component.created_at).toLocaleDateString()}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleEdit(component)}
+                              disabled={isUpdating || isCreating}
+                              className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 disabled:text-gray-400 disabled:hover:bg-transparent disabled:cursor-not-allowed rounded-lg transition-colors"
+                              title="Edit"
+                            >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                               </svg>
-                            )}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            </button>
+                            <button
+                              onClick={() => handleDelete(component.id, component.name)}
+                              disabled={deletingId === component.id}
+                              className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 disabled:text-gray-400 disabled:hover:bg-transparent disabled:cursor-not-allowed rounded-lg transition-colors relative"
+                              title="Delete"
+                            >
+                              {deletingId === component.id ? (
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                              ) : (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              )}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -408,70 +549,107 @@ const PlanComponentsManagement = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Quantity *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.quantity}
-                    onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                    disabled={isCreating || isUpdating}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
-                    required
-                  />
-                </div>
-
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Unit Label *
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={formData.unit_label}
                     onChange={(e) => setFormData({ ...formData, unit_label: e.target.value })}
                     disabled={isCreating || isUpdating}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
-                    placeholder="e.g., tokens, GB, calls"
                     required
-                  />
+                  >
+                    {availableUnitLabels.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Price *
+                    Cost Per Unit ($)
                   </label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                     <input
                       type="number"
-                      step="0.01"
-                      value={formData.price}
-                      onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                      step="0.000001"
+                      min="0"
+                      value={formData.cost_per_unit}
+                      onChange={(e) => setFormData({ ...formData, cost_per_unit: e.target.value })}
                       disabled={isCreating || isUpdating}
                       className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
-                      required
+                      placeholder="0.000000"
                     />
                   </div>
+                  <p className="text-xs text-gray-500 mt-1">Cost per single unit for usage-based billing</p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Price Per Unit
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+              <div className="border-t border-gray-200 pt-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Promotion Settings</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Promotion Code
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.promotion_code}
+                      onChange={(e) => setFormData({ ...formData, promotion_code: e.target.value })}
+                      disabled={isCreating || isUpdating}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                      placeholder="e.g., SUMMER2024"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Discount Percentage (%)
+                    </label>
                     <input
                       type="number"
                       step="0.01"
-                      value={formData.price_per_unit}
-                      onChange={(e) => setFormData({ ...formData, price_per_unit: e.target.value })}
+                      min="0"
+                      max="100"
+                      value={formData.discount_percentage}
+                      onChange={(e) => setFormData({ ...formData, discount_percentage: e.target.value })}
                       disabled={isCreating || isUpdating}
-                      className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                      placeholder="0-100"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Valid From
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={formData.promotion_valid_from}
+                      onChange={(e) => setFormData({ ...formData, promotion_valid_from: e.target.value })}
+                      disabled={isCreating || isUpdating}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Valid Until
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={formData.promotion_valid_until}
+                      onChange={(e) => setFormData({ ...formData, promotion_valid_until: e.target.value })}
+                      disabled={isCreating || isUpdating}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
                     />
                   </div>
                 </div>

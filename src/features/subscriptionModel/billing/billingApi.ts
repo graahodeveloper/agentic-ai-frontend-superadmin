@@ -1,4 +1,4 @@
-// features/billing/billingApi.ts
+// features/subscriptionModel/billing/billingApi.ts
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
@@ -28,8 +28,15 @@ export interface PlanComponent {
   name: string;
   component_type: 'compute_tokens' | 'storage_gb' | 'api_calls' | 'agent_instances' | 'active_agents' | 'custom';
   description: string | null;
-  quantity: string;
-  price: string;
+  // UPDATED: quantity and price are now optional
+  quantity?: string | null;
+  price?: string | null;
+  // NEW FIELDS
+  cost_per_unit: string | null;
+  promotion_code: string | null;
+  promotion_valid_from: string | null;
+  promotion_valid_until: string | null;
+  discount_percentage: string | null;
   unit_label: string;
   price_per_unit: string;
   is_active: boolean;
@@ -59,7 +66,6 @@ export interface AgentPricing {
   name: string;
   description: string | null;
   price: string;
-  // NEW FIELDS
   unit: 'per_use' | 'per_hour' | 'per_day' | 'per_month' | 'per_transaction' | 'per_request' | 'flat_rate';
   billing_method: 'prepaid' | 'postpaid' | 'pay_as_you_go' | 'subscription';
   promotion_code: string | null;
@@ -98,7 +104,6 @@ export interface Plan {
   billing_period: 'monthly' | 'quarterly' | 'yearly';
   billing_mode: 'prepaid' | 'postpaid';
   grace_period_days: number;
-  // NEW FIELDS
   cost_per_unit: string | null;
   promotion_code: string | null;
   promotion_valid_from: string | null;
@@ -146,7 +151,6 @@ export interface CreatePlanRequest {
   billing_period: string;
   billing_mode: string;
   grace_period_days?: number;
-  // NEW FIELDS
   cost_per_unit?: number | string | null;
   promotion_code?: string | null;
   promotion_valid_from?: string | null;
@@ -156,6 +160,25 @@ export interface CreatePlanRequest {
   is_public?: boolean;
   display_order?: number;
   featured?: boolean;
+}
+
+// UPDATED: CreatePlanComponentRequest with new fields
+export interface CreatePlanComponentRequest {
+  name: string;
+  component_type: string;
+  description?: string | null;
+  // UPDATED: quantity and price are optional
+  quantity?: number | string | null;
+  price?: number | string | null;
+  // NEW FIELDS
+  cost_per_unit?: number | string | null;
+  promotion_code?: string | null;
+  promotion_valid_from?: string | null;
+  promotion_valid_until?: string | null;
+  discount_percentage?: number | string | null;
+  unit_label: string;
+  is_active?: boolean;
+  is_renewable?: boolean;
 }
 
 export interface PlanAgentsResponse {
@@ -173,7 +196,7 @@ export interface PlanAgentsResponse {
 }
 
 // ============================================
-// NEW: PLAN SUMMARY TYPES
+// PLAN SUMMARY TYPES
 // ============================================
 
 export interface PlanSummaryComponentItem {
@@ -226,7 +249,6 @@ export interface PlanSummaryResponse {
     billing_mode: string;
     billing_mode_display: string;
     grace_period_days: number;
-    // NEW FIELDS
     cost_per_unit: number | null;
     promotion_code: string | null;
     promotion_valid_from: string | null;
@@ -264,6 +286,57 @@ export interface PlanSummaryResponse {
 }
 
 // ============================================
+// AGENT COMPONENT PRICING TYPES
+// ============================================
+
+export interface AgentComponentPricing {
+  id: string;
+  component_id: string;
+  component_name: string;
+  component_type: string;
+  component_type_display: string;
+  consumption_rate: number;
+  base_price_per_unit: number;
+  override_price_per_unit: number | null;
+  effective_price_per_unit: number;
+  cost_per_execution: number;
+  unit_label: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentComponentsResponse {
+  agent_id: string;
+  agent_name: string;
+  components: AgentComponentPricing[];
+  count: number;
+}
+
+export interface AgentComponentSummaryResponse {
+  agent: {
+    id: string;
+    agent_id: string;
+    name: string;
+    agent_category: string;
+    agent_type: string;
+    is_active: boolean;
+  };
+  components: {
+    items: AgentComponentPricing[];
+    count: number;
+    total_cost_per_execution: number;
+  };
+  cost_estimates: {
+    per_execution: number;
+    per_10_executions: number;
+    per_100_executions: number;
+    per_1000_executions: number;
+    currency: string;
+  };
+}
+
+// ============================================
 // API
 // ============================================
 
@@ -280,7 +353,16 @@ export const billingApi = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Plan', 'PlanComponent', 'AgentPricing', 'Stats', 'PlanComponentInclusion', 'PlanAgentInclusion', 'PlanSummary'],
+  tagTypes: [
+    'Plan', 
+    'PlanComponent', 
+    'AgentPricing', 
+    'Stats', 
+    'PlanComponentInclusion', 
+    'PlanAgentInclusion', 
+    'PlanSummary',
+    'AgentComponentPricing'
+  ],
   keepUnusedDataFor: 300,
   endpoints: (builder) => ({
     // ============================================
@@ -394,9 +476,13 @@ export const billingApi = createApi({
     }),
 
     // ============================================
-    // PLAN COMPONENTS
+    // PLAN COMPONENTS (UPDATED)
     // ============================================
-    getPlanComponents: builder.query<PlanComponentsResponse, void | { component_type?: string; is_active?: boolean }>({
+    getPlanComponents: builder.query<PlanComponentsResponse, void | { 
+      component_type?: string; 
+      is_active?: boolean;
+      search?: string;
+    }>({
       query: (params) => {
         const adminId = getAdminId();
         const queryParams = new URLSearchParams();
@@ -410,6 +496,9 @@ export const billingApi = createApi({
         }
         if (params?.is_active !== undefined) {
           queryParams.append('is_active', String(params.is_active));
+        }
+        if (params?.search) {
+          queryParams.append('search', params.search);
         }
         
         return `/plan-components/?${queryParams.toString()}`;
@@ -431,25 +520,35 @@ export const billingApi = createApi({
       providesTags: (result, error, id) => [{ type: 'PlanComponent', id }],
     }),
 
-    createPlanComponent: builder.mutation<PlanComponent, Partial<PlanComponent>>({
+    // UPDATED: createPlanComponent with new fields
+    createPlanComponent: builder.mutation<PlanComponent, CreatePlanComponentRequest>({
       query: (data) => {
         const adminId = getAdminId();
+        // Remove any undefined values and handle nulls
+        const cleanData = Object.fromEntries(
+          Object.entries(data).filter(([_, v]) => v !== undefined)
+        );
         return {
           url: `/plan-components/?admin_id=${adminId}`,
           method: 'POST',
-          body: data,
+          body: cleanData,
         };
       },
       invalidatesTags: [{ type: 'PlanComponent', id: 'LIST' }],
     }),
 
-    updatePlanComponent: builder.mutation<PlanComponent, { id: string; data: Partial<PlanComponent> }>({
+    // UPDATED: updatePlanComponent with new fields
+    updatePlanComponent: builder.mutation<PlanComponent, { id: string; data: Partial<CreatePlanComponentRequest> }>({
       query: ({ id, data }) => {
         const adminId = getAdminId();
+        // Remove any undefined values
+        const cleanData = Object.fromEntries(
+          Object.entries(data).filter(([_, v]) => v !== undefined)
+        );
         return {
           url: `/plan-components/${id}/?admin_id=${adminId}`,
           method: 'PATCH',
-          body: data,
+          body: cleanData,
         };
       },
       invalidatesTags: (result, error, { id }) => [
@@ -691,6 +790,74 @@ export const billingApi = createApi({
         { type: 'PlanSummary', id: planId },
       ],
     }),
+
+    // ============================================
+    // AGENT COMPONENT PRICING
+    // ============================================
+    getAgentComponents: builder.query<AgentComponentsResponse, string>({
+      query: (agentId) => {
+        const adminId = getAdminId();
+        return `/agent-templates/${agentId}/components/?admin_id=${adminId}`;
+      },
+      providesTags: (result, error, agentId) => [
+        { type: 'AgentComponentPricing', id: agentId },
+        { type: 'AgentComponentPricing', id: 'LIST' },
+      ],
+    }),
+
+    addComponentToAgent: builder.mutation<any, { agentId: string; data: any }>({
+      query: ({ agentId, data }) => {
+        const adminId = getAdminId();
+        return {
+          url: `/agent-templates/${agentId}/components/?admin_id=${adminId}`,
+          method: 'POST',
+          body: data,
+        };
+      },
+      invalidatesTags: (result, error, { agentId }) => [
+        { type: 'AgentComponentPricing', id: agentId },
+        { type: 'AgentComponentPricing', id: 'LIST' },
+      ],
+    }),
+
+    updateAgentComponent: builder.mutation<any, { agentId: string; data: any }>({
+      query: ({ agentId, data }) => {
+        const adminId = getAdminId();
+        return {
+          url: `/agent-templates/${agentId}/update_component/?admin_id=${adminId}`,
+          method: 'PATCH',
+          body: data,
+        };
+      },
+      invalidatesTags: (result, error, { agentId }) => [
+        { type: 'AgentComponentPricing', id: agentId },
+        { type: 'AgentComponentPricing', id: 'LIST' },
+      ],
+    }),
+
+    removeComponentFromAgent: builder.mutation<void, { agentId: string; componentId: string }>({
+      query: ({ agentId, componentId }) => {
+        const adminId = getAdminId();
+        return {
+          url: `/agent-templates/${agentId}/remove_component/?component_id=${componentId}&admin_id=${adminId}`,
+          method: 'DELETE',
+        };
+      },
+      invalidatesTags: (result, error, { agentId }) => [
+        { type: 'AgentComponentPricing', id: agentId },
+        { type: 'AgentComponentPricing', id: 'LIST' },
+      ],
+    }),
+
+    getAgentComponentSummary: builder.query<AgentComponentSummaryResponse, string>({
+      query: (agentId) => {
+        const adminId = getAdminId();
+        return `/agent-templates/${agentId}/component_summary/?admin_id=${adminId}`;
+      },
+      providesTags: (result, error, agentId) => [
+        { type: 'AgentComponentPricing', id: agentId },
+      ],
+    }),
   }),
 });
 
@@ -727,4 +894,10 @@ export const {
   useAddAgentToPlanMutation,
   useUpdatePlanAgentInclusionMutation,
   useRemoveAgentFromPlanMutation,
+
+  useGetAgentComponentsQuery,
+  useAddComponentToAgentMutation,
+  useUpdateAgentComponentMutation,
+  useRemoveComponentFromAgentMutation,
+  useGetAgentComponentSummaryQuery,
 } = billingApi;
