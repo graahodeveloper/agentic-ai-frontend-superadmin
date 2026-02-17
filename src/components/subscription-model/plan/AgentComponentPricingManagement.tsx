@@ -119,7 +119,6 @@ const AgentComponentPricingManagement = () => {
   const [isRemoving, setIsRemoving] = useState(false);
   const [formData, setFormData] = useState({
     component_id: '',
-    // consumption_rate: '1', // Commented out - not needed
     override_price: '',
   });
 
@@ -295,7 +294,6 @@ const AgentComponentPricingManagement = () => {
     setSelectedComponent(component);
     setFormData({
       component_id: component.component_id,
-      // consumption_rate: component.consumption_rate.toString(), // Commented out
       override_price: component.override_price_per_unit ? component.override_price_per_unit.toString() : '',
     });
     setIsEditModalOpen(true);
@@ -304,7 +302,6 @@ const AgentComponentPricingManagement = () => {
   const resetForm = () => {
     setFormData({
       component_id: '',
-      // consumption_rate: '1', // Commented out
       override_price: '',
     });
     setSelectedComponent(null);
@@ -336,10 +333,10 @@ const AgentComponentPricingManagement = () => {
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 sm:gap-6">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-[#4318ff] to-[#7c75ff] bg-clip-text text-transparent">
-                Agent Component
+                Agent Component Pricing
               </h1>
               <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base">
-                Configure components for agent templates
+                Configure components and pricing for agent templates
               </p>
             </div>
           </div>
@@ -496,11 +493,8 @@ const AgentComponentPricingManagement = () => {
                     <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                       <tr>
                         <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Component</th>
-                        {/* Consumption Rate column - COMMENTED OUT */}
-                        {/* <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Consumption Rate</th> */}
-                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase hidden md:table-cell">Base Price</th>
-                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase hidden md:table-cell">Override Price</th>
-                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Effective Price</th>
+                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase hidden md:table-cell">Consumption Rate</th>
+                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Base Price</th>
                         <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Cost/Execution</th>
                         <th className="px-4 sm:px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase">Actions</th>
                       </tr>
@@ -521,29 +515,14 @@ const AgentComponentPricingManagement = () => {
                               </div>
                             </div>
                           </td>
-                          {/* Consumption Rate cell - COMMENTED OUT */}
-                          {/* <td className="px-4 sm:px-6 py-4">
+                          <td className="px-4 sm:px-6 py-4 hidden md:table-cell">
                             <span className="inline-flex px-2.5 py-1 bg-blue-100 text-blue-800 rounded-lg text-sm font-semibold">
                               {component.consumption_rate} {component.unit_label}
                             </span>
-                          </td> */}
-                          <td className="px-4 sm:px-6 py-4 hidden md:table-cell">
-                            <div className="text-sm text-gray-600">
-                              {formatPrice(component.base_price_per_unit)}
-                            </div>
-                          </td>
-                          <td className="px-4 sm:px-6 py-4 hidden md:table-cell">
-                            {component.override_price_per_unit ? (
-                              <div className="text-sm font-semibold text-orange-600">
-                                {formatPrice(component.override_price_per_unit)}
-                              </div>
-                            ) : (
-                              <div className="text-sm text-gray-400">Default</div>
-                            )}
                           </td>
                           <td className="px-4 sm:px-6 py-4">
-                            <div className="text-sm font-semibold text-indigo-600">
-                              {formatPrice(component.effective_price_per_unit)}
+                            <div className="text-sm text-gray-600">
+                              {formatPrice(component.base_price_per_unit)}/{component.unit_label}
                             </div>
                           </td>
                           <td className="px-4 sm:px-6 py-4">
@@ -587,6 +566,16 @@ const AgentComponentPricingManagement = () => {
                       ))}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Summary Row */}
+                <div className="bg-gray-50 px-4 sm:px-6 py-4 border-t border-gray-200">
+                  <div className="flex justify-end">
+                    <div className="text-sm">
+                      <span className="font-semibold text-gray-700">Total Cost per Execution: </span>
+                      <span className="font-bold text-green-600 text-lg ml-2">{formatCost(totalCostPerExecution)}</span>
+                    </div>
+                  </div>
                 </div>
               </>
             )}
@@ -680,27 +669,6 @@ const AgentComponentPricingManagement = () => {
                 )}
               </div>
 
-              {/* Consumption Rate - COMMENTED OUT */}
-              {/* <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Consumption Rate <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  step="0.0001"
-                  min="0.0001"
-                  value={formData.consumption_rate}
-                  onChange={(e) => setFormData({ ...formData, consumption_rate: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  placeholder="1.0"
-                  required
-                  disabled={isAdding}
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  How many units of this component the agent uses per execution
-                </p>
-              </div> */}
-
               {/* Override Price */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -725,7 +693,7 @@ const AgentComponentPricingManagement = () => {
               </div>
 
               {/* Preview */}
-              {/* {formData.component_id && (
+              {formData.component_id && (
                 <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
                   <div className="text-sm font-semibold text-gray-900 mb-2">Cost Preview:</div>
                   {(() => {
@@ -739,7 +707,10 @@ const AgentComponentPricingManagement = () => {
                     return (
                       <div className="text-sm text-gray-600 space-y-1">
                         <div>Consumption: {consumptionRate} {selectedComp.unit_label}/execution (default)</div>
-                        <div>Effective Price: {formatPrice(effectivePrice)}/unit</div>
+                        <div>Base Price: {formatPrice(parseFloat(selectedComp.price_per_unit))}/{selectedComp.unit_label}</div>
+                        {formData.override_price && (
+                          <div>Override Price: {formatPrice(parseFloat(formData.override_price))}/{selectedComp.unit_label}</div>
+                        )}
                         <div className="font-semibold text-indigo-700">
                           Cost per Execution: {formatCost(costPerExecution)}
                         </div>
@@ -747,7 +718,7 @@ const AgentComponentPricingManagement = () => {
                     );
                   })()}
                 </div>
-              )} */}
+              )}
 
               {/* Action Buttons */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
@@ -792,9 +763,6 @@ const AgentComponentPricingManagement = () => {
                 <p className="text-sm text-gray-600 mt-1">
                   Update: {selectedComponent.component_name}
                 </p>
-                <p className="text-xs text-yellow-600 mt-1">
-                  Note: Only override price can be edited. Consumption rate is fixed at {selectedComponent.consumption_rate}.
-                </p>
               </div>
               <button
                 onClick={() => {
@@ -813,27 +781,27 @@ const AgentComponentPricingManagement = () => {
             <form onSubmit={handleEditSubmit} className="space-y-6">
               {/* Current Component Info */}
               <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl">
-                <div className="text-sm font-semibold text-gray-900 mb-2">Component:</div>
+                <div className="text-sm font-semibold text-gray-900 mb-2">Component Details:</div>
                 <div className="text-sm text-gray-600 space-y-1">
                   <div className="font-medium">{selectedComponent.component_name}</div>
                   <div>{selectedComponent.component_type_display}</div>
+                  <div>Consumption Rate: {selectedComponent.consumption_rate} {selectedComponent.unit_label}/execution</div>
                   <div className="text-indigo-600">
                     Base Price: {formatPrice(selectedComponent.base_price_per_unit)}/{selectedComponent.unit_label}
+                  </div>
+                  {selectedComponent.override_price_per_unit && (
+                    <div className="text-orange-600">
+                      Current Override: {formatPrice(selectedComponent.override_price_per_unit)}/{selectedComponent.unit_label}
+                    </div>
+                  )}
+                  <div className="text-green-600 font-semibold">
+                    Current Cost: {formatCost(selectedComponent.cost_per_execution)}/execution
                   </div>
                 </div>
               </div>
 
-              {/* Consumption Rate - COMMENTED OUT, Show as read-only */}
-              <div className="p-3 bg-gray-50 rounded-lg">
-                <div className="text-xs text-gray-500 mb-1">Current Consumption Rate</div>
-                <div className="text-lg font-semibold text-gray-900">
-                  {selectedComponent.consumption_rate} {selectedComponent.unit_label}/execution
-                </div>
-                <div className="text-xs text-gray-500 mt-1">Consumption rate cannot be edited</div>
-              </div>
-
               {/* Override Price */}
-              {/* <div>
+              <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Override Price (Optional)
                 </label>
@@ -850,7 +818,10 @@ const AgentComponentPricingManagement = () => {
                     disabled={isUpdating}
                   />
                 </div>
-              </div> */}
+                <p className="text-xs text-gray-500 mt-1">
+                  Custom price per unit (overrides component's default price)
+                </p>
+              </div>
 
               {/* Preview */}
               <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">

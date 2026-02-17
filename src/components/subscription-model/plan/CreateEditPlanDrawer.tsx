@@ -385,7 +385,7 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
               </div>
 
               {/* NEW: Usage-Based Pricing */}
-              <div>
+              {/* <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Cost Per Unit (Optional)
                 </label>
@@ -406,10 +406,10 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
                 </div>
                 {errors.cost_per_unit && <p className="mt-1 text-sm text-red-600">{errors.cost_per_unit}</p>}
                 <p className="mt-1 text-xs text-gray-500">For usage-based billing (e.g., $0.002 per token)</p>
-              </div>
+              </div> */}
 
               {/* NEW: Promotion Section */}
-              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-5 border border-purple-200">
+              {/* <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-5 border border-purple-200">
                 <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center">
                   <svg className="w-5 h-5 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
@@ -418,7 +418,7 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
                 </h3>
 
                 <div className="space-y-4">
-                  {/* Promo Code & Discount */}
+       
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -458,7 +458,7 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
                     </div>
                   </div>
 
-                  {/* Validity Period */}
+      
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -490,7 +490,6 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
                     </div>
                   </div>
 
-                  {/* Promotion Preview */}
                   {formData.discount_percentage && formData.base_price && (
                     <div className="bg-white rounded-lg p-4 border border-purple-200">
                       <div className="flex items-center justify-between">
@@ -508,7 +507,7 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
                     </div>
                   )}
                 </div>
-              </div>
+              </div> */}
 
               {/* Status Toggles */}
               <div className="bg-white rounded-xl p-5 border border-gray-200 space-y-4">

@@ -28,10 +28,8 @@ export interface PlanComponent {
   name: string;
   component_type: 'compute_tokens' | 'storage_gb' | 'api_calls' | 'agent_instances' | 'active_agents' | 'custom';
   description: string | null;
-  // UPDATED: quantity and price are now optional
   quantity?: string | null;
   price?: string | null;
-  // NEW FIELDS
   cost_per_unit: string | null;
   promotion_code: string | null;
   promotion_valid_from: string | null;
@@ -162,15 +160,12 @@ export interface CreatePlanRequest {
   featured?: boolean;
 }
 
-// UPDATED: CreatePlanComponentRequest with new fields
 export interface CreatePlanComponentRequest {
   name: string;
   component_type: string;
   description?: string | null;
-  // UPDATED: quantity and price are optional
   quantity?: number | string | null;
   price?: number | string | null;
-  // NEW FIELDS
   cost_per_unit?: number | string | null;
   promotion_code?: string | null;
   promotion_valid_from?: string | null;
@@ -196,8 +191,35 @@ export interface PlanAgentsResponse {
 }
 
 // ============================================
-// PLAN SUMMARY TYPES
+// ENHANCED PLAN SUMMARY TYPES
 // ============================================
+
+export interface AgentComponentConsumptionItem {
+  component_id: string;
+  component_name: string;
+  component_type: string;
+  component_type_display: string;
+  consumption_rate: number;
+  unit_label: string;
+  base_price_per_unit: number;
+  override_price_per_unit: number | null;
+  effective_price_per_unit: number;
+  cost_per_execution: number;
+  component_cost_per_unit: number | null;
+  is_active: boolean;
+}
+
+export interface AgentComponentConsumption {
+  items: AgentComponentConsumptionItem[];
+  count: number;
+  total_cost_per_execution: number;
+  cost_estimates: {
+    per_execution: number;
+    per_10_executions: number;
+    per_100_executions: number;
+    per_1000_executions: number;
+  };
+}
 
 export interface PlanSummaryComponentItem {
   inclusion_id: string;
@@ -205,13 +227,21 @@ export interface PlanSummaryComponentItem {
   component_name: string;
   component_type: string;
   component_type_display: string;
-  base_quantity: number;
+  base_quantity: number | null;
   quantity_multiplier: number;
   total_quantity: number;
   unit_label: string;
-  base_price: number;
-  total_price: number;
+  base_price: number | null;
+  cost_per_unit: number | null;
   price_per_unit: number;
+  total_price: number;
+  has_promotion: boolean;
+  promotion_code: string | null;
+  discount_percentage: number;
+  discount_amount: number;
+  effective_price: number;
+  promotion_valid_from: string | null;
+  promotion_valid_until: string | null;
   is_renewable: boolean;
   is_featured: boolean;
   display_order: number;
@@ -223,14 +253,22 @@ export interface PlanSummaryAgentItem {
   agent_id: string;
   agent_name: string;
   agent_category: string;
+  agent_type: string;
   agent_pricing_id: string | null;
   pricing_name: string | null;
   pricing_description: string | null;
   unit_price: number;
   included_instances: number;
   total_price: number;
+  has_promotion: boolean;
+  promotion_code: string | null;
+  discount_percentage: number;
+  discount_amount: number;
   estimated_tokens_per_use: number;
   estimated_storage_mb: number;
+  billing_method: string | null;
+  unit: string | null;
+  component_consumption: AgentComponentConsumption;
   is_featured: boolean;
   display_order: number;
   is_active: boolean;
@@ -244,16 +282,19 @@ export interface PlanSummaryResponse {
     plan_type: string;
     plan_type_display: string;
     base_price: number;
+    cost_per_unit: number | null;
+    has_promotion: boolean;
+    promotion_code: string | null;
+    discount_percentage: number;
+    discount_amount: number;
+    effective_base_price: number;
+    promotion_valid_from: string | null;
+    promotion_valid_until: string | null;
     billing_period: string;
     billing_period_display: string;
     billing_mode: string;
     billing_mode_display: string;
     grace_period_days: number;
-    cost_per_unit: number | null;
-    promotion_code: string | null;
-    promotion_valid_from: string | null;
-    promotion_valid_until: string | null;
-    discount_percentage: number | null;
     is_active: boolean;
     is_public: boolean;
     featured: boolean;
@@ -265,22 +306,29 @@ export interface PlanSummaryResponse {
     items: PlanSummaryComponentItem[];
     count: number;
     total_value: number;
+    description: string;
   };
   agents: {
     items: PlanSummaryAgentItem[];
     count: number;
     total_value: number;
+    description: string;
   };
   pricing_summary: {
     base_price: number;
+    effective_base_price: number;
+    base_price_discount: number;
     components_value: number;
     agents_value: number;
     total_plan_value: number;
+    total_with_discounts: number;
     currency: string;
   };
   statistics: {
     active_subscriptions: number;
     total_subscriptions: number;
+    total_plan_components: number;
+    total_agents: number;
     total_inclusions: number;
   };
 }
@@ -476,7 +524,7 @@ export const billingApi = createApi({
     }),
 
     // ============================================
-    // PLAN COMPONENTS (UPDATED)
+    // PLAN COMPONENTS
     // ============================================
     getPlanComponents: builder.query<PlanComponentsResponse, void | { 
       component_type?: string; 
@@ -520,11 +568,9 @@ export const billingApi = createApi({
       providesTags: (result, error, id) => [{ type: 'PlanComponent', id }],
     }),
 
-    // UPDATED: createPlanComponent with new fields
     createPlanComponent: builder.mutation<PlanComponent, CreatePlanComponentRequest>({
       query: (data) => {
         const adminId = getAdminId();
-        // Remove any undefined values and handle nulls
         const cleanData = Object.fromEntries(
           Object.entries(data).filter(([_, v]) => v !== undefined)
         );
@@ -537,11 +583,9 @@ export const billingApi = createApi({
       invalidatesTags: [{ type: 'PlanComponent', id: 'LIST' }],
     }),
 
-    // UPDATED: updatePlanComponent with new fields
     updatePlanComponent: builder.mutation<PlanComponent, { id: string; data: Partial<CreatePlanComponentRequest> }>({
       query: ({ id, data }) => {
         const adminId = getAdminId();
-        // Remove any undefined values
         const cleanData = Object.fromEntries(
           Object.entries(data).filter(([_, v]) => v !== undefined)
         );

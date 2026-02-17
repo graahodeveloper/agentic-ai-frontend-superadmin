@@ -10,7 +10,6 @@ import {
 } from '@/features/subscriptionModel/billing/billingApi';
 
 // Define local interfaces that match the actual API response structure
-// Note: These may have additional fields compared to the base API types
 interface Plan {
   id: string;
   name: string;
@@ -38,6 +37,11 @@ interface PlanComponent {
   cost_per_unit: string;
   price_per_unit: string;
   effective_price: string;
+  promotion_code: string | null;
+  promotion_valid_from: string | null;
+  promotion_valid_until: string | null;
+  discount_percentage: string | null;
+  is_promotion_valid: boolean;
   is_active: boolean;
   is_renewable: boolean;
   created_at: string;
@@ -46,15 +50,12 @@ interface PlanComponent {
 
 interface PlanComponentInclusion {
   id: string;
-  plan: string;
   component: PlanComponent;
   quantity_multiplier: string;
   total_quantity: string;
   total_price: string;
   is_featured: boolean;
   display_order: number;
-  created_at: string;
-  updated_at: string;
 }
 
 interface PlanComponentsResponse {
@@ -144,19 +145,16 @@ const PlanComponentInclusionManagement = () => {
   const [isPlanChanging, setIsPlanChanging] = useState(false);
   const [formData, setFormData] = useState({
     component: '',
-    // quantity_multiplier: '1', // Commented out - not needed
     is_featured: false,
     display_order: 0,
   });
 
   // Fetch all plans for dropdown
   const { data: plansResponse, isLoading: isLoadingPlans } = useGetPlansQuery({});
-  // Use safe type assertion via unknown
   const plans: Plan[] = (plansResponse?.results || []) as unknown as Plan[];
 
   // Fetch all components for dropdown
   const { data: componentsResponse, isLoading: isLoadingComponents } = useGetPlanComponentsQuery({ is_active: true });
-  // Use safe type assertion via unknown
   const components = (componentsResponse?.results || []) as unknown as PlanComponent[];
 
   // Fetch inclusions for selected plan using custom hook
@@ -173,22 +171,11 @@ const PlanComponentInclusionManagement = () => {
 
   const inclusions = inclusionsData?.components || [];
   const selectedPlan = plans.find(p => p.id === selectedPlanId);
-
-  // Calculate totals from inclusions with null safety
-  const totalValue = inclusions.reduce((sum, inclusion) => {
-    const price = parseFloat(inclusion.total_price);
-    return sum + (isNaN(price) ? 0 : price);
-  }, 0);
-  const totalComponents = inclusions.reduce((sum, inclusion) => {
-    const quantity = parseFloat(inclusion.total_quantity);
-    return sum + (isNaN(quantity) ? 0 : quantity);
-  }, 0);
   
   // Handle plan change with loading state
   const handlePlanChange = (planId: string) => {
     setIsPlanChanging(true);
     setSelectedPlanId(planId);
-    // Reset selection when changing plans
     resetForm();
   };
 
@@ -204,14 +191,13 @@ const PlanComponentInclusionManagement = () => {
     if (!selectedPlanId) return;
 
     try {
-      // FIXED: Use the correct structure expected by backend
       await addComponentToPlan({
         planId: selectedPlanId,
         data: {
           components: [
             {
               component_id: formData.component,
-              quantity_multiplier: 1, // Default multiplier set to 1
+              quantity_multiplier: 1,
               is_included: true,
             }
           ]
@@ -220,7 +206,6 @@ const PlanComponentInclusionManagement = () => {
 
       setIsAddModalOpen(false);
       resetForm();
-      // Refetch inclusions to update the list
       refetchInclusions();
     } catch (error: any) {
       console.error('Failed to add component to plan:', error);
@@ -234,20 +219,18 @@ const PlanComponentInclusionManagement = () => {
     if (!selectedPlanId || !selectedInclusion) return;
 
     try {
-      // First remove the existing inclusion
       await removeComponent({ 
         planId: selectedPlanId, 
         componentId: selectedInclusion.id 
       }).unwrap();
 
-      // Then add it back with updated values (keeping original quantity_multiplier)
       await addComponentToPlan({
         planId: selectedPlanId,
         data: {
           components: [
             {
               component_id: selectedInclusion.component.id,
-              quantity_multiplier: parseFloat(selectedInclusion.quantity_multiplier), // Keep original multiplier
+              quantity_multiplier: parseFloat(selectedInclusion.quantity_multiplier),
               is_included: true,
             }
           ]
@@ -272,7 +255,6 @@ const PlanComponentInclusionManagement = () => {
           planId: selectedPlanId, 
           componentId: inclusionId 
         }).unwrap();
-        // Refetch inclusions to update the list
         refetchInclusions();
       } catch (error: any) {
         console.error('Failed to remove component:', error);
@@ -285,7 +267,6 @@ const PlanComponentInclusionManagement = () => {
     setSelectedInclusion(inclusion);
     setFormData({
       component: inclusion.component.id,
-      // quantity_multiplier: inclusion.quantity_multiplier, // Commented out
       is_featured: inclusion.is_featured,
       display_order: inclusion.display_order,
     });
@@ -295,7 +276,6 @@ const PlanComponentInclusionManagement = () => {
   const resetForm = () => {
     setFormData({
       component: '',
-      // quantity_multiplier: '1', // Commented out
       is_featured: false,
       display_order: 0,
     });
@@ -320,18 +300,6 @@ const PlanComponentInclusionManagement = () => {
       return '$0.00';
     }
     return `$${num.toFixed(2)}`;
-  };
-
-  // Helper function to format quantity - NULL SAFE
-  const formatQuantity = (quantity: string | number | null | undefined, unit: string) => {
-    if (quantity === null || quantity === undefined) {
-      return `0 ${unit}`;
-    }
-    const num = typeof quantity === 'string' ? parseFloat(quantity) : quantity;
-    if (isNaN(num)) {
-      return `0 ${unit}`;
-    }
-    return `${num.toLocaleString()} ${unit}`;
   };
 
   // Helper function to safely display description
@@ -505,18 +473,14 @@ const PlanComponentInclusionManagement = () => {
             ) : (
               <>
                 {/* Summary Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-6 border-b border-gray-100">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-6 border-b border-gray-100">
                   <div className="bg-gradient-to-r from-indigo-50 to-indigo-100 p-4 rounded-xl">
                     <div className="text-2xl font-bold text-indigo-700">{inclusions.length}</div>
                     <div className="text-sm text-indigo-600 font-medium">Total Components</div>
                   </div>
                   <div className="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-xl">
-                    <div className="text-2xl font-bold text-green-700">{formatPrice(totalValue)}</div>
-                    <div className="text-sm text-green-600 font-medium">Total Value</div>
-                  </div>
-                  <div className="bg-gradient-to-r from-purple-50 to-purple-100 p-4 rounded-xl">
-                    <div className="text-2xl font-bold text-purple-700">{formatQuantity(totalComponents, 'units')}</div>
-                    <div className="text-sm text-purple-600 font-medium">Total Quantity</div>
+                    <div className="text-2xl font-bold text-green-700">{inclusions.length}</div>
+                    <div className="text-sm text-green-600 font-medium">Components Included</div>
                   </div>
                 </div>
 
@@ -526,10 +490,9 @@ const PlanComponentInclusionManagement = () => {
                     <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                       <tr>
                         <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Component</th>
-                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase hidden sm:table-cell">Base Quantity</th>
+                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase hidden sm:table-cell">Cost Per Unit</th>
+                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Price Per Unit</th>
                         <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Multiplier</th>
-                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Total</th>
-                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase hidden md:table-cell">Price</th>
                         <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
                         <th className="px-4 sm:px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase">Actions</th>
                       </tr>
@@ -546,16 +509,28 @@ const PlanComponentInclusionManagement = () => {
                               </div>
                               <div>
                                 <div className="text-sm font-semibold text-gray-900">{inclusion.component.name}</div>
-                                <div className="text-xs text-gray-500 mt-0.5 sm:hidden">
-                                  {formatQuantity(inclusion.component.quantity, inclusion.component.unit_label)}
+                                <div className="text-xs text-gray-500 mt-0.5">
+                                  {inclusion.component.component_type_display}
                                 </div>
                               </div>
                             </div>
                           </td>
                           <td className="px-4 sm:px-6 py-4 hidden sm:table-cell">
-                            <div className="text-sm text-gray-900">
-                              {formatQuantity(inclusion.component.quantity, inclusion.component.unit_label)}
+                            <div className="text-sm font-medium text-gray-900">
+                              {formatPrice(inclusion.component.cost_per_unit)}
+                              <span className="text-xs text-gray-500 ml-1">/ {inclusion.component.unit_label}</span>
                             </div>
+                          </td>
+                          <td className="px-4 sm:px-6 py-4">
+                            <div className="text-sm font-semibold text-indigo-600">
+                              {formatPrice(inclusion.component.price_per_unit)}
+                              <span className="text-xs text-gray-500 ml-1">/ {inclusion.component.unit_label}</span>
+                            </div>
+                            {inclusion.component.is_promotion_valid && (
+                              <div className="text-xs text-green-600 mt-1">
+                                {inclusion.component.discount_percentage}% off
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 sm:px-6 py-4">
                             <span className="inline-flex px-2.5 py-1 bg-blue-100 text-blue-800 rounded-lg text-sm font-semibold">
@@ -563,20 +538,15 @@ const PlanComponentInclusionManagement = () => {
                             </span>
                           </td>
                           <td className="px-4 sm:px-6 py-4">
-                            <div className="text-sm font-semibold text-indigo-600">
-                              {formatQuantity(inclusion.total_quantity, inclusion.component.unit_label)}
-                            </div>
-                          </td>
-                          <td className="px-4 sm:px-6 py-4 hidden md:table-cell">
-                            <div className="text-sm font-semibold text-gray-900">
-                              {formatPrice(inclusion.total_price)}
-                            </div>
-                          </td>
-                          <td className="px-4 sm:px-6 py-4">
                             <div className="flex flex-col gap-1">
                               {inclusion.is_featured && (
                                 <span className="inline-flex w-fit px-2 py-0.5 bg-gradient-to-r from-yellow-100 to-orange-100 text-yellow-800 rounded text-xs font-medium">
                                   ⭐ Featured
+                                </span>
+                              )}
+                              {inclusion.component.is_renewable && (
+                                <span className="inline-flex w-fit px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">
+                                  Renewable
                                 </span>
                               )}
                               <span className="text-xs text-gray-500">
@@ -653,7 +623,7 @@ const PlanComponentInclusionManagement = () => {
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="text-indigo-600">✓</span>
-                      <span>Adjust multipliers to customize component quantities</span>
+                      <span>View cost per unit and pricing details for each component</span>
                     </li>
                   </ul>
                 </div>
@@ -682,7 +652,7 @@ const PlanComponentInclusionManagement = () => {
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Add Component to Plan</h2>
                 <p className="text-sm text-gray-600 mt-1">
-                  Configure how this component will be included in {selectedPlan?.name}
+                  Select a component to include in {selectedPlan?.name}
                 </p>
               </div>
               <button
@@ -724,32 +694,6 @@ const PlanComponentInclusionManagement = () => {
                 )}
               </div>
 
-              {/* Quantity Multiplier - COMMENTED OUT */}
-              {/* <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Quantity Multiplier <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={formData.quantity_multiplier}
-                    onChange={(e) => setFormData({ ...formData, quantity_multiplier: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                    placeholder="1.0"
-                    required
-                    disabled={isAdding}
-                  />
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
-                    ×
-                  </div>
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  How many times the base quantity should be included (e.g., 2.0 = double)
-                </p>
-              </div> */}
-
               {/* Display Order */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -768,7 +712,7 @@ const PlanComponentInclusionManagement = () => {
                 </p>
               </div>
 
-              {/* Featured Toggle - Note: This may not be supported by the backend */}
+              {/* Featured Toggle */}
               <label className="flex items-center space-x-3 cursor-pointer">
                 <input
                   type="checkbox"
@@ -778,35 +722,9 @@ const PlanComponentInclusionManagement = () => {
                   disabled={isAdding}
                 />
                 <span className="text-sm font-medium text-gray-900">Mark as Featured Component</span>
-                <span className="text-xs text-gray-400">(May not be supported by API)</span>
               </label>
 
-              {/* Preview Info - COMMENTED OUT (was using quantity_multiplier) */}
-              {/* {formData.component && (
-                <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
-                  <div className="text-sm font-semibold text-gray-900 mb-2">Preview:</div>
-                  {(() => {
-                    const selectedComp = components.find(c => c.id === formData.component);
-                    if (!selectedComp) return null;
-                    const totalQty = parseFloat(selectedComp.quantity) * parseFloat(formData.quantity_multiplier);
-                    const totalPrice = parseFloat(selectedComp.price) * parseFloat(formData.quantity_multiplier);
-                    return (
-                      <div className="text-sm text-gray-600 space-y-1">
-                        <div>Base: {formatQuantity(selectedComp.quantity, selectedComp.unit_label)}</div>
-                        <div>Multiplier: ×{formData.quantity_multiplier}</div>
-                        <div className="font-semibold text-indigo-700">
-                          Total: {formatQuantity(totalQty.toFixed(2), selectedComp.unit_label)}
-                        </div>
-                        <div className="font-semibold text-gray-900">
-                          Price: {formatPrice(totalPrice.toFixed(2))}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              )} */}
-
-              {/* New Preview Info without quantity_multiplier */}
+              {/* Component Details Preview */}
               {formData.component && (
                 <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
                   <div className="text-sm font-semibold text-gray-900 mb-2">Component Details:</div>
@@ -817,12 +735,12 @@ const PlanComponentInclusionManagement = () => {
                       <div className="text-sm text-gray-600 space-y-1">
                         <div><span className="font-medium">Type:</span> {selectedComp.component_type_display}</div>
                         <div><span className="font-medium">Cost per Unit:</span> {formatPrice(selectedComp.cost_per_unit)}/{selectedComp.unit_label}</div>
-                        {selectedComp.quantity && (
-                          <div><span className="font-medium">Base Quantity:</span> {formatQuantity(selectedComp.quantity, selectedComp.unit_label)}</div>
-                        )}
-                        {selectedComp.price && (
-                          <div className="font-semibold text-indigo-700">
-                            Base Price: {formatPrice(selectedComp.price)}
+                        <div className="font-semibold text-indigo-700">
+                          Price per Unit: {formatPrice(selectedComp.price_per_unit)}/{selectedComp.unit_label}
+                        </div>
+                        {selectedComp.is_promotion_valid && (
+                          <div className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded inline-block mt-1">
+                            {selectedComp.discount_percentage}% discount active
                           </div>
                         )}
                       </div>
@@ -875,7 +793,7 @@ const PlanComponentInclusionManagement = () => {
                   Update: {selectedInclusion.component.name}
                 </p>
                 <p className="text-xs text-yellow-600 mt-1">
-                  Note: Only display order and featured status can be edited. To change quantity, remove and re-add the component.
+                  Note: Only display order and featured status can be edited. To change multiplier, remove and re-add the component.
                 </p>
               </div>
               <button
@@ -898,34 +816,15 @@ const PlanComponentInclusionManagement = () => {
                 <div className="text-sm font-semibold text-gray-900 mb-2">Current Component:</div>
                 <div className="text-sm text-gray-600 space-y-1">
                   <div className="font-medium">{selectedInclusion.component.name}</div>
-                  <div>{formatQuantity(selectedInclusion.component.quantity, selectedInclusion.component.unit_label)}</div>
+                  <div>{selectedInclusion.component.component_type_display}</div>
                   <div className="text-indigo-600 font-medium">
-                    Base Price: {formatPrice(selectedInclusion.component.price)}
+                    Cost: {formatPrice(selectedInclusion.component.cost_per_unit)}/{selectedInclusion.component.unit_label}
+                  </div>
+                  <div className="text-indigo-600 font-medium">
+                    Price: {formatPrice(selectedInclusion.component.price_per_unit)}/{selectedInclusion.component.unit_label}
                   </div>
                 </div>
               </div>
-
-              {/* Quantity Multiplier - COMMENTED OUT */}
-              {/* <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Quantity Multiplier <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={formData.quantity_multiplier}
-                    onChange={(e) => setFormData({ ...formData, quantity_multiplier: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                    required
-                    disabled={isUpdating}
-                  />
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
-                    ×
-                  </div>
-                </div>
-              </div> */}
 
               {/* Display Current Multiplier (Read-only) */}
               <div className="p-3 bg-gray-50 rounded-lg">
@@ -959,22 +858,6 @@ const PlanComponentInclusionManagement = () => {
                 />
                 <span className="text-sm font-medium text-gray-900">Mark as Featured</span>
               </label>
-
-              {/* Preview */}
-              <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
-                <div className="text-sm font-semibold text-gray-900 mb-2">Current Total (Unchanged):</div>
-                <div className="text-sm text-gray-600 space-y-1">
-                  <div>
-                    Quantity: {formatQuantity(selectedInclusion.total_quantity, selectedInclusion.component.unit_label)}
-                  </div>
-                  <div className="font-semibold text-green-700">
-                    Price: {formatPrice(selectedInclusion.total_price)}
-                  </div>
-                  <div className="text-xs text-gray-500 mt-2">
-                    Note: Only display order and featured status can be edited
-                  </div>
-                </div>
-              </div>
 
               {/* Action Buttons */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">

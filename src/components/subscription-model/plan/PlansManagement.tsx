@@ -204,9 +204,6 @@ const PlansManagement = () => {
                       <td className="px-6 py-4">
                         <div className="text-sm font-semibold text-gray-900">${parseFloat(plan.base_price).toFixed(2)}</div>
                         <div className="text-xs text-gray-500">Base / {plan.billing_period}</div>
-                        <div className="text-xs text-indigo-600 font-medium mt-1">
-                          Total: ${parseFloat(plan.total_plan_value).toFixed(2)}
-                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-xs text-gray-600 space-y-1">
@@ -231,7 +228,7 @@ const PlansManagement = () => {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-end gap-2">
-                          <button
+                          {/* <button
                             onClick={() => {
                               setSelectedPlan(plan);
                               setIsDetailsModalOpen(true);
@@ -253,7 +250,7 @@ const PlansManagement = () => {
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                             </svg>
-                          </button>
+                          </button> */}
                           <button
                             onClick={() => {
                               setSelectedPlan(plan);
