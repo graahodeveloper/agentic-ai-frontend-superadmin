@@ -4,10 +4,11 @@ import React, { useState } from 'react';
 import {
   useGetPlansQuery,
   useGetPlanSummaryQuery,
-  PlanSummaryResponse,
+  PlanSummaryComponentItem,
+  PlanSummaryAgentItem,
+  AgentComponentConsumptionItem,
 } from '@/features/subscriptionModel/billing/billingApi';
 
-// Define local interfaces that match your usage (optional - can also use imported types)
 interface Plan {
   id: string;
   name: string;
@@ -28,43 +29,35 @@ const PlanSummary = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'components' | 'agents' | 'agent-details'>('overview');
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
 
-  // Fetch all plans for dropdown
   const { data: plansResponse, isLoading: isLoadingPlans } = useGetPlansQuery({});
   const plans: Plan[] = (plansResponse?.results || []) as Plan[];
 
-  // Fetch summary for selected plan using RTK Query
   const {
     data: summaryData,
     isLoading: isLoadingSummary,
     isFetching: isFetchingSummary,
     error: summaryError,
-    refetch: refetchSummary
-  } = useGetPlanSummaryQuery(selectedPlanId, {
-    skip: !selectedPlanId,
-  });
+    refetch: refetchSummary,
+  } = useGetPlanSummaryQuery(selectedPlanId, { skip: !selectedPlanId });
 
-  const selectedPlan = plans.find(p => p.id === selectedPlanId);
+  const selectedPlan = plans.find((p) => p.id === selectedPlanId);
 
-  // Handle plan change
   const handlePlanChange = (planId: string) => {
     setSelectedPlanId(planId);
     setActiveTab('overview');
     setSelectedAgentId(null);
   };
 
-  // Handle agent selection for detailed view
   const handleAgentSelect = (agentId: string) => {
     setSelectedAgentId(agentId);
     setActiveTab('agent-details');
   };
 
-  // Handle back from agent details
   const handleBackToAgents = () => {
     setSelectedAgentId(null);
     setActiveTab('agents');
   };
 
-  // Helper function to format price with null safety
   const formatPrice = (price: string | number | null | undefined) => {
     if (price === null || price === undefined) return '$0.00';
     const num = typeof price === 'string' ? parseFloat(price) : price;
@@ -72,38 +65,70 @@ const PlanSummary = () => {
     return `$${num.toFixed(2)}`;
   };
 
-  // Helper function to get component type color
+  const formatUnit = (price: string | number | null | undefined, precision = 6) => {
+    if (price === null || price === undefined || price === '') return '$0.000000';
+    const num = typeof price === 'string' ? parseFloat(price) : price;
+    if (isNaN(num)) return '$0.000000';
+    return `$${num.toFixed(precision)}`;
+  };
+
   const getComponentTypeColor = (type: string) => {
     const colors: Record<string, string> = {
-      'compute_tokens': 'from-blue-100 to-blue-200 text-blue-800',
-      'storage_gb': 'from-green-100 to-green-200 text-green-800',
-      'api_calls': 'from-purple-100 to-purple-200 text-purple-800',
-      'agent_instances': 'from-orange-100 to-orange-200 text-orange-800',
-      'active_agents': 'from-pink-100 to-pink-200 text-pink-800',
-      'custom': 'from-gray-100 to-gray-200 text-gray-800',
+      compute_tokens: 'from-blue-100 to-blue-200 text-blue-800',
+      storage_gb: 'from-green-100 to-green-200 text-green-800',
+      api_calls: 'from-purple-100 to-purple-200 text-purple-800',
+      agent_instances: 'from-orange-100 to-orange-200 text-orange-800',
+      active_agents: 'from-pink-100 to-pink-200 text-pink-800',
+      custom: 'from-gray-100 to-gray-200 text-gray-800',
     };
     return colors[type] || colors['custom'];
   };
 
-  // Handle error display
-  const errorMessage = summaryError 
-    ? 'data' in summaryError 
+  const errorMessage = summaryError
+    ? 'data' in summaryError
       ? JSON.stringify(summaryError.data)
       : 'error' in summaryError
         ? summaryError.error
         : 'Failed to fetch plan summary'
     : null;
 
-  // Determine if we should show loading state
   const isLoading = isFetchingSummary && !summaryData;
 
-  // Get selected agent data
-  const selectedAgent = selectedAgentId 
-    ? summaryData?.agents.items.find(agent => agent.agent_id === selectedAgentId)
+  const selectedAgent = selectedAgentId
+    ? summaryData?.agents.items.find((agent) => agent.agent_id === selectedAgentId)
     : null;
 
+  // ─── Reusable: Cost + Price per unit inline display ──────────────────────────
+  const UnitPricing = ({
+    costPerUnit,
+    pricePerUnit,
+    unitLabel,
+  }: {
+    costPerUnit?: number | string | null;
+    pricePerUnit?: number | string | null;
+    unitLabel?: string;
+  }) => (
+    <div className="flex items-center gap-3 mt-1.5">
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs font-medium text-gray-500">Cost:</span>
+        <span className="text-xs font-semibold text-gray-700 bg-gray-100 px-2 py-0.5 rounded-md">
+          {formatUnit(costPerUnit)}
+          {unitLabel && <span className="text-gray-400 font-normal ml-1">/ {unitLabel}</span>}
+        </span>
+      </div>
+      <span className="text-gray-300 text-sm">·</span>
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs font-medium text-gray-500">Price:</span>
+        <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
+          {formatUnit(pricePerUnit)}
+          {unitLabel && <span className="text-indigo-400 font-normal ml-1">/ {unitLabel}</span>}
+        </span>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="w-full min-h-screen p-4 sm:p-6 lg:p-8">
+    <div className="w-full min-h-screen p-4 sm:p-6 lg:p-8 bg-gray-50">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8 mb-6 sm:mb-8">
@@ -183,11 +208,10 @@ const PlanSummary = () => {
         {/* Summary Content */}
         {selectedPlanId && !errorMessage && summaryData && (
           <>
-            {/* Subtle loading indicator when refetching */}
             {isFetchingSummary && (
               <div className="mb-4 bg-indigo-50 border border-indigo-200 rounded-lg p-3 flex items-center gap-3">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
-                <span className="text-sm text-indigo-700">Updating plan data...</span>
+                <span className="text-sm text-indigo-700">Refreshing plan data...</span>
               </div>
             )}
 
@@ -203,7 +227,9 @@ const PlanSummary = () => {
                     </div>
                     <div className="flex-1">
                       <h2 className="text-2xl font-bold text-gray-900">{summaryData.plan.name}</h2>
-                      <p className="text-sm text-gray-600 mt-1">{summaryData.plan.description || 'No description available'}</p>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {summaryData.plan.description || 'No description available'}
+                      </p>
                       <div className="flex flex-wrap gap-2 mt-3">
                         <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
                           {summaryData.plan.plan_type_display}
@@ -290,7 +316,6 @@ const PlanSummary = () => {
                   </span>
                 </div>
 
-                {/* Effective Base Price — only show if different from base price */}
                 {summaryData.pricing_summary.effective_base_price !== summaryData.pricing_summary.base_price && (
                   <div className="flex items-center justify-between py-3 border-b border-gray-100">
                     <div>
@@ -303,7 +328,6 @@ const PlanSummary = () => {
                   </div>
                 )}
 
-                {/* Plan Discount — only show if > 0 */}
                 {summaryData.pricing_summary.base_price_discount > 0 && (
                   <div className="flex items-center justify-between py-3 border-b border-gray-100">
                     <div className="flex items-center gap-2">
@@ -316,58 +340,64 @@ const PlanSummary = () => {
                   </div>
                 )}
 
-                {/* Components Value — per component breakdown */}
+                {/* Components Value */}
                 <div className="py-3 border-b border-gray-100">
                   <div className="flex items-center justify-between mb-2">
                     <div>
                       <span className="text-gray-700">Components Value</span>
-                      <div className="text-xs text-gray-400 mt-0.5">{summaryData.components.count} component{summaryData.components.count !== 1 ? 's' : ''} included</div>
+                      <div className="text-xs text-gray-400 mt-0.5">
+                        {summaryData.components.count} component{summaryData.components.count !== 1 ? 's' : ''} included
+                      </div>
                     </div>
-                    {/* <span className="font-semibold text-gray-900">
-                      {formatPrice(summaryData.pricing_summary.components_value)}
-                    </span> */}
                   </div>
                   {summaryData.components.items.length > 0 && (
-                    <div className="mt-2 space-y-2 pl-3 border-l-2 border-green-100">
-                      {summaryData.components.items.map((component) => (
-                        <div key={component.inclusion_id} className="flex items-center justify-between text-sm">
-                          <div className="flex-1 min-w-0">
-                            <span className="text-gray-700 font-medium truncate block">{component.component_name}</span>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-xs text-gray-400">
-                                {formatPrice(component.cost_per_unit)} / {component.unit_label}
-                              </span>
-                              {component.quantity_multiplier && component.quantity_multiplier !== 1 && (
-                                <span className="text-xs text-gray-400">
-                                  × {component.quantity_multiplier} multiplier
+                    <div className="mt-2 space-y-3 pl-3 border-l-2 border-green-100">
+                      {summaryData.components.items.map((component: PlanSummaryComponentItem) => (
+                        <div key={component.inclusion_id}>
+                          <div className="flex items-start justify-between text-sm">
+                            <div className="flex-1 min-w-0">
+                              <span className="text-gray-700 font-medium truncate block">{component.component_name}</span>
+                              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                <span className="text-xs bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded">
+                                  {component.component_type_display}
                                 </span>
-                              )}
-                              <span className="text-xs bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded">
-                                {component.component_type_display}
-                              </span>
-                              {component.has_promotion && (
-                                <span className="text-xs bg-green-50 text-green-600 px-1.5 py-0.5 rounded">
-                                  {component.discount_percentage}% off
-                                </span>
-                              )}
+                                {component.quantity_multiplier && component.quantity_multiplier !== 1 && (
+                                  <span className="text-xs text-gray-400">
+                                    × {component.quantity_multiplier} multiplier
+                                  </span>
+                                )}
+                                {component.has_promotion && (
+                                  <span className="text-xs bg-green-50 text-green-600 px-1.5 py-0.5 rounded">
+                                    {component.discount_percentage}% off
+                                  </span>
+                                )}
+                              </div>
+                              {/* Cost & Price per unit inline */}
+                              <UnitPricing
+                                costPerUnit={component.cost_per_unit}
+                                pricePerUnit={component.price_per_unit}
+                                unitLabel={component.unit_label}
+                              />
                             </div>
+                            <span className="font-semibold text-green-600 ml-4 whitespace-nowrap">
+                              {formatPrice(component.price_per_unit)}
+                              <span className="text-xs font-normal text-gray-400 ml-1">/ {component.unit_label}</span>
+                            </span>
                           </div>
-                          <span className="font-semibold text-green-600 ml-4 whitespace-nowrap">
-                            {formatPrice(component.price_per_unit)}
-                            <span className="text-xs font-normal text-gray-400 ml-1">/ {component.unit_label}</span>
-                          </span>
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
 
-                {/* Agents Value — per agent breakdown */}
+                {/* Agents Value */}
                 <div className="py-3 border-b border-gray-100">
                   <div className="flex items-center justify-between mb-2">
                     <div>
                       <span className="text-gray-700">Agents Value</span>
-                      <div className="text-xs text-gray-400 mt-0.5">{summaryData.agents.count} agent{summaryData.agents.count !== 1 ? 's' : ''} included</div>
+                      <div className="text-xs text-gray-400 mt-0.5">
+                        {summaryData.agents.count} agent{summaryData.agents.count !== 1 ? 's' : ''} included
+                      </div>
                     </div>
                     <span className="font-semibold text-gray-900">
                       {formatPrice(summaryData.pricing_summary.agents_value)}
@@ -375,7 +405,7 @@ const PlanSummary = () => {
                   </div>
                   {summaryData.agents.items.length > 0 && (
                     <div className="mt-2 space-y-2 pl-3 border-l-2 border-indigo-100">
-                      {summaryData.agents.items.map((agent) => (
+                      {summaryData.agents.items.map((agent: PlanSummaryAgentItem) => (
                         <div key={agent.inclusion_id} className="flex items-center justify-between text-sm">
                           <div className="flex-1 min-w-0">
                             <span className="text-gray-700 font-medium truncate block">{agent.agent_name}</span>
@@ -389,9 +419,7 @@ const PlanSummary = () => {
                                 </span>
                               )}
                               {agent.unit && (
-                                <span className="text-xs text-gray-400">
-                                  / {agent.unit}
-                                </span>
+                                <span className="text-xs text-gray-400">/ {agent.unit}</span>
                               )}
                             </div>
                           </div>
@@ -412,7 +440,7 @@ const PlanSummary = () => {
                   </span>
                 </div>
 
-                {/* Total With Discounts — final amount */}
+                {/* Total With Discounts */}
                 <div className="flex items-center justify-between py-4 bg-gradient-to-r from-indigo-50 to-purple-50 -mx-6 px-6 mt-2">
                   <div>
                     <span className="text-lg font-bold text-gray-900">Total With Discounts</span>
@@ -430,10 +458,7 @@ const PlanSummary = () => {
               {/* Tab Headers */}
               <div className="flex border-b border-gray-200 bg-gray-50">
                 <button
-                  onClick={() => {
-                    setActiveTab('overview');
-                    setSelectedAgentId(null);
-                  }}
+                  onClick={() => { setActiveTab('overview'); setSelectedAgentId(null); }}
                   className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
                     activeTab === 'overview'
                       ? 'text-indigo-600 border-b-2 border-indigo-600 bg-white'
@@ -443,10 +468,7 @@ const PlanSummary = () => {
                   Overview
                 </button>
                 <button
-                  onClick={() => {
-                    setActiveTab('components');
-                    setSelectedAgentId(null);
-                  }}
+                  onClick={() => { setActiveTab('components'); setSelectedAgentId(null); }}
                   className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
                     activeTab === 'components'
                       ? 'text-indigo-600 border-b-2 border-indigo-600 bg-white'
@@ -456,10 +478,7 @@ const PlanSummary = () => {
                   Components ({summaryData.components.count})
                 </button>
                 <button
-                  onClick={() => {
-                    setActiveTab('agents');
-                    setSelectedAgentId(null);
-                  }}
+                  onClick={() => { setActiveTab('agents'); setSelectedAgentId(null); }}
                   className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
                     activeTab === 'agents' || activeTab === 'agent-details'
                       ? 'text-indigo-600 border-b-2 border-indigo-600 bg-white'
@@ -484,19 +503,26 @@ const PlanSummary = () => {
                             {summaryData.components.count}
                           </span>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-4">
                           <div className="flex justify-between text-sm">
                             <span className="text-gray-700">Total Value</span>
                             <span className="font-semibold text-gray-900">
                               {formatPrice(summaryData.components.total_value)}
                             </span>
                           </div>
-                          {summaryData.components.items.slice(0, 3).map((comp) => (
-                            <div key={comp.inclusion_id} className="flex justify-between text-sm">
-                              <span className="text-gray-600 truncate mr-2">{comp.component_name}</span>
-                              <span className="text-gray-900 font-medium whitespace-nowrap">
-                                {formatPrice(comp.cost_per_unit)}/unit
-                              </span>
+                          {summaryData.components.items.slice(0, 3).map((comp: PlanSummaryComponentItem) => (
+                            <div key={comp.inclusion_id}>
+                              <div className="flex justify-between text-sm">
+                                <span className="text-gray-600 truncate mr-2">{comp.component_name}</span>
+                                <span className="text-gray-900 font-medium whitespace-nowrap">
+                                  {formatPrice(comp.cost_per_unit)}/unit
+                                </span>
+                              </div>
+                              <UnitPricing
+                                costPerUnit={comp.cost_per_unit}
+                                pricePerUnit={comp.price_per_unit}
+                                unitLabel="unit"
+                              />
                             </div>
                           ))}
                           {summaryData.components.count > 3 && (
@@ -522,7 +548,7 @@ const PlanSummary = () => {
                               {formatPrice(summaryData.agents.total_value)}
                             </span>
                           </div>
-                          {summaryData.agents.items.slice(0, 3).map((agent) => (
+                          {summaryData.agents.items.slice(0, 3).map((agent: PlanSummaryAgentItem) => (
                             <div key={agent.inclusion_id} className="flex justify-between text-sm">
                               <span className="text-gray-600 truncate mr-2">{agent.agent_name}</span>
                               <span className="text-gray-900 font-medium whitespace-nowrap">
@@ -579,18 +605,18 @@ const PlanSummary = () => {
                           </svg>
                         </div>
                         <h3 className="text-lg font-semibold text-gray-900">No Components</h3>
-                        <p className="mt-2 text-gray-600">This plan doesn't have any components yet.</p>
+                        <p className="mt-2 text-gray-600">This plan doesn&#39;t have any components yet.</p>
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        {summaryData.components.items.map((component) => (
+                        {summaryData.components.items.map((component: PlanSummaryComponentItem) => (
                           <div
                             key={component.inclusion_id}
                             className="border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow"
                           >
                             <div className="flex items-start justify-between">
                               <div className="flex items-start gap-4 flex-1">
-                                <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${getComponentTypeColor(component.component_type)} flex items-center justify-center`}>
+                                <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${getComponentTypeColor(component.component_type)} flex items-center justify-center flex-shrink-0`}>
                                   <span className="font-bold text-lg">
                                     {component.component_type.charAt(0).toUpperCase()}
                                   </span>
@@ -609,30 +635,30 @@ const PlanSummary = () => {
                                   </div>
 
                                   {/* Component Pricing Info */}
-                                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
+                                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm mb-3">
                                     <div>
-                                      <div className="text-xs text-gray-500">Cost Per Unit</div>
+                                      <div className="text-xs text-gray-500 mb-0.5">Cost Per Unit</div>
+                                      <div className="font-semibold text-gray-700">
+                                        {formatUnit(component.cost_per_unit)}
+                                        <span className="text-xs text-gray-400 font-normal ml-1">/ {component.unit_label}</span>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="text-xs text-gray-500 mb-0.5">Price Per Unit</div>
                                       <div className="font-semibold text-indigo-600">
-                                        {formatPrice(component.cost_per_unit)}
-                                        <span className="text-xs text-gray-500 ml-1">/ {component.unit_label}</span>
+                                        {formatUnit(component.price_per_unit)}
+                                        <span className="text-xs text-indigo-400 font-normal ml-1">/ {component.unit_label}</span>
                                       </div>
                                     </div>
                                     <div>
-                                      <div className="text-xs text-gray-500">Price Per Unit</div>
-                                      <div className="font-medium text-gray-900">
-                                        {formatPrice(component.price_per_unit)}
-                                        <span className="text-xs text-gray-500 ml-1">/ {component.unit_label}</span>
-                                      </div>
-                                    </div>
-                                    <div>
-                                      <div className="text-xs text-gray-500">Multiplier</div>
-                                      <div className="font-medium text-indigo-600">×{component.quantity_multiplier ?? 1}</div>
+                                      <div className="text-xs text-gray-500 mb-0.5">Multiplier</div>
+                                      <div className="font-medium text-gray-700">×{component.quantity_multiplier ?? 1}</div>
                                     </div>
                                   </div>
 
                                   {/* Promotion Info */}
                                   {component.has_promotion && (
-                                    <div className="mt-3 p-2 bg-green-50 rounded-lg border border-green-100">
+                                    <div className="p-2 bg-green-50 rounded-lg border border-green-100 mb-3">
                                       <div className="flex items-center gap-2 text-xs">
                                         <span className="text-green-700 font-medium">Promotion:</span>
                                         <span className="text-green-600">{component.promotion_code}</span>
@@ -646,7 +672,7 @@ const PlanSummary = () => {
                                     </div>
                                   )}
 
-                                  <div className="flex items-center gap-3 mt-3">
+                                  <div className="flex items-center gap-3">
                                     {component.is_renewable && (
                                       <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
                                         Renewable
@@ -677,11 +703,11 @@ const PlanSummary = () => {
                           </svg>
                         </div>
                         <h3 className="text-lg font-semibold text-gray-900">No Agents</h3>
-                        <p className="mt-2 text-gray-600">This plan doesn't have any agents yet.</p>
+                        <p className="mt-2 text-gray-600">This plan doesn&#39;t have any agents yet.</p>
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        {summaryData.agents.items.map((agent) => (
+                        {summaryData.agents.items.map((agent: PlanSummaryAgentItem) => (
                           <div
                             key={agent.inclusion_id}
                             className="border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow cursor-pointer"
@@ -689,9 +715,9 @@ const PlanSummary = () => {
                           >
                             <div className="flex items-start justify-between">
                               <div className="flex items-start gap-4 flex-1">
-                                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-purple-100 to-pink-100 flex items-center justify-center">
+                                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-purple-100 to-pink-100 flex items-center justify-center flex-shrink-0">
                                   <svg className="w-6 h-6 text-purple-600" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2M17 10H20C21.1 10 22 10.9 22 12V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V12C2 10.9 2.9 10 4 10H7V8C7 6.9 7.9 6 9 6H12.3C12.1 6.6 12 7.3 12 8V10H9C8.4 10 8 10.4 8 11V20H16V11C16 10.4 15.6 10 15 10H14V8C14 7.3 13.9 6.6 13.7 6H15C16.1 6 17 6.9 17 8V10Z"/>
+                                    <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2M17 10H20C21.1 10 22 10.9 22 12V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V12C2 10.9 2.9 10 4 10H7V8C7 6.9 7.9 6 9 6H12.3C12.1 6.6 12 7.3 12 8V10H9C8.4 10 8 10.4 8 11V20H16V11C16 10.4 15.6 10 15 10H14V8C14 7.3 13.9 6.6 13.7 6H15C16.1 6 17 6.9 17 8V10Z" />
                                   </svg>
                                 </div>
                                 <div className="flex-1">
@@ -730,17 +756,27 @@ const PlanSummary = () => {
 
                                   {/* Component Consumption Summary */}
                                   {agent.component_consumption && agent.component_consumption.count > 0 && (
-                                    <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                                    <div
+                                      className="mt-3 p-3 bg-gray-50 rounded-lg"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
                                       <div className="flex items-center justify-between mb-2">
                                         <span className="text-xs font-medium text-gray-700">
                                           Component Consumption ({agent.component_consumption.count} items)
                                         </span>
                                       </div>
-                                      <div className="flex flex-wrap gap-2">
-                                        {agent.component_consumption.items.slice(0, 3).map((comp) => (
-                                          <span key={comp.component_id} className="text-xs bg-white px-2 py-1 rounded border border-gray-200">
-                                            {comp.component_name}: {comp.consumption_rate} {comp.unit_label}
-                                          </span>
+                                      <div className="space-y-2">
+                                        {agent.component_consumption.items.slice(0, 3).map((comp: AgentComponentConsumptionItem) => (
+                                          <div key={comp.component_id}>
+                                            <span className="text-xs bg-white px-2 py-1 rounded border border-gray-200 inline-block">
+                                              {comp.component_name}: {comp.consumption_rate} {comp.unit_label}
+                                            </span>
+                                            <UnitPricing
+                                              costPerUnit={comp.base_price_per_unit}
+                                              pricePerUnit={comp.override_price_per_unit ?? comp.effective_price_per_unit}
+                                              unitLabel={comp.unit_label}
+                                            />
+                                          </div>
                                         ))}
                                         {agent.component_consumption.count > 3 && (
                                           <span className="text-xs text-gray-500">
@@ -766,12 +802,8 @@ const PlanSummary = () => {
                                     <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                                       {agent.agent_category}
                                     </span>
-                                    <span className="text-xs text-gray-500">
-                                      Order: {agent.display_order}
-                                    </span>
-                                    <span className="text-xs text-indigo-600 ml-auto">
-                                      Click for details →
-                                    </span>
+                                    <span className="text-xs text-gray-500">Order: {agent.display_order}</span>
+                                    <span className="text-xs text-indigo-600 ml-auto">Click for details →</span>
                                   </div>
                                 </div>
                               </div>
@@ -798,9 +830,9 @@ const PlanSummary = () => {
 
                     <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-6 mb-6">
                       <div className="flex items-start gap-4">
-                        <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg">
+                        <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg flex-shrink-0">
                           <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2M17 10H20C21.1 10 22 10.9 22 12V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V12C2 10.9 2.9 10 4 10H7V8C7 6.9 7.9 6 9 6H12.3C12.1 6.6 12 7.3 12 8V10H9C8.4 10 8 10.4 8 11V20H16V11C16 10.4 15.6 10 15 10H14V8C14 7.3 13.9 6.6 13.7 6H15C16.1 6 17 6.9 17 8V10Z"/>
+                            <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2M17 10H20C21.1 10 22 10.9 22 12V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V12C2 10.9 2.9 10 4 10H7V8C7 6.9 7.9 6 9 6H12.3C12.1 6.6 12 7.3 12 8V10H9C8.4 10 8 10.4 8 11V20H16V11C16 10.4 15.6 10 15 10H14V8C14 7.3 13.9 6.6 13.7 6H15C16.1 6 17 6.9 17 8V10Z" />
                           </svg>
                         </div>
                         <div className="flex-1">
@@ -855,37 +887,26 @@ const PlanSummary = () => {
                         <div className="p-4 border-b border-gray-200 bg-gray-50">
                           <h4 className="font-semibold text-gray-900">Component Consumption</h4>
                         </div>
-
-                        {/* Component List */}
                         <div className="p-4">
-                          <div className="space-y-3">
-                            {selectedAgent.component_consumption.items.map((comp) => (
-                              <div key={comp.component_id} className="border border-gray-100 rounded-lg p-3">
-                                <div className="flex items-start justify-between">
+                          <div className="space-y-4">
+                            {selectedAgent.component_consumption.items.map((comp: AgentComponentConsumptionItem) => (
+                              <div key={comp.component_id} className="border border-gray-100 rounded-lg p-4">
+                                <div className="flex items-start justify-between mb-2">
                                   <div>
                                     <h5 className="font-medium text-gray-900">{comp.component_name}</h5>
-                                    <div className="text-xs text-gray-500 mt-1">{comp.component_type_display}</div>
+                                    <div className="text-xs text-gray-500 mt-0.5">{comp.component_type_display}</div>
                                   </div>
                                   <span className="text-sm font-semibold text-purple-600">
-                                    {formatPrice(comp.cost_per_execution)}/exec
+                                    {formatPrice(comp.cost_per_execution)}/{comp.component_type_display}
                                   </span>
                                 </div>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3 text-xs">
-                                  <div>
-                                    <span className="text-gray-500">Consumption:</span>
-                                    <span className="ml-1 font-medium">{comp.consumption_rate} {comp.unit_label}</span>
-                                  </div>
-                                  <div>
-                                    <span className="text-gray-500">Base price:</span>
-                                    <span className="ml-1 font-medium">{formatPrice(comp.base_price_per_unit)}</span>
-                                  </div>
-                                  {comp.override_price_per_unit && (
-                                    <div>
-                                      <span className="text-gray-500">Override:</span>
-                                      <span className="ml-1 font-medium text-green-600">{formatPrice(comp.override_price_per_unit)}</span>
-                                    </div>
-                                  )}
-                                </div>
+
+                                {/* Cost & Price per unit inline */}
+                                <UnitPricing
+                                  costPerUnit={comp.base_price_per_unit}
+                                  pricePerUnit={comp.override_price_per_unit ?? comp.effective_price_per_unit}
+                                  unitLabel={comp.unit_label}
+                                />
                               </div>
                             ))}
                           </div>
@@ -914,7 +935,7 @@ const PlanSummary = () => {
               </p>
               <div className="mt-6 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl">
                 <div className="text-sm text-gray-700">
-                  <div className="font-medium mb-1">What you'll see:</div>
+                  <div className="font-medium mb-1">What you&#39;ll see:</div>
                   <ul className="text-left space-y-1 text-xs">
                     <li className="flex items-start gap-2">
                       <span className="text-indigo-600">✓</span>
@@ -922,7 +943,7 @@ const PlanSummary = () => {
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="text-indigo-600">✓</span>
-                      <span>All included components with cost per unit and pricing info</span>
+                      <span>All included components with cost and price per unit</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="text-indigo-600">✓</span>

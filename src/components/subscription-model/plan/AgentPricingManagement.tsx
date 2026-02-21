@@ -17,35 +17,66 @@ interface AgentTemplate {
   agent_category?: string;
 }
 
+interface FormData {
+  agent_id: string;
+  name: string;
+  description: string;
+  price: string;
+  billing_period: string;
+  billing_method: string;
+  promotion_code: string;
+  promotion_valid_from: string;
+  promotion_valid_until: string;
+  discount_percentage: string;
+  estimated_tokens_per_use: number;
+  estimated_storage_mb: string;
+  is_active: boolean;
+  is_default: boolean;
+}
+
+const defaultFormData: FormData = {
+  agent_id: '',
+  name: '',
+  description: '',
+  price: '',
+  billing_period: 'monthly',
+  billing_method: 'prepaid',
+  promotion_code: '',
+  promotion_valid_from: '',
+  promotion_valid_until: '',
+  discount_percentage: '',
+  estimated_tokens_per_use: 0,
+  estimated_storage_mb: '',
+  is_active: true,
+  is_default: false,
+};
+
+const billingPeriodOptions = [
+  { value: 'monthly', label: 'Monthly' },
+  { value: 'quarterly', label: 'Quarterly' },
+  { value: 'semi_annual', label: 'Semi-Annual' },
+  { value: 'yearly', label: 'Yearly' },
+  { value: 'one_time', label: 'One-Time' },
+  { value: 'per_use', label: 'Per Use' },
+];
+
+const billingMethodOptions = [
+  { value: 'prepaid', label: 'Prepaid' },
+  { value: 'postpaid', label: 'Postpaid' },
+  { value: 'pay_as_you_go', label: 'Pay As You Go' },
+  { value: 'subscription', label: 'Subscription' },
+];
+
 const AgentPricingManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedPricing, setSelectedPricing] = useState<AgentPricing | null>(null);
-  const [formData, setFormData] = useState({
-    agent_id: '',
-    name: '',
-    description: '',
-    price: '',
-    // NEW FIELDS - COMMENTED OUT
-    // unit: 'per_month' as 'per_use' | 'per_hour' | 'per_day' | 'per_month' | 'per_transaction' | 'per_request' | 'flat_rate',
-    // billing_method: 'prepaid' as 'prepaid' | 'postpaid' | 'pay_as_you_go' | 'subscription',
-    promotion_code: '',
-    promotion_valid_from: '',
-    promotion_valid_until: '',
-    discount_percentage: '',
-    estimated_tokens_per_use: 0,
-    estimated_storage_mb: '',
-    is_active: true,
-    is_default: false,
-  });
-
+  const [formData, setFormData] = useState<FormData>(defaultFormData);
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  // Get admin ID from localStorage
   const [adminId, setAdminId] = useState<string | null>(null);
-  
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const adminUser = localStorage.getItem('superAdminUser');
@@ -60,12 +91,11 @@ const AgentPricingManagement = () => {
     }
   }, []);
 
-  // Fetch agent templates for dropdown
   const { data: agentTemplatesData } = useGetAgentTemplatesByAdminIdQuery(adminId!, {
     skip: !adminId,
   });
 
-  const queryParams: any = {};
+  const queryParams: Record<string, any> = {};
   if (searchTerm) queryParams.search = searchTerm;
   if (statusFilter === 'active') queryParams.is_active = true;
   if (statusFilter === 'inactive') queryParams.is_active = false;
@@ -108,36 +138,28 @@ const AgentPricingManagement = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const buildApiData = () => ({
+    agent: formData.agent_id,
+    name: formData.name,
+    description: formData.description || null,
+    price: formData.price,
+    billing_period: formData.billing_period,
+    billing_method: formData.billing_method as 'prepaid' | 'postpaid' | 'pay_as_you_go' | 'subscription',
+    promotion_code: formData.promotion_code || null,
+    promotion_valid_from: formData.promotion_valid_from || null,
+    promotion_valid_until: formData.promotion_valid_until || null,
+    discount_percentage: formData.discount_percentage || null,
+    estimated_tokens_per_use: formData.estimated_tokens_per_use || 0,
+    estimated_storage_mb: formData.estimated_storage_mb || '0',
+    is_active: formData.is_active,
+    is_default: formData.is_default,
+  });
+
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!validateForm()) {
-      return;
-    }
-
+    if (!validateForm()) return;
     try {
-      const selectedAgent = agentTemplates.find(a => a.id === formData.agent_id);
-      
-      const apiData = {
-        agent: formData.agent_id,
-        name: formData.name,
-        description: formData.description || null,
-        price: parseFloat(formData.price),
-        // NEW FIELDS - COMMENTED OUT
-        // unit: formData.unit,
-        // billing_method: formData.billing_method,
-        promotion_code: formData.promotion_code || null,
-        promotion_valid_from: formData.promotion_valid_from || null,
-        promotion_valid_until: formData.promotion_valid_until || null,
-        discount_percentage: formData.discount_percentage ? parseFloat(formData.discount_percentage) : null,
-        estimated_tokens_per_use: formData.estimated_tokens_per_use || 0,
-        estimated_storage_mb: formData.estimated_storage_mb || '0',
-        is_active: formData.is_active,
-        is_default: formData.is_default,
-      };
-      
-      await createPricing(apiData).unwrap();
-      
+      await createPricing(buildApiData()).unwrap();
       setIsCreateModalOpen(false);
       resetForm();
     } catch (error: any) {
@@ -158,35 +180,9 @@ const AgentPricingManagement = () => {
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPricing) return;
-    
-    if (!validateForm()) {
-      return;
-    }
-    
+    if (!validateForm()) return;
     try {
-      const apiData = {
-        agent: formData.agent_id,
-        name: formData.name,
-        description: formData.description || null,
-        price: parseFloat(formData.price),
-        // NEW FIELDS - COMMENTED OUT
-        // unit: formData.unit,
-        // billing_method: formData.billing_method,
-        promotion_code: formData.promotion_code || null,
-        promotion_valid_from: formData.promotion_valid_from || null,
-        promotion_valid_until: formData.promotion_valid_until || null,
-        discount_percentage: formData.discount_percentage ? parseFloat(formData.discount_percentage) : null,
-        estimated_tokens_per_use: formData.estimated_tokens_per_use || 0,
-        estimated_storage_mb: formData.estimated_storage_mb || '0',
-        is_active: formData.is_active,
-        is_default: formData.is_default,
-      };
-      
-      await updatePricing({
-        id: selectedPricing.id,
-        data: apiData
-      }).unwrap();
-      
+      await updatePricing({ id: selectedPricing.id, data: buildApiData() }).unwrap();
       setIsEditModalOpen(false);
       resetForm();
     } catch (error: any) {
@@ -222,12 +218,15 @@ const AgentPricingManagement = () => {
       name: pricing.name,
       description: pricing.description || '',
       price: pricing.price,
-      // NEW FIELDS - COMMENTED OUT
-      // unit: pricing.unit || 'per_month',
-      // billing_method: pricing.billing_method || 'prepaid',
+      billing_period: (pricing as any).billing_period || 'monthly',
+      billing_method: (pricing as any).billing_method || 'prepaid',
       promotion_code: pricing.promotion_code || '',
-      promotion_valid_from: pricing.promotion_valid_from ? pricing.promotion_valid_from.split('T')[0] : '',
-      promotion_valid_until: pricing.promotion_valid_until ? pricing.promotion_valid_until.split('T')[0] : '',
+      promotion_valid_from: pricing.promotion_valid_from
+        ? pricing.promotion_valid_from.split('T')[0]
+        : '',
+      promotion_valid_until: pricing.promotion_valid_until
+        ? pricing.promotion_valid_until.split('T')[0]
+        : '',
       discount_percentage: pricing.discount_percentage?.toString() || '',
       estimated_tokens_per_use: pricing.estimated_tokens_per_use,
       estimated_storage_mb: pricing.estimated_storage_mb,
@@ -238,32 +237,21 @@ const AgentPricingManagement = () => {
   };
 
   const resetForm = () => {
-    setFormData({
-      agent_id: '',
-      name: '',
-      description: '',
-      price: '',
-      // unit: 'per_month',
-      // billing_method: 'prepaid',
-      promotion_code: '',
-      promotion_valid_from: '',
-      promotion_valid_until: '',
-      discount_percentage: '',
-      estimated_tokens_per_use: 0,
-      estimated_storage_mb: '',
-      is_active: true,
-      is_default: false,
-    });
+    setFormData(defaultFormData);
     setSelectedPricing(null);
     setErrors({});
   };
+
+  const getBillingPeriodLabel = (value: string) =>
+    billingPeriodOptions.find((o) => o.value === value)?.label || value;
 
   const isOperating = isCreating || isUpdating || isDeleting;
 
   return (
     <div className="w-full min-h-screen p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
+
+        {/* ─── Header ─────────────────────────────────────────────────────────── */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 mb-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             <div>
@@ -307,7 +295,7 @@ const AgentPricingManagement = () => {
           </div>
         </div>
 
-        {/* Pricing Table */}
+        {/* ─── Table ──────────────────────────────────────────────────────────── */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           {isLoading || isFetching ? (
             <div className="flex items-center justify-center py-20">
@@ -350,10 +338,9 @@ const AgentPricingManagement = () => {
                   <tr>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Agent</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Pricing Option</th>
-                    {/* COMMENTED OUT - Unit and Billing columns */}
-                    {/* <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Unit</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Billing</th> */}
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Price</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Billing Period</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Billing Method</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Promotion</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
                     <th className="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase">Actions</th>
@@ -377,19 +364,20 @@ const AgentPricingManagement = () => {
                           </span>
                         )}
                       </td>
-                      {/* COMMENTED OUT - Unit and Billing display */}
-                      {/* <td className="px-6 py-4">
-                        <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 capitalize">
-                          {pricing.unit?.replace(/_/g, ' ') || 'Per Month'}
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-semibold text-gray-900">
+                          ${parseFloat(pricing.price).toFixed(2)}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                          {getBillingPeriodLabel((pricing as any).billing_period || 'monthly')}
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 capitalize">
-                          {pricing.billing_method?.replace(/_/g, ' ') || 'Prepaid'}
+                        <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 capitalize">
+                          {((pricing as any).billing_method || 'prepaid').replace(/_/g, ' ')}
                         </span>
-                      </td> */}
-                      <td className="px-6 py-4">
-                        <div className="text-sm font-semibold text-gray-900">${parseFloat(pricing.price).toFixed(2)}</div>
                       </td>
                       <td className="px-6 py-4">
                         {pricing.promotion_code ? (
@@ -443,7 +431,7 @@ const AgentPricingManagement = () => {
         </div>
       </div>
 
-      {/* Create/Edit Modal */}
+      {/* ─── Create / Edit Modal ─────────────────────────────────────────────── */}
       {(isCreateModalOpen || isEditModalOpen) && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -471,6 +459,7 @@ const AgentPricingManagement = () => {
             </div>
 
             <form onSubmit={isEditModalOpen ? handleEditSubmit : handleCreateSubmit} className="space-y-6">
+
               {/* Agent Dropdown */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -519,9 +508,7 @@ const AgentPricingManagement = () => {
 
               {/* Description */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Description
-                </label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -532,30 +519,10 @@ const AgentPricingManagement = () => {
                 />
               </div>
 
-              {/* Price - SIMPLIFIED (removed Unit and Billing Method) */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Price <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                    disabled={isOperating}
-                    className={`w-full pl-8 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                      errors.price ? 'border-red-300' : 'border-gray-200'
-                    }`}
-                    required
-                  />
-                </div>
-                {errors.price && <p className="mt-1 text-sm text-red-600">{errors.price}</p>}
-              </div>
+              {/* Price + Billing Period + Billing Method — three columns */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
-              {/* COMMENTED OUT - Unit and Billing Method Section */}
-              {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Price */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Price <span className="text-red-500">*</span>
@@ -565,74 +532,82 @@ const AgentPricingManagement = () => {
                     <input
                       type="number"
                       step="0.01"
+                      min="0"
                       value={formData.price}
                       onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                       disabled={isOperating}
                       className={`w-full pl-8 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
                         errors.price ? 'border-red-300' : 'border-gray-200'
                       }`}
+                      placeholder="0.00"
                       required
                     />
                   </div>
                   {errors.price && <p className="mt-1 text-sm text-red-600">{errors.price}</p>}
                 </div>
 
+                {/* Billing Period */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Unit <span className="text-red-500">*</span>
+                    Billing Period <span className="text-red-500">*</span>
                   </label>
                   <select
-                    value={formData.unit}
-                    onChange={(e) => setFormData({ ...formData, unit: e.target.value as any })}
+                    value={formData.billing_period}
+                    onChange={(e) => setFormData({ ...formData, billing_period: e.target.value })}
                     disabled={isOperating}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   >
-                    <option value="per_use">Per Use</option>
-                    <option value="per_hour">Per Hour</option>
-                    <option value="per_day">Per Day</option>
-                    <option value="per_month">Per Month</option>
-                    <option value="per_transaction">Per Transaction</option>
-                    <option value="per_request">Per Request</option>
-                    <option value="flat_rate">Flat Rate</option>
+                    {billingPeriodOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </select>
+                  <p className="text-xs text-gray-500 mt-1">How often this pricing is billed</p>
                 </div>
 
+                {/* Billing Method */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Billing Method <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={formData.billing_method}
-                    onChange={(e) => setFormData({ ...formData, billing_method: e.target.value as any })}
+                    onChange={(e) => setFormData({ ...formData, billing_method: e.target.value })}
                     disabled={isOperating}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   >
-                    <option value="prepaid">Prepaid</option>
-                    <option value="postpaid">Postpaid</option>
+                    {billingMethodOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </select>
+                  <p className="text-xs text-gray-500 mt-1">Payment collection method</p>
                 </div>
-              </div> */}
 
-              {/* NEW: Promotion Section */}
+              </div>
+
+              {/* Promotion Section */}
               <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-5 border border-purple-200">
                 <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center">
                   <svg className="w-5 h-5 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
                   </svg>
-                  Promotional Pricing (Optional)
+                  Promotional Pricing{' '}
+                  <span className="text-gray-500 font-normal ml-1">(Optional)</span>
                 </h3>
 
                 <div className="space-y-4">
-                  {/* Promo Code & Discount */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Promotion Code
-                      </label>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Promotion Code</label>
                       <input
                         type="text"
                         value={formData.promotion_code}
-                        onChange={(e) => setFormData({ ...formData, promotion_code: e.target.value.toUpperCase() })}
+                        onChange={(e) =>
+                          setFormData({ ...formData, promotion_code: e.target.value.toUpperCase() })
+                        }
                         disabled={isOperating}
                         className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                         placeholder="LAUNCH50"
@@ -640,74 +615,85 @@ const AgentPricingManagement = () => {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Discount (%)
-                      </label>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Discount (%)</label>
                       <div className="relative">
                         <input
                           type="number"
                           step="0.01"
+                          min="0"
+                          max="100"
                           value={formData.discount_percentage}
-                          onChange={(e) => setFormData({ ...formData, discount_percentage: e.target.value })}
+                          onChange={(e) =>
+                            setFormData({ ...formData, discount_percentage: e.target.value })
+                          }
                           disabled={isOperating}
                           className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
                             errors.discount_percentage ? 'border-red-300' : 'border-gray-200'
                           }`}
                           placeholder="20"
-                          min="0"
-                          max="100"
                         />
                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500">%</span>
                       </div>
-                      {errors.discount_percentage && <p className="mt-1 text-sm text-red-600">{errors.discount_percentage}</p>}
+                      {errors.discount_percentage && (
+                        <p className="mt-1 text-sm text-red-600">{errors.discount_percentage}</p>
+                      )}
                     </div>
                   </div>
 
-                  {/* Validity Period */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Valid From
-                      </label>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Valid From</label>
                       <input
                         type="date"
                         value={formData.promotion_valid_from}
-                        onChange={(e) => setFormData({ ...formData, promotion_valid_from: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({ ...formData, promotion_valid_from: e.target.value })
+                        }
                         disabled={isOperating}
                         className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Valid Until
-                      </label>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Valid Until</label>
                       <input
                         type="date"
                         value={formData.promotion_valid_until}
-                        onChange={(e) => setFormData({ ...formData, promotion_valid_until: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({ ...formData, promotion_valid_until: e.target.value })
+                        }
                         disabled={isOperating}
                         className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
                           errors.promotion_valid_until ? 'border-red-300' : 'border-gray-200'
                         }`}
                       />
-                      {errors.promotion_valid_until && <p className="mt-1 text-sm text-red-600">{errors.promotion_valid_until}</p>}
+                      {errors.promotion_valid_until && (
+                        <p className="mt-1 text-sm text-red-600">{errors.promotion_valid_until}</p>
+                      )}
                     </div>
                   </div>
 
-                  {/* Promotion Preview */}
+                  {/* Promotion preview */}
                   {formData.discount_percentage && formData.price && (
                     <div className="bg-white rounded-lg p-4 border border-purple-200">
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm text-gray-600">Discounted Price</p>
                           <p className="text-2xl font-bold text-purple-600">
-                            ${(parseFloat(formData.price) * (1 - parseFloat(formData.discount_percentage) / 100)).toFixed(2)}
+                            $
+                            {(
+                              parseFloat(formData.price) *
+                              (1 - parseFloat(formData.discount_percentage) / 100)
+                            ).toFixed(2)}
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm text-gray-500 line-through">${parseFloat(formData.price).toFixed(2)}</p>
-                          <p className="text-sm font-semibold text-green-600">Save {formData.discount_percentage}%</p>
+                          <p className="text-sm text-gray-500 line-through">
+                            ${parseFloat(formData.price).toFixed(2)}
+                          </p>
+                          <p className="text-sm font-semibold text-green-600">
+                            Save {formData.discount_percentage}%
+                          </p>
                         </div>
                       </div>
                     </div>

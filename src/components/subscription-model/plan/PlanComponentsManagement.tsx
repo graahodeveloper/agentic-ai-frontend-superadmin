@@ -41,6 +41,45 @@ const unitLabelOptions: Record<string, Array<{ value: string; label: string }>> 
   ],
 };
 
+interface FormData {
+  name: string;
+  component_type: PlanComponent['component_type'];
+  description: string;
+  unit_label: string;
+  cost_per_unit: string;
+  price_per_unit: string;
+  promotion_code: string;
+  promotion_valid_from: string;
+  promotion_valid_until: string;
+  discount_percentage: string;
+  is_active: boolean;
+  is_renewable: boolean;
+}
+
+const defaultFormData: FormData = {
+  name: '',
+  component_type: 'compute_tokens',
+  description: '',
+  unit_label: 'tokens',
+  cost_per_unit: '',
+  price_per_unit: '',
+  promotion_code: '',
+  promotion_valid_from: '',
+  promotion_valid_until: '',
+  discount_percentage: '',
+  is_active: true,
+  is_renewable: false,
+};
+
+const componentTypeOptions = [
+  { value: 'compute_tokens', label: 'Compute Tokens' },
+  { value: 'storage_gb', label: 'Storage (GB)' },
+  { value: 'api_calls', label: 'API Calls' },
+  { value: 'agent_instances', label: 'Agent Instances' },
+  { value: 'active_agents', label: 'Active Agents' },
+  { value: 'custom', label: 'Custom' },
+];
+
 const PlanComponentsManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [componentTypeFilter, setComponentTypeFilter] = useState<string>('all');
@@ -48,75 +87,55 @@ const PlanComponentsManagement = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedComponent, setSelectedComponent] = useState<PlanComponent | null>(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    component_type: 'compute_tokens' as PlanComponent['component_type'],
-    description: '',
-    // Removed quantity and price - now optional
-    unit_label: 'tokens',
-    // NEW FIELDS
-    cost_per_unit: '',
-    promotion_code: '',
-    promotion_valid_from: '',
-    promotion_valid_until: '',
-    discount_percentage: '',
-    is_active: true,
-    is_renewable: false,
-  });
-  
-  // Available unit labels based on selected component type
+  const [formData, setFormData] = useState<FormData>(defaultFormData);
   const [availableUnitLabels, setAvailableUnitLabels] = useState(unitLabelOptions.compute_tokens);
-  
-  // Loading states for different operations
+
   const [isCreating, setIsCreating] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Update available unit labels when component type changes
   useEffect(() => {
-    setAvailableUnitLabels(unitLabelOptions[formData.component_type] || unitLabelOptions.custom);
-    // Set default unit label based on component type
-    if (unitLabelOptions[formData.component_type]?.length > 0) {
-      setFormData(prev => ({
-        ...prev,
-        unit_label: unitLabelOptions[formData.component_type][0].value
-      }));
+    const labels = unitLabelOptions[formData.component_type] || unitLabelOptions.custom;
+    setAvailableUnitLabels(labels);
+    if (labels.length > 0) {
+      setFormData((prev) => ({ ...prev, unit_label: labels[0].value }));
     }
   }, [formData.component_type]);
 
-  const queryParams: any = {};
+  const queryParams: Record<string, any> = {};
   if (searchTerm) queryParams.search = searchTerm;
   if (componentTypeFilter !== 'all') queryParams.component_type = componentTypeFilter;
   if (statusFilter === 'active') queryParams.is_active = true;
   if (statusFilter === 'inactive') queryParams.is_active = false;
 
-  const { data: componentsResponse, isLoading, refetch } = useGetPlanComponentsQuery(queryParams);
+  const { data: componentsResponse, isLoading } = useGetPlanComponentsQuery(queryParams);
   const [createComponent] = useCreatePlanComponentMutation();
   const [updateComponent] = useUpdatePlanComponentMutation();
   const [deleteComponent] = useDeletePlanComponentMutation();
 
   const components = componentsResponse?.results || [];
 
+  const buildSubmitData = (data: FormData) => ({
+    name: data.name,
+    component_type: data.component_type,
+    description: data.description || null,
+    unit_label: data.unit_label,
+    cost_per_unit: data.cost_per_unit ? parseFloat(data.cost_per_unit) : null,
+    price_per_unit: data.price_per_unit ? parseFloat(data.price_per_unit) : null,
+    discount_percentage: data.discount_percentage ? parseFloat(data.discount_percentage) : null,
+    promotion_valid_from: data.promotion_valid_from || null,
+    promotion_valid_until: data.promotion_valid_until || null,
+    promotion_code: data.promotion_code || null,
+    is_active: data.is_active,
+    is_renewable: data.is_renewable,
+  });
+
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsCreating(true);
     try {
-      // Prepare data - quantity and price are not sent as they're now optional
-      const submitData = {
-        ...formData,
-        // Convert empty strings to null for optional fields
-        cost_per_unit: formData.cost_per_unit ? parseFloat(formData.cost_per_unit) : null,
-        discount_percentage: formData.discount_percentage ? parseFloat(formData.discount_percentage) : null,
-        promotion_valid_from: formData.promotion_valid_from || null,
-        promotion_valid_until: formData.promotion_valid_until || null,
-        promotion_code: formData.promotion_code || null,
-      };
-      
-      // Remove any fields that shouldn't be sent
-      delete (submitData as any).quantity;
-      delete (submitData as any).price;
-      
-      await createComponent(submitData).unwrap();
+      await createComponent(buildSubmitData(formData)).unwrap();
       setIsCreateModalOpen(false);
       resetForm();
     } catch (error) {
@@ -132,22 +151,10 @@ const PlanComponentsManagement = () => {
     if (!selectedComponent) return;
     setIsUpdating(true);
     try {
-      // Prepare data - quantity and price are not sent as they're now optional
-      const submitData = {
-        ...formData,
-        // Convert empty strings to null for optional fields
-        cost_per_unit: formData.cost_per_unit ? parseFloat(formData.cost_per_unit) : null,
-        discount_percentage: formData.discount_percentage ? parseFloat(formData.discount_percentage) : null,
-        promotion_valid_from: formData.promotion_valid_from || null,
-        promotion_valid_until: formData.promotion_valid_until || null,
-        promotion_code: formData.promotion_code || null,
-      };
-      
-      // Remove any fields that shouldn't be sent
-      delete (submitData as any).quantity;
-      delete (submitData as any).price;
-      
-      await updateComponent({ id: selectedComponent.id, data: submitData }).unwrap();
+      await updateComponent({
+        id: selectedComponent.id,
+        data: buildSubmitData(formData),
+      }).unwrap();
       setIsEditModalOpen(false);
       resetForm();
     } catch (error) {
@@ -160,7 +167,6 @@ const PlanComponentsManagement = () => {
 
   const handleDelete = async (id: string, name: string) => {
     if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
-    
     setDeletingId(id);
     try {
       await deleteComponent(id).unwrap();
@@ -178,10 +184,9 @@ const PlanComponentsManagement = () => {
       name: component.name,
       component_type: component.component_type,
       description: component.description || '',
-      // Removed quantity and price
       unit_label: component.unit_label,
-      // NEW FIELDS
       cost_per_unit: component.cost_per_unit?.toString() || '',
+      price_per_unit: component.price_per_unit?.toString() || '',
       promotion_code: component.promotion_code || '',
       promotion_valid_from: component.promotion_valid_from || '',
       promotion_valid_until: component.promotion_valid_until || '',
@@ -193,53 +198,27 @@ const PlanComponentsManagement = () => {
   };
 
   const resetForm = () => {
-    setFormData({
-      name: '',
-      component_type: 'compute_tokens',
-      description: '',
-      // Removed quantity and price
-      unit_label: 'tokens',
-      // NEW FIELDS
-      cost_per_unit: '',
-      promotion_code: '',
-      promotion_valid_from: '',
-      promotion_valid_until: '',
-      discount_percentage: '',
-      is_active: true,
-      is_renewable: false,
-    });
+    setFormData(defaultFormData);
     setSelectedComponent(null);
   };
 
-  const componentTypeOptions = [
-    { value: 'compute_tokens', label: 'Compute Tokens' },
-    { value: 'storage_gb', label: 'Storage (GB)' },
-    { value: 'api_calls', label: 'API Calls' },
-    { value: 'agent_instances', label: 'Agent Instances' },
-    { value: 'active_agents', label: 'Active Agents' },
-    { value: 'custom', label: 'Custom' },
-  ];
-
-  // Helper function to format currency
-  const formatCurrency = (value: string | number | null | undefined) => {
+  const formatCurrency = (value: string | number | null | undefined, precision = 6) => {
     if (value === null || value === undefined || value === '') return '$0.00';
     const num = typeof value === 'string' ? parseFloat(value) : value;
-    return `$${num.toFixed(6)}`;
+    return `$${num.toFixed(precision)}`;
   };
 
-  // Helper function to check if promotion is valid
   const isPromotionValid = (component: PlanComponent) => {
     if (!component.promotion_code) return false;
-    
     const now = new Date();
     const validFrom = component.promotion_valid_from ? new Date(component.promotion_valid_from) : null;
     const validUntil = component.promotion_valid_until ? new Date(component.promotion_valid_until) : null;
-    
     if (validFrom && now < validFrom) return false;
     if (validUntil && now > validUntil) return false;
-    
     return true;
   };
+
+  const isProcessing = isCreating || isUpdating;
 
   return (
     <div className="w-full min-h-screen p-8">
@@ -257,7 +236,7 @@ const PlanComponentsManagement = () => {
             </div>
             <button
               onClick={() => setIsCreateModalOpen(true)}
-              disabled={isCreating}
+              disabled={isProcessing}
               className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors shadow-sm"
             >
               {isCreating ? (
@@ -332,17 +311,9 @@ const PlanComponentsManagement = () => {
                 <p className="mt-2 text-gray-600">Get started by creating your first component</p>
                 <button
                   onClick={() => setIsCreateModalOpen(true)}
-                  disabled={isCreating}
-                  className="mt-4 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center space-x-2 mx-auto"
+                  className="mt-4 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
                 >
-                  {isCreating ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span>Creating...</span>
-                    </>
-                  ) : (
-                    'Create First Component'
-                  )}
+                  Create First Component
                 </button>
               </div>
             </div>
@@ -354,7 +325,7 @@ const PlanComponentsManagement = () => {
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Component</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Type</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Unit</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Cost/Unit</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Cost / Price per Unit</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Promotion</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Created</th>
@@ -364,7 +335,6 @@ const PlanComponentsManagement = () => {
                 <tbody className="divide-y divide-gray-100">
                   {components.map((component) => {
                     const promotionValid = isPromotionValid(component);
-                    
                     return (
                       <tr key={component.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4">
@@ -384,19 +354,24 @@ const PlanComponentsManagement = () => {
                           )}
                         </td>
                         <td className="px-6 py-4">
-                          <div className="text-sm text-gray-900">
-                            {component.unit_label || 'units'}
-                          </div>
+                          <div className="text-sm text-gray-900">{component.unit_label || 'units'}</div>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="text-sm font-semibold text-gray-900">
-                            {formatCurrency(component.cost_per_unit)}
-                          </div>
-                          {component.price_per_unit && (
-                            <div className="text-xs text-gray-500">
-                              Price/unit: {formatCurrency(component.price_per_unit)}
+                          <div className="flex items-center gap-3">
+                            <div>
+                              <div className="text-xs text-gray-500 mb-0.5">Cost</div>
+                              <div className="text-sm font-semibold text-gray-900">
+                                {formatCurrency(component.cost_per_unit)}
+                              </div>
                             </div>
-                          )}
+                            <div className="w-px h-8 bg-gray-200" />
+                            <div>
+                              <div className="text-xs text-gray-500 mb-0.5">Price</div>
+                              <div className="text-sm font-semibold text-indigo-600">
+                                {formatCurrency(component.price_per_unit)}
+                              </div>
+                            </div>
+                          </div>
                         </td>
                         <td className="px-6 py-4">
                           {component.promotion_code ? (
@@ -407,15 +382,11 @@ const PlanComponentsManagement = () => {
                                 {component.promotion_code}
                               </span>
                               {component.discount_percentage && (
-                                <div className="text-xs mt-1 text-gray-600">
-                                  {component.discount_percentage}% off
-                                </div>
+                                <div className="text-xs mt-1 text-gray-600">{component.discount_percentage}% off</div>
                               )}
-                              {promotionValid ? (
-                                <span className="text-xs text-green-600 mt-1 block">Active</span>
-                              ) : (
-                                <span className="text-xs text-gray-500 mt-1 block">Inactive</span>
-                              )}
+                              <span className={`text-xs mt-1 block ${promotionValid ? 'text-green-600' : 'text-gray-500'}`}>
+                                {promotionValid ? 'Active' : 'Inactive'}
+                              </span>
                             </div>
                           ) : (
                             <span className="text-xs text-gray-400">No promotion</span>
@@ -437,7 +408,7 @@ const PlanComponentsManagement = () => {
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => handleEdit(component)}
-                              disabled={isUpdating || isCreating}
+                              disabled={isProcessing}
                               className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 disabled:text-gray-400 disabled:hover:bg-transparent disabled:cursor-not-allowed rounded-lg transition-colors"
                               title="Edit"
                             >
@@ -448,7 +419,7 @@ const PlanComponentsManagement = () => {
                             <button
                               onClick={() => handleDelete(component.id, component.name)}
                               disabled={deletingId === component.id}
-                              className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 disabled:text-gray-400 disabled:hover:bg-transparent disabled:cursor-not-allowed rounded-lg transition-colors relative"
+                              className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 disabled:text-gray-400 disabled:hover:bg-transparent disabled:cursor-not-allowed rounded-lg transition-colors"
                               title="Delete"
                             >
                               {deletingId === component.id ? (
@@ -471,7 +442,7 @@ const PlanComponentsManagement = () => {
         </div>
       </div>
 
-      {/* Create/Edit Modal */}
+      {/* Create / Edit Modal */}
       {(isCreateModalOpen || isEditModalOpen) && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -486,12 +457,12 @@ const PlanComponentsManagement = () => {
               </div>
               <button
                 onClick={() => {
-                  if (!isCreating && !isUpdating) {
+                  if (!isProcessing) {
                     isCreateModalOpen ? setIsCreateModalOpen(false) : setIsEditModalOpen(false);
                     resetForm();
                   }
                 }}
-                disabled={isCreating || isUpdating}
+                disabled={isProcessing}
                 className="p-2 rounded-full hover:bg-gray-100 disabled:hover:bg-transparent disabled:opacity-50 transition-colors"
               >
                 <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -501,29 +472,28 @@ const PlanComponentsManagement = () => {
             </div>
 
             <form onSubmit={isEditModalOpen ? handleEditSubmit : handleCreateSubmit} className="space-y-6">
+              {/* Name & Type */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Name *
-                  </label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Name *</label>
                   <input
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    disabled={isCreating || isUpdating}
+                    disabled={isProcessing}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Component Type *
-                  </label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Component Type *</label>
                   <select
                     value={formData.component_type}
-                    onChange={(e) => setFormData({ ...formData, component_type: e.target.value as PlanComponent['component_type'] })}
-                    disabled={isCreating || isUpdating}
+                    onChange={(e) =>
+                      setFormData({ ...formData, component_type: e.target.value as PlanComponent['component_type'] })
+                    }
+                    disabled={isProcessing}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
                     required
                   >
@@ -536,43 +506,40 @@ const PlanComponentsManagement = () => {
                 </div>
               </div>
 
+              {/* Description */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Description
-                </label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   rows={2}
-                  disabled={isCreating || isUpdating}
+                  disabled={isProcessing}
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
                 />
               </div>
 
+              {/* Unit Label */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Unit Label *</label>
+                <select
+                  value={formData.unit_label}
+                  onChange={(e) => setFormData({ ...formData, unit_label: e.target.value })}
+                  disabled={isProcessing}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                  required
+                >
+                  {availableUnitLabels.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Cost Per Unit & Price Per Unit */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Unit Label *
-                  </label>
-                  <select
-                    value={formData.unit_label}
-                    onChange={(e) => setFormData({ ...formData, unit_label: e.target.value })}
-                    disabled={isCreating || isUpdating}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
-                    required
-                  >
-                    {availableUnitLabels.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Cost Per Unit ($)
-                  </label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Cost Per Unit ($)</label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                     <input
@@ -581,37 +548,52 @@ const PlanComponentsManagement = () => {
                       min="0"
                       value={formData.cost_per_unit}
                       onChange={(e) => setFormData({ ...formData, cost_per_unit: e.target.value })}
-                      disabled={isCreating || isUpdating}
+                      disabled={isProcessing}
                       className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
                       placeholder="0.000000"
                     />
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">Cost per single unit for usage-based billing</p>
+                  <p className="text-xs text-gray-500 mt-1">Internal cost per unit for billing calculation</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Price Per Unit ($)</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                    <input
+                      type="number"
+                      step="0.000001"
+                      min="0"
+                      value={formData.price_per_unit}
+                      onChange={(e) => setFormData({ ...formData, price_per_unit: e.target.value })}
+                      disabled={isProcessing}
+                      className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                      placeholder="0.000000"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">Price charged to clients per unit</p>
                 </div>
               </div>
 
+              {/* Promotion Settings */}
               <div className="border-t border-gray-200 pt-4">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Promotion Settings</h3>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Promotion Code
-                    </label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Promotion Code</label>
                     <input
                       type="text"
                       value={formData.promotion_code}
                       onChange={(e) => setFormData({ ...formData, promotion_code: e.target.value })}
-                      disabled={isCreating || isUpdating}
+                      disabled={isProcessing}
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
                       placeholder="e.g., SUMMER2024"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Discount Percentage (%)
-                    </label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Discount Percentage (%)</label>
                     <input
                       type="number"
                       step="0.01"
@@ -619,49 +601,46 @@ const PlanComponentsManagement = () => {
                       max="100"
                       value={formData.discount_percentage}
                       onChange={(e) => setFormData({ ...formData, discount_percentage: e.target.value })}
-                      disabled={isCreating || isUpdating}
+                      disabled={isProcessing}
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
-                      placeholder="0-100"
+                      placeholder="0–100"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Valid From
-                    </label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Valid From</label>
                     <input
                       type="datetime-local"
                       value={formData.promotion_valid_from}
                       onChange={(e) => setFormData({ ...formData, promotion_valid_from: e.target.value })}
-                      disabled={isCreating || isUpdating}
+                      disabled={isProcessing}
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Valid Until
-                    </label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Valid Until</label>
                     <input
                       type="datetime-local"
                       value={formData.promotion_valid_until}
                       onChange={(e) => setFormData({ ...formData, promotion_valid_until: e.target.value })}
-                      disabled={isCreating || isUpdating}
+                      disabled={isProcessing}
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
                     />
                   </div>
                 </div>
               </div>
 
+              {/* Toggles */}
               <div className="flex items-center gap-6">
                 <label className="flex items-center space-x-3">
                   <input
                     type="checkbox"
                     checked={formData.is_active}
                     onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                    disabled={isCreating || isUpdating}
+                    disabled={isProcessing}
                     className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 disabled:cursor-not-allowed"
                   />
                   <span className="text-sm font-medium text-gray-900">Active</span>
@@ -672,33 +651,34 @@ const PlanComponentsManagement = () => {
                     type="checkbox"
                     checked={formData.is_renewable}
                     onChange={(e) => setFormData({ ...formData, is_renewable: e.target.checked })}
-                    disabled={isCreating || isUpdating}
+                    disabled={isProcessing}
                     className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 disabled:cursor-not-allowed"
                   />
                   <span className="text-sm font-medium text-gray-900">Renewable</span>
                 </label>
               </div>
 
+              {/* Actions */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
                 <button
                   type="button"
                   onClick={() => {
-                    if (!isCreating && !isUpdating) {
+                    if (!isProcessing) {
                       isCreateModalOpen ? setIsCreateModalOpen(false) : setIsEditModalOpen(false);
                       resetForm();
                     }
                   }}
-                  disabled={isCreating || isUpdating}
+                  disabled={isProcessing}
                   className="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={isCreating || isUpdating}
+                  disabled={isProcessing}
                   className="px-6 py-2.5 bg-gradient-to-r from-[#4318ff] to-[#7c75ff] text-white rounded-lg font-medium hover:from-[#3610d9] hover:to-[#6b63e6] disabled:from-indigo-400 disabled:to-indigo-400 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md flex items-center space-x-2"
                 >
-                  {isCreating || isUpdating ? (
+                  {isProcessing ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                       <span>{isEditModalOpen ? 'Updating...' : 'Creating...'}</span>

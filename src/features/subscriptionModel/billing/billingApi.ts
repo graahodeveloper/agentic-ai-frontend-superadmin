@@ -41,6 +41,7 @@ export interface PlanComponent {
   is_renewable: boolean;
   created_at: string;
   updated_at: string;
+  estimated_cost_for_client?: number | null; 
 }
 
 export interface PlanComponentInclusion {
@@ -174,6 +175,7 @@ export interface CreatePlanComponentRequest {
   unit_label: string;
   is_active?: boolean;
   is_renewable?: boolean;
+  estimated_cost_for_client?: number | null; 
 }
 
 export interface PlanAgentsResponse {
@@ -207,6 +209,7 @@ export interface AgentComponentConsumptionItem {
   cost_per_execution: number;
   component_cost_per_unit: number | null;
   is_active: boolean;
+  estimated_cost_for_client?: number | null;
 }
 
 export interface AgentComponentConsumption {
@@ -246,6 +249,7 @@ export interface PlanSummaryComponentItem {
   is_featured: boolean;
   display_order: number;
   is_active: boolean;
+  estimated_cost_for_client?: number | null;
 }
 
 export interface PlanSummaryAgentItem {
