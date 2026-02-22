@@ -65,6 +65,15 @@ interface PlanComponentsResponse {
   count: number;
 }
 
+// API Error Response interface
+interface ApiErrorResponse {
+  data?: {
+    detail?: string;
+    message?: string;
+    error?: string;
+  };
+}
+
 // Custom hook to fetch plan components
 const useGetPlanComponentsInPlan = (planId: string) => {
   const [data, setData] = useState<PlanComponentsResponse | null>(null);
@@ -207,10 +216,11 @@ const PlanComponentInclusionManagement = () => {
       setIsAddModalOpen(false);
       resetForm();
       refetchInclusions();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to add component to plan:', error);
-      console.error('Error details:', error?.data);
-      alert(error?.data?.detail || error?.data?.message || error?.data?.error || 'Failed to add component');
+      const apiError = error as ApiErrorResponse;
+      console.error('Error details:', apiError?.data);
+      alert(apiError?.data?.detail || apiError?.data?.message || apiError?.data?.error || 'Failed to add component');
     }
   };
 
@@ -240,9 +250,10 @@ const PlanComponentInclusionManagement = () => {
       setIsEditModalOpen(false);
       resetForm();
       refetchInclusions();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to update inclusion:', error);
-      alert(error?.data?.detail || error?.data?.message || 'Failed to update inclusion');
+      const apiError = error as ApiErrorResponse;
+      alert(apiError?.data?.detail || apiError?.data?.message || 'Failed to update inclusion');
     }
   };
 
@@ -256,9 +267,10 @@ const PlanComponentInclusionManagement = () => {
           componentId: inclusionId 
         }).unwrap();
         refetchInclusions();
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Failed to remove component:', error);
-        alert(error?.data?.detail || error?.data?.message || 'Failed to remove component from plan');
+        const apiError = error as ApiErrorResponse;
+        alert(apiError?.data?.detail || apiError?.data?.message || 'Failed to remove component from plan');
       }
     }
   };
@@ -459,7 +471,7 @@ const PlanComponentInclusionManagement = () => {
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900">No Components Added</h3>
                   <p className="mt-2 text-gray-600">
-                    This plan doesn't have any components yet. Start building it by adding components.
+                    This plan doesn&apos;t have any components yet. Start building it by adding components.
                   </p>
                   <button
                     onClick={() => setIsAddModalOpen(true)}

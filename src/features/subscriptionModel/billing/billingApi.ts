@@ -389,6 +389,56 @@ export interface AgentComponentSummaryResponse {
 }
 
 // ============================================
+// API REQUEST/RESPONSE TYPES
+// ============================================
+
+export interface PlanStatsResponse {
+  total_plans: number;
+  active_plans: number;
+  inactive_plans: number;
+  public_plans: number;
+  private_plans: number;
+  featured_plans: number;
+  plans_by_type: Record<string, number>;
+  plans_by_period: Record<string, number>;
+}
+
+export interface PlanQueryParams {
+  search?: string;
+  plan_type?: string;
+  is_active?: boolean;
+  is_public?: boolean;
+  featured?: boolean;
+  billing_period?: string;
+  ordering?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface AddComponentToPlanRequest {
+  components: Array<{
+    component_id: string;
+    quantity_multiplier?: number;
+    is_included?: boolean;
+  }>;
+}
+
+export interface AddAgentToPlanRequest {
+  agents: Array<{
+    agent_pricing_id: string;
+    included_instances?: number;
+    is_included?: boolean;
+  }>;
+}
+
+export interface AgentComponentRequest {
+  component_id: string;
+  consumption_rate?: number;
+  override_price_per_unit?: number | null;
+  is_active?: boolean;
+}
+
+// ============================================
 // API
 // ============================================
 
@@ -420,7 +470,7 @@ export const billingApi = createApi({
     // ============================================
     // PLANS
     // ============================================
-    getPlans: builder.query<PlansResponse, void | Record<string, any>>({
+    getPlans: builder.query<PlansResponse, void | PlanQueryParams>({
       query: (params) => {
         const adminId = getAdminId();
         const queryParams = new URLSearchParams();
@@ -507,7 +557,7 @@ export const billingApi = createApi({
       invalidatesTags: [{ type: 'Plan', id: 'LIST' }, 'Stats'],
     }),
 
-    getPlanStats: builder.query<any, void>({
+    getPlanStats: builder.query<PlanStatsResponse, void>({
       query: () => {
         const adminId = getAdminId();
         return `/plans/stats/?admin_id=${adminId}`;
@@ -633,7 +683,7 @@ export const billingApi = createApi({
           : [{ type: 'PlanComponentInclusion', id: 'LIST' }],
     }),
 
-    addComponentToPlan: builder.mutation<PlanComponentInclusion, { planId: string; data: any }>({
+    addComponentToPlan: builder.mutation<PlanComponentInclusion, { planId: string; data: AddComponentToPlanRequest }>({
       query: ({ planId, data }) => {
         const adminId = getAdminId();
         return {
@@ -649,7 +699,11 @@ export const billingApi = createApi({
       ],
     }),
 
-    updatePlanComponentInclusion: builder.mutation<PlanComponentInclusion, { planId: string; inclusionId: string; data: any }>({
+    updatePlanComponentInclusion: builder.mutation<PlanComponentInclusion, { 
+      planId: string; 
+      inclusionId: string; 
+      data: Partial<AddComponentToPlanRequest>
+    }>({
       query: ({ planId, inclusionId, data }) => {
         const adminId = getAdminId();
         return {
@@ -791,7 +845,7 @@ export const billingApi = createApi({
           : [{ type: 'PlanAgentInclusion', id: 'LIST' }],
     }),
 
-    addAgentToPlan: builder.mutation<PlanAgentInclusion, { planId: string; data: any }>({
+    addAgentToPlan: builder.mutation<PlanAgentInclusion, { planId: string; data: AddAgentToPlanRequest }>({
       query: ({ planId, data }) => {
         const adminId = getAdminId();
         return {
@@ -807,7 +861,11 @@ export const billingApi = createApi({
       ],
     }),
 
-    updatePlanAgentInclusion: builder.mutation<PlanAgentInclusion, { planId: string; inclusionId: string; data: any }>({
+    updatePlanAgentInclusion: builder.mutation<PlanAgentInclusion, { 
+      planId: string; 
+      inclusionId: string; 
+      data: Partial<AddAgentToPlanRequest>
+    }>({
       query: ({ planId, inclusionId, data }) => {
         const adminId = getAdminId();
         return {
@@ -853,7 +911,7 @@ export const billingApi = createApi({
       ],
     }),
 
-    addComponentToAgent: builder.mutation<any, { agentId: string; data: any }>({
+    addComponentToAgent: builder.mutation<AgentComponentPricing, { agentId: string; data: AgentComponentRequest }>({
       query: ({ agentId, data }) => {
         const adminId = getAdminId();
         return {
@@ -868,7 +926,7 @@ export const billingApi = createApi({
       ],
     }),
 
-    updateAgentComponent: builder.mutation<any, { agentId: string; data: any }>({
+    updateAgentComponent: builder.mutation<AgentComponentPricing, { agentId: string; data: AgentComponentRequest }>({
       query: ({ agentId, data }) => {
         const adminId = getAdminId();
         return {

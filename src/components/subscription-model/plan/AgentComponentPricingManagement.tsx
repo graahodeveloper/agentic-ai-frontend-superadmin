@@ -1,6 +1,6 @@
 // components/subscription-model/plan/AgentComponentPricingManagement.tsx
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   useGetAgentTemplatesByAdminIdQuery,
   AgentTemplate,
@@ -54,7 +54,7 @@ const useGetAgentComponents = (agentId: string) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!agentId) return;
 
     setIsLoading(true);
@@ -89,7 +89,7 @@ const useGetAgentComponents = (agentId: string) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [agentId]);
 
   useEffect(() => {
     if (agentId) {
@@ -97,7 +97,7 @@ const useGetAgentComponents = (agentId: string) => {
     } else {
       setData(null);
     }
-  }, [agentId]);
+  }, [agentId, fetchData]);
 
   const refetch = () => {
     if (agentId) {
@@ -108,6 +108,11 @@ const useGetAgentComponents = (agentId: string) => {
   return { data, isLoading, error, refetch };
 };
 
+interface FormData {
+  component_id: string;
+  override_price: string;
+}
+
 const AgentComponentPricingManagement = () => {
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -117,7 +122,7 @@ const AgentComponentPricingManagement = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     component_id: '',
     override_price: '',
   });
@@ -202,9 +207,10 @@ const AgentComponentPricingManagement = () => {
       setIsAddModalOpen(false);
       resetForm();
       refetchAgentComponents();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to add component to agent:', error);
-      alert(error.message || 'Failed to add component');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to add component';
+      alert(errorMessage);
     } finally {
       setIsAdding(false);
     }
@@ -245,9 +251,10 @@ const AgentComponentPricingManagement = () => {
       setIsEditModalOpen(false);
       resetForm();
       refetchAgentComponents();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to update component:', error);
-      alert(error.message || 'Failed to update component');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update component';
+      alert(errorMessage);
     } finally {
       setIsUpdating(false);
     }
@@ -281,9 +288,10 @@ const AgentComponentPricingManagement = () => {
         }
 
         refetchAgentComponents();
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Failed to remove component:', error);
-        alert(error.message || 'Failed to remove component from agent');
+        const errorMessage = error instanceof Error ? error.message : 'Failed to remove component from agent';
+        alert(errorMessage);
       } finally {
         setIsRemoving(false);
       }
@@ -474,7 +482,7 @@ const AgentComponentPricingManagement = () => {
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900">No Components Configured</h3>
                   <p className="mt-2 text-gray-600">
-                    This agent doesn't have any component pricing configured yet.
+                    This agent doesn&apos;t have any component pricing configured yet.
                   </p>
                   <button
                     onClick={() => setIsAddModalOpen(true)}
@@ -688,7 +696,7 @@ const AgentComponentPricingManagement = () => {
                   />
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  Custom price per unit (overrides component's default price)
+                  Custom price per unit (overrides component&apos;s default price)
                 </p>
               </div>
 
@@ -819,7 +827,7 @@ const AgentComponentPricingManagement = () => {
                   />
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  Custom price per unit (overrides component's default price)
+                  Custom price per unit (overrides component&apos;s default price)
                 </p>
               </div>
 

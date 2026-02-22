@@ -56,6 +56,13 @@ interface FormData {
   is_renewable: boolean;
 }
 
+// Define query params interface
+interface QueryParams {
+  search?: string;
+  component_type?: string;
+  is_active?: boolean;
+}
+
 const defaultFormData: FormData = {
   name: '',
   component_type: 'compute_tokens',
@@ -103,13 +110,17 @@ const PlanComponentsManagement = () => {
     }
   }, [formData.component_type]);
 
-  const queryParams: Record<string, any> = {};
-  if (searchTerm) queryParams.search = searchTerm;
-  if (componentTypeFilter !== 'all') queryParams.component_type = componentTypeFilter;
-  if (statusFilter === 'active') queryParams.is_active = true;
-  if (statusFilter === 'inactive') queryParams.is_active = false;
+  // Build query params with proper typing
+  const buildQueryParams = (): QueryParams => {
+    const params: QueryParams = {};
+    if (searchTerm) params.search = searchTerm;
+    if (componentTypeFilter !== 'all') params.component_type = componentTypeFilter;
+    if (statusFilter === 'active') params.is_active = true;
+    if (statusFilter === 'inactive') params.is_active = false;
+    return params;
+  };
 
-  const { data: componentsResponse, isLoading } = useGetPlanComponentsQuery(queryParams);
+  const { data: componentsResponse, isLoading } = useGetPlanComponentsQuery(buildQueryParams());
   const [createComponent] = useCreatePlanComponentMutation();
   const [updateComponent] = useUpdatePlanComponentMutation();
   const [deleteComponent] = useDeletePlanComponentMutation();

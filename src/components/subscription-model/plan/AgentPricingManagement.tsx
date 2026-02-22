@@ -34,6 +34,24 @@ interface FormData {
   is_default: boolean;
 }
 
+interface ApiErrorResponse {
+  data?: Record<string, string | string[]>;
+  message?: string;
+}
+
+interface ApiError {
+  data?: {
+    [key: string]: string | string[];
+  };
+  message?: string;
+}
+
+// Extend AgentPricing type to include optional billing fields with correct types
+// Use a type alias instead of an interface for the extended version
+type ExtendedAgentPricing = AgentPricing & {
+  billing_period?: string;
+  billing_method?: 'prepaid' | 'postpaid' | 'pay_as_you_go' | 'subscription';
+};
 const defaultFormData: FormData = {
   agent_id: '',
   name: '',
@@ -72,7 +90,7 @@ const AgentPricingManagement = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedPricing, setSelectedPricing] = useState<AgentPricing | null>(null);
+  const [selectedPricing, setSelectedPricing] = useState<ExtendedAgentPricing | null>(null);
   const [formData, setFormData] = useState<FormData>(defaultFormData);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [adminId, setAdminId] = useState<string | null>(null);
@@ -95,7 +113,7 @@ const AgentPricingManagement = () => {
     skip: !adminId,
   });
 
-  const queryParams: Record<string, any> = {};
+  const queryParams: Record<string, unknown> = {};
   if (searchTerm) queryParams.search = searchTerm;
   if (statusFilter === 'active') queryParams.is_active = true;
   if (statusFilter === 'inactive') queryParams.is_active = false;
@@ -105,7 +123,7 @@ const AgentPricingManagement = () => {
   const [updatePricing, { isLoading: isUpdating }] = useUpdateAgentPricingMutation();
   const [deletePricing, { isLoading: isDeleting }] = useDeleteAgentPricingMutation();
 
-  const pricingOptions = pricingResponse?.results || [];
+  const pricingOptions = (pricingResponse?.results || []) as ExtendedAgentPricing[];
   const agentTemplates: AgentTemplate[] = agentTemplatesData?.results || [];
 
   const validateForm = (): boolean => {
@@ -162,17 +180,22 @@ const AgentPricingManagement = () => {
       await createPricing(buildApiData()).unwrap();
       setIsCreateModalOpen(false);
       resetForm();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to create agent pricing:', error);
-      if (error.data) {
+      
+      const apiError = error as ApiError;
+      if (apiError.data && typeof apiError.data === 'object') {
         const apiErrors: Record<string, string> = {};
-        Object.keys(error.data).forEach((key) => {
-          const errorValue = error.data[key];
-          apiErrors[key] = Array.isArray(errorValue) ? errorValue[0] : errorValue;
+        Object.keys(apiError.data).forEach((key) => {
+          const errorValue = apiError.data?.[key];
+          if (errorValue) {
+            apiErrors[key] = Array.isArray(errorValue) ? errorValue[0] : errorValue as string;
+          }
         });
         setErrors(apiErrors);
       } else {
-        alert(`Failed to create agent pricing: ${error.message || 'Unknown error'}`);
+        const errorMessage = (error as Error)?.message || 'Unknown error';
+        alert(`Failed to create agent pricing: ${errorMessage}`);
       }
     }
   };
@@ -185,17 +208,22 @@ const AgentPricingManagement = () => {
       await updatePricing({ id: selectedPricing.id, data: buildApiData() }).unwrap();
       setIsEditModalOpen(false);
       resetForm();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to update agent pricing:', error);
-      if (error.data) {
+      
+      const apiError = error as ApiError;
+      if (apiError.data && typeof apiError.data === 'object') {
         const apiErrors: Record<string, string> = {};
-        Object.keys(error.data).forEach((key) => {
-          const errorValue = error.data[key];
-          apiErrors[key] = Array.isArray(errorValue) ? errorValue[0] : errorValue;
+        Object.keys(apiError.data).forEach((key) => {
+          const errorValue = apiError.data?.[key];
+          if (errorValue) {
+            apiErrors[key] = Array.isArray(errorValue) ? errorValue[0] : errorValue as string;
+          }
         });
         setErrors(apiErrors);
       } else {
-        alert(`Failed to update agent pricing: ${error.message || 'Unknown error'}`);
+        const errorMessage = (error as Error)?.message || 'Unknown error';
+        alert(`Failed to update agent pricing: ${errorMessage}`);
       }
     }
   };
@@ -204,22 +232,28 @@ const AgentPricingManagement = () => {
     if (window.confirm(`Delete "${name}"? This cannot be undone.`)) {
       try {
         await deletePricing(id).unwrap();
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Failed to delete agent pricing:', error);
-        alert(`Failed to delete agent pricing: ${error.data?.message || error.message || 'Unknown error'}`);
+        
+        const apiError = error as ApiErrorResponse;
+        const errorMessage = 
+          apiError.data && typeof apiError.data === 'object' && 'message' in apiError.data 
+            ? String(apiError.data.message) 
+            : (error as Error)?.message || 'Unknown error';
+        alert(`Failed to delete agent pricing: ${errorMessage}`);
       }
     }
   };
 
-  const handleEdit = (pricing: AgentPricing) => {
+  const handleEdit = (pricing: ExtendedAgentPricing) => {
     setSelectedPricing(pricing);
     setFormData({
       agent_id: pricing.agent_id,
       name: pricing.name,
       description: pricing.description || '',
       price: pricing.price,
-      billing_period: (pricing as any).billing_period || 'monthly',
-      billing_method: (pricing as any).billing_method || 'prepaid',
+      billing_period: pricing.billing_period || 'monthly',
+      billing_method: pricing.billing_method || 'prepaid',
       promotion_code: pricing.promotion_code || '',
       promotion_valid_from: pricing.promotion_valid_from
         ? pricing.promotion_valid_from.split('T')[0]
@@ -371,12 +405,12 @@ const AgentPricingManagement = () => {
                       </td>
                       <td className="px-6 py-4">
                         <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                          {getBillingPeriodLabel((pricing as any).billing_period || 'monthly')}
+                          {getBillingPeriodLabel(pricing.billing_period || 'monthly')}
                         </span>
                       </td>
                       <td className="px-6 py-4">
                         <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 capitalize">
-                          {((pricing as any).billing_method || 'prepaid').replace(/_/g, ' ')}
+                          {(pricing.billing_method || 'prepaid').replace(/_/g, ' ')}
                         </span>
                       </td>
                       <td className="px-6 py-4">
@@ -411,7 +445,7 @@ const AgentPricingManagement = () => {
                             </svg>
                           </button>
                           <button
-                            onClick={() => handleDelete(pricing.id, pricing.name)}
+                            onClick={() => void handleDelete(pricing.id, pricing.name)}
                             disabled={isOperating}
                             className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Delete"
@@ -446,7 +480,11 @@ const AgentPricingManagement = () => {
               </div>
               <button
                 onClick={() => {
-                  isCreateModalOpen ? setIsCreateModalOpen(false) : setIsEditModalOpen(false);
+                  if (isCreateModalOpen) {
+                    setIsCreateModalOpen(false);
+                  } else {
+                    setIsEditModalOpen(false);
+                  }
                   resetForm();
                 }}
                 disabled={isOperating}
@@ -731,7 +769,11 @@ const AgentPricingManagement = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    isCreateModalOpen ? setIsCreateModalOpen(false) : setIsEditModalOpen(false);
+                    if (isCreateModalOpen) {
+                      setIsCreateModalOpen(false);
+                    } else {
+                      setIsEditModalOpen(false);
+                    }
                     resetForm();
                   }}
                   disabled={isOperating}

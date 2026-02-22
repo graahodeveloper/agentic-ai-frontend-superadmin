@@ -10,16 +10,46 @@ import {
   useRemoveAgentFromPlanMutation,
   Plan,
   AgentPricing,
-  PlanAgentInclusion,
+  PlanAgentsResponse,
 } from '@/features/subscriptionModel/billing/billingApi';
+
+// ── Local types ──────────────────────────────────────────────────────────────
+// Derived directly from PlanAgentsResponse['agents'][number] so it stays in
+// sync with the API type without duplicating fields.
+type PlanAgentItem = PlanAgentsResponse['agents'][number];
+
+interface ApiError {
+  data?: { detail?: string };
+}
+
+const isApiError = (err: unknown): err is ApiError =>
+  typeof err === 'object' && err !== null && 'data' in err;
+
+interface FormData {
+  agent_pricing_id: string;  // Changed from agent_pricing to match API
+  included_instances: number;
+  display_order: number;
+}
+
+interface EditFormData {
+  included_instances: number;
+  is_featured: boolean;
+  display_order: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const PlanAgentInclusionManagement = () => {
   const [selectedPlanId, setSelectedPlanId] = useState<string>('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedInclusion, setSelectedInclusion] = useState<any | null>(null);
-  const [formData, setFormData] = useState({
-    agent_pricing: '',
+  const [selectedInclusion, setSelectedInclusion] = useState<PlanAgentItem | null>(null);
+  const [formData, setFormData] = useState<FormData>({
+    agent_pricing_id: '',  // Changed from agent_pricing
+    included_instances: 1,
+    display_order: 0,
+  });
+  const [editFormData, setEditFormData] = useState<EditFormData>({
     included_instances: 1,
     is_featured: false,
     display_order: 0,
@@ -32,11 +62,11 @@ const PlanAgentInclusionManagement = () => {
 
   // Fetch all plans for dropdown
   const { data: plansData, isLoading: isLoadingPlans } = useGetPlansQuery({});
-  const plans = plansData?.results || [];
+  const plans: Plan[] = plansData?.results || [];
 
   // Fetch all agent pricing for dropdown
   const { data: agentPricingData, isLoading: isLoadingAgentPricing } = useGetAgentPricingQuery({ is_active: true });
-  const agentPricingOptions = agentPricingData?.results || [];
+  const agentPricingOptions: AgentPricing[] = agentPricingData?.results || [];
 
   // Fetch inclusions for selected plan
   const { data: planAgentsData, isLoading: isLoadingInclusions, refetch } = useGetPlanAgentsInPlanQuery(selectedPlanId, {
@@ -48,7 +78,7 @@ const PlanAgentInclusionManagement = () => {
   const [removeAgent] = useRemoveAgentFromPlanMutation();
 
   // Extract agents array from response
-  const inclusions = planAgentsData?.agents || [];
+  const inclusions: PlanAgentItem[] = planAgentsData?.agents || [];
   const selectedPlan = plans.find(p => p.id === selectedPlanId);
 
   // Helper function to format price
@@ -70,10 +100,9 @@ const PlanAgentInclusionManagement = () => {
         data: {
           agents: [
             {
-              agent_pricing_id: formData.agent_pricing,
+              agent_pricing_id: formData.agent_pricing_id,
               included_instances: formData.included_instances,
-              is_featured: formData.is_featured,
-              display_order: formData.display_order,
+              // Note: is_featured is not in the AddAgentToPlanRequest type
             }
           ]
         },
@@ -82,9 +111,9 @@ const PlanAgentInclusionManagement = () => {
       setIsAddModalOpen(false);
       resetForm();
       refetch();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to add agent to plan:', error);
-      alert(error?.data?.detail || 'Failed to add agent');
+      alert(isApiError(error) ? (error.data?.detail ?? 'Failed to add agent') : 'Failed to add agent');
     } finally {
       setIsAdding(false);
     }
@@ -100,18 +129,21 @@ const PlanAgentInclusionManagement = () => {
         planId: selectedPlanId,
         inclusionId: selectedInclusion.id,
         data: {
-          included_instances: formData.included_instances,
-          is_featured: formData.is_featured,
-          display_order: formData.display_order,
+          agents: [
+            {
+              agent_pricing_id: selectedInclusion.agent_pricing?.id || '',
+              included_instances: editFormData.included_instances,
+            }
+          ]
         },
       }).unwrap();
 
       setIsEditModalOpen(false);
       resetForm();
       refetch();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to update inclusion:', error);
-      alert(error?.data?.detail || 'Failed to update inclusion');
+      alert(isApiError(error) ? (error.data?.detail ?? 'Failed to update inclusion') : 'Failed to update inclusion');
     } finally {
       setIsUpdating(false);
     }
@@ -126,7 +158,7 @@ const PlanAgentInclusionManagement = () => {
     try {
       await removeAgent({ planId: selectedPlanId, agentId }).unwrap();
       refetch();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to remove agent:', error);
       alert('Failed to remove agent from plan');
     } finally {
@@ -134,10 +166,9 @@ const PlanAgentInclusionManagement = () => {
     }
   };
 
-  const handleEdit = (inclusion: any) => {
+  const handleEdit = (inclusion: PlanAgentItem) => {
     setSelectedInclusion(inclusion);
-    setFormData({
-      agent_pricing: inclusion.agent_pricing?.id || '',
+    setEditFormData({
       included_instances: inclusion.included_instances,
       is_featured: inclusion.is_featured,
       display_order: inclusion.display_order,
@@ -147,7 +178,11 @@ const PlanAgentInclusionManagement = () => {
 
   const resetForm = () => {
     setFormData({
-      agent_pricing: '',
+      agent_pricing_id: '',
+      included_instances: 1,
+      display_order: 0,
+    });
+    setEditFormData({
       included_instances: 1,
       is_featured: false,
       display_order: 0,
@@ -156,8 +191,8 @@ const PlanAgentInclusionManagement = () => {
   };
 
   // Get available agent pricing (not already in plan)
-  const getAvailableAgentPricing = () => {
-    const includedAgentIds = inclusions.map((i: any) => i.agent_pricing?.agent_id);
+  const getAvailableAgentPricing = (): AgentPricing[] => {
+    const includedAgentIds = inclusions.map((i: PlanAgentItem) => i.agent_pricing?.agent_id);
     return agentPricingOptions.filter(ap => !includedAgentIds.includes(ap.agent_id));
   };
 
@@ -284,7 +319,7 @@ const PlanAgentInclusionManagement = () => {
                     </svg>
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900">No Agents Added</h3>
-                  <p className="mt-2 text-gray-600">This plan doesn't have any agents yet. Start building it by adding agents.</p>
+                  <p className="mt-2 text-gray-600">This plan doesn&#39;t have any agents yet. Start building it by adding agents.</p>
                   <button
                     onClick={() => setIsAddModalOpen(true)}
                     disabled={getAvailableAgentPricing().length === 0 || isAdding}
@@ -309,7 +344,7 @@ const PlanAgentInclusionManagement = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {inclusions.map((inclusion: any) => (
+                    {inclusions.map((inclusion: PlanAgentItem) => (
                       <tr key={inclusion.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-4 sm:px-6 py-4">
                           <div className="flex items-center gap-3">
@@ -379,7 +414,11 @@ const PlanAgentInclusionManagement = () => {
                               )}
                             </button>
                             <button
-                              onClick={() => handleRemove(inclusion.id, inclusion.agent_pricing?.agent_id, inclusion.agent_pricing?.agent_name)}
+                              onClick={() => handleRemove(
+                                inclusion.id,
+                                inclusion.agent_pricing?.agent_id ?? '',
+                                inclusion.agent_pricing?.agent_name ?? ''
+                              )}
                               disabled={removingAgentId === inclusion.id || isUpdating}
                               className="p-1.5 sm:p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               title="Remove"
@@ -478,8 +517,8 @@ const PlanAgentInclusionManagement = () => {
                   </div>
                 ) : (
                   <select
-                    value={formData.agent_pricing}
-                    onChange={(e) => setFormData({ ...formData, agent_pricing: e.target.value })}
+                    value={formData.agent_pricing_id}
+                    onChange={(e) => setFormData({ ...formData, agent_pricing_id: e.target.value })}
                     disabled={isAdding}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
                     required
@@ -498,11 +537,11 @@ const PlanAgentInclusionManagement = () => {
               </div>
 
               {/* Preview selected agent pricing */}
-              {formData.agent_pricing && (
+              {formData.agent_pricing_id && (
                 <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
                   <div className="text-sm font-semibold text-gray-900 mb-2">Selected Agent Details:</div>
                   {(() => {
-                    const selectedPricing = agentPricingOptions.find(p => p.id === formData.agent_pricing);
+                    const selectedPricing = agentPricingOptions.find(p => p.id === formData.agent_pricing_id);
                     if (!selectedPricing) return null;
                     return (
                       <div className="text-sm text-gray-600 space-y-1">
@@ -556,17 +595,7 @@ const PlanAgentInclusionManagement = () => {
                 </p>
               </div>
 
-              {/* Featured Toggle */}
-              <label className="flex items-center space-x-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.is_featured}
-                  onChange={(e) => setFormData({ ...formData, is_featured: e.target.checked })}
-                  disabled={isAdding}
-                  className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 disabled:cursor-not-allowed"
-                />
-                <span className="text-sm font-medium text-gray-900">Mark as Featured Agent</span>
-              </label>
+              {/* Note: is_featured is not included in the add request as per API */}
 
               {/* Action Buttons */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
@@ -585,7 +614,7 @@ const PlanAgentInclusionManagement = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={isAdding || !formData.agent_pricing}
+                  disabled={isAdding || !formData.agent_pricing_id}
                   className="px-6 py-2.5 bg-gradient-to-r from-[#4318ff] to-[#7c75ff] text-white rounded-lg font-medium hover:from-[#3610d9] hover:to-[#6b63e6] disabled:from-indigo-400 disabled:to-indigo-400 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md flex items-center space-x-2"
                 >
                   {isAdding ? (
@@ -651,8 +680,8 @@ const PlanAgentInclusionManagement = () => {
                 <input
                   type="number"
                   min="0"
-                  value={formData.included_instances}
-                  onChange={(e) => setFormData({ ...formData, included_instances: parseInt(e.target.value) || 1 })}
+                  value={editFormData.included_instances}
+                  onChange={(e) => setEditFormData({ ...editFormData, included_instances: parseInt(e.target.value) || 1 })}
                   disabled={isUpdating}
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
                   required
@@ -666,8 +695,8 @@ const PlanAgentInclusionManagement = () => {
                 </label>
                 <input
                   type="number"
-                  value={formData.display_order}
-                  onChange={(e) => setFormData({ ...formData, display_order: parseInt(e.target.value) || 0 })}
+                  value={editFormData.display_order}
+                  onChange={(e) => setEditFormData({ ...editFormData, display_order: parseInt(e.target.value) || 0 })}
                   disabled={isUpdating}
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
                 />
@@ -677,8 +706,8 @@ const PlanAgentInclusionManagement = () => {
               <label className="flex items-center space-x-3 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={formData.is_featured}
-                  onChange={(e) => setFormData({ ...formData, is_featured: e.target.checked })}
+                  checked={editFormData.is_featured}
+                  onChange={(e) => setEditFormData({ ...editFormData, is_featured: e.target.checked })}
                   disabled={isUpdating}
                   className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 disabled:cursor-not-allowed"
                 />
