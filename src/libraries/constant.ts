@@ -13,5 +13,5 @@ const getAIBaseURL = (): string => {
   }
 };
 
-// 2. Update the BASE_URL_AI constant
+// 2. Update the BASE_URL_AI constantt
 export const BASE_URL_AI = getAIBaseURL();
