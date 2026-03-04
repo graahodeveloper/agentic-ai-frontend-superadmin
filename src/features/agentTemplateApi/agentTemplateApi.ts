@@ -285,7 +285,7 @@ export interface CreateAgentTemplateResponse {
     is_template: boolean;
     is_active: boolean;
     is_public: boolean;
-    additional_info?: Record<string, unknown>;  // Changed from any to unknown
+    additional_info?: Record<string, unknown>;
     activations_count: number;
     active_activations_count: number;
     instances_count: number;
@@ -533,6 +533,18 @@ export interface WorkspacesResponse {
   results: Workspace[];
 }
 
+// ─── NEW: Delete workspace response ───────────────────────────────────────────
+export interface DeleteWorkspaceResponse {
+  message: string;
+  deleted_workspace: {
+    id: string;
+    name: string;
+    domain: string;
+    members_count: number;
+    created_at: string;
+  };
+}
+
 export interface CreateAgentInstanceRequest {
   template_id: string;
   name: string;
@@ -731,7 +743,8 @@ export const agentTemplateApi = createApi({
   tagTypes: ['AgentTemplate', 'AdminAssignment', 'TemplateAssignment', 'AgentInstance', 'Activation', 'Workspace', 'TemplateField'],
   endpoints: (builder) => ({
 
-    // Workspace endpoints
+    // ─── Workspace endpoints ───────────────────────────────────────────────────
+
     getWorkspaces: builder.query<WorkspacesResponse, { page?: number }>({
       query: ({ page = 1 }) => ({
         url: `workspaces/?page=${page}`,
@@ -749,6 +762,41 @@ export const agentTemplateApi = createApi({
         throw new Error('Invalid response format');
       },
     }),
+
+    // DELETE /api/v1/workspaces/<uuid>/
+    // Pass force=true to delete even when workspace has members
+    deleteWorkspace: builder.mutation<DeleteWorkspaceResponse, { id: string; force?: boolean }>({
+      query: ({ id, force = false }) => ({
+        url: `workspaces/${id}/${force ? '?force=true' : ''}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['Workspace'],
+      transformResponse: (response: unknown) => {
+        // Backend returns { message, deleted_workspace } on success
+        if (
+          typeof response === 'object' &&
+          response !== null &&
+          'message' in response
+        ) {
+          return response as DeleteWorkspaceResponse;
+        }
+        // Handle 204 No Content (default ModelViewSet destroy — no custom override yet)
+        return { message: 'Workspace deleted successfully', deleted_workspace: { id: '', name: '', domain: '', members_count: 0, created_at: '' } };
+      },
+      transformErrorResponse: (response: unknown) => {
+        if (
+          typeof response === 'object' &&
+          response !== null &&
+          'data' in response &&
+          typeof (response as { data: unknown }).data === 'object'
+        ) {
+          return (response as { data: APIError }).data;
+        }
+        return { detail: 'Failed to delete workspace' };
+      },
+    }),
+
+    // ─── Other endpoints (unchanged) ──────────────────────────────────────────
 
     getTemplateInstances: builder.query<TemplateInstancesResponse, { templateId: string; admin_id: string }>({
       query: ({ templateId, admin_id }) => ({
@@ -772,7 +820,6 @@ export const agentTemplateApi = createApi({
       },
     }),
 
-    // Upsert activation
     upsertActivation: builder.mutation<
       CreateActivationResponse,
       { admin_sub_id: string; data: CreateActivationRequest }
@@ -784,7 +831,6 @@ export const agentTemplateApi = createApi({
       }),
       invalidatesTags: ['Activation', 'AgentInstance'],
       transformResponse: (response: unknown) => {
-        console.log('Upsert activation response:', response);
         if (
           typeof response === 'object' &&
           response !== null &&
@@ -796,14 +842,13 @@ export const agentTemplateApi = createApi({
         throw new Error('Invalid activation response format');
       },
       transformErrorResponse: (response: unknown) => {
-        console.log('Upsert activation error:', response);
         if (
           typeof response === 'object' &&
           response !== null &&
           'data' in response &&
-          typeof response.data === 'object'
+          typeof (response as { data: unknown }).data === 'object'
         ) {
-          return response.data as APIError;
+          return (response as { data: APIError }).data;
         }
         return { detail: 'An unexpected error occurred during activation upsert' };
       },
@@ -820,7 +865,6 @@ export const agentTemplateApi = createApi({
       }),
       invalidatesTags: ['Activation', 'AgentInstance'],
       transformResponse: (response: unknown) => {
-        console.log('Create activation response:', response);
         if (
           typeof response === 'object' &&
           response !== null &&
@@ -832,14 +876,13 @@ export const agentTemplateApi = createApi({
         throw new Error('Invalid activation response format');
       },
       transformErrorResponse: (response: unknown) => {
-        console.log('Create activation error:', response);
         if (
           typeof response === 'object' &&
           response !== null &&
           'data' in response &&
-          typeof response.data === 'object'
+          typeof (response as { data: unknown }).data === 'object'
         ) {
-          return response.data as APIError;
+          return (response as { data: APIError }).data;
         }
         return { detail: 'An unexpected error occurred during activation' };
       },
@@ -856,7 +899,6 @@ export const agentTemplateApi = createApi({
       }),
       invalidatesTags: ['AgentInstance'],
       transformResponse: (response: unknown) => {
-        console.log('Update agent instance config response:', response);
         if (
           typeof response === 'object' &&
           response !== null &&
@@ -868,14 +910,13 @@ export const agentTemplateApi = createApi({
         throw new Error('Invalid agent instance config update response format');
       },
       transformErrorResponse: (response: unknown) => {
-        console.log('Update agent instance config error:', response);
         if (
           typeof response === 'object' &&
           response !== null &&
           'data' in response &&
-          typeof response.data === 'object'
+          typeof (response as { data: unknown }).data === 'object'
         ) {
-          return response.data as APIError;
+          return (response as { data: APIError }).data;
         }
         return { detail: 'An unexpected error occurred during agent configuration update' };
       },
@@ -907,9 +948,9 @@ export const agentTemplateApi = createApi({
           typeof response === 'object' &&
           response !== null &&
           'data' in response &&
-          typeof response.data === 'object'
+          typeof (response as { data: unknown }).data === 'object'
         ) {
-          return response.data as AgentInstanceAPIError;
+          return (response as { data: AgentInstanceAPIError }).data;
         }
         return { detail: 'An unexpected error occurred' };
       },
@@ -1005,8 +1046,6 @@ export const agentTemplateApi = createApi({
       }),
       invalidatesTags: ['AgentTemplate'],
       transformResponse: (response: unknown): CreateAgentTemplateResponse => {
-        console.log('Raw create template response:', response);
-        
         if (
           typeof response === 'object' &&
           response !== null &&
@@ -1085,8 +1124,7 @@ export const agentTemplateApi = createApi({
             creator: apiResponse.created_by,
           };
         }
-        
-        console.error('Invalid response format received:', response);
+
         throw new Error('Invalid response format received from template creation API');
       },
     }),
@@ -1184,7 +1222,6 @@ export const agentTemplateApi = createApi({
       },
     }),
 
-    // Bulk create template fields
     bulkCreateTemplateFields: builder.mutation<BulkCreateFieldsResponse, { admin_id: string; data: BulkCreateFieldsRequest }>({
       query: ({ admin_id, data }) => ({
         url: `template-fields/bulk-create/?admin_id=${encodeURIComponent(admin_id)}`,
@@ -1193,7 +1230,6 @@ export const agentTemplateApi = createApi({
       }),
       invalidatesTags: ['TemplateField', 'AgentTemplate'],
       transformResponse: (response: unknown) => {
-        console.log('Bulk create fields response:', response);
         if (
           typeof response === 'object' &&
           response !== null &&
@@ -1205,20 +1241,18 @@ export const agentTemplateApi = createApi({
         throw new Error('Invalid response format');
       },
       transformErrorResponse: (response: unknown) => {
-        console.log('Bulk create fields error:', response);
         if (
           typeof response === 'object' &&
           response !== null &&
           'data' in response &&
-          typeof response.data === 'object'
+          typeof (response as { data: unknown }).data === 'object'
         ) {
-          return response.data as APIError;
+          return (response as { data: APIError }).data;
         }
         return { detail: 'An unexpected error occurred during bulk field creation' };
       },
     }),
 
-    // Get template fields by template ID
     getTemplateFieldsByTemplateId: builder.query<GetTemplateFieldsResponse, { template_id: string; admin_id: string }>({
       query: ({ template_id, admin_id }) => ({
         url: `template-fields/by-template/?template_id=${encodeURIComponent(template_id)}&admin_id=${encodeURIComponent(admin_id)}`,
@@ -1229,7 +1263,6 @@ export const agentTemplateApi = createApi({
         'TemplateField'
       ],
       transformResponse: (response: unknown) => {
-        console.log('Get template fields response:', response);
         if (
           typeof response === 'object' &&
           response !== null &&
@@ -1242,7 +1275,6 @@ export const agentTemplateApi = createApi({
       },
     }),
 
-    // Update template field
     updateTemplateField: builder.mutation<UpdateTemplateFieldResponse, { field_id: string; admin_id: string; data: UpdateTemplateFieldRequest }>({
       query: ({ field_id, admin_id, data }) => ({
         url: `template-fields/${field_id}/?admin_id=${encodeURIComponent(admin_id)}`,
@@ -1254,7 +1286,6 @@ export const agentTemplateApi = createApi({
         'TemplateField'
       ],
       transformResponse: (response: unknown) => {
-        console.log('Update template field response:', response);
         if (
           typeof response === 'object' &&
           response !== null &&
@@ -1266,14 +1297,13 @@ export const agentTemplateApi = createApi({
         throw new Error('Invalid response format');
       },
       transformErrorResponse: (response: unknown) => {
-        console.log('Update template field error:', response);
         if (
           typeof response === 'object' &&
           response !== null &&
           'data' in response &&
-          typeof response.data === 'object'
+          typeof (response as { data: unknown }).data === 'object'
         ) {
-          return response.data as APIError;
+          return (response as { data: APIError }).data;
         }
         return { detail: 'An unexpected error occurred during field update' };
       },
@@ -1283,6 +1313,7 @@ export const agentTemplateApi = createApi({
 
 export const {
   useGetWorkspacesQuery,
+  useDeleteWorkspaceMutation,           // ← NEW
   useGetTemplateInstancesQuery,
   useCreateActivationMutation,
   useUpsertActivationMutation,
