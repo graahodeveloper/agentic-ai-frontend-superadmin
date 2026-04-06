@@ -87,16 +87,25 @@ const AGENT_VARIANTS = [
   { value: 'whatsapp', label: 'WhatsApp' },
   { value: 'instagram', label: 'Instagram' },
   { value: 'website', label: 'Website' },
+  { value: 'idp', label: 'IDP (Document Processing)' },
 ];
 
-// Predefined field names for the dropdown - Updated with WhatsApp fields
+// Predefined field names for the dropdown - Updated with WhatsApp and IDP fields
 const PREDEFINED_FIELD_NAMES = [
+  // Facebook fields
   { value: 'app_secret', label: 'App Secret' },
   { value: 'page_access_token', label: 'Page Access Token' },
   { value: 'verify_token', label: 'Verify Token' },
+  // WhatsApp fields
   { value: 'access_token', label: 'WhatsApp Access Token' },
   { value: 'business_account_id', label: 'Business Account ID' },
   { value: 'phone_number_id', label: 'Phone Number ID' },
+  // IDP fields
+  { value: 'sample_pdf_form', label: 'Sample PDF Form' },
+  { value: 'json_structure', label: 'JSON Structure' },
+  { value: 'api_endpoint', label: 'API Endpoint' },
+  { value: 'auth_credentials', label: 'Authentication Credentials' },
+  { value: 'field_mappings', label: 'Field Mappings' },
   { value: 'custom', label: 'Choose Field Name' }
 ];
 
