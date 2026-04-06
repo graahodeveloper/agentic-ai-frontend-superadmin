@@ -64,11 +64,6 @@ const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
   };
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
-  const handleRefresh = () => {
-    refetch();
-    onRefresh?.();
-  };
-
   const openDeleteModal = (workspace: Workspace) => {
     setDeleteModal({ isOpen: true, workspace, showForceOption: false, errorMessage: '' });
   };
@@ -151,7 +146,7 @@ const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
           <h3 className="text-lg font-bold text-gray-900 text-center mb-1">Delete Workspace</h3>
           <p className="text-sm text-gray-500 text-center mb-4">
             Are you sure you want to delete{' '}
-            <span className="font-semibold text-gray-800">"{workspace.name}"</span>?
+            <span className="font-semibold text-gray-800">&ldquo;{workspace.name}&rdquo;</span>?
             This action cannot be undone.
           </p>
 
