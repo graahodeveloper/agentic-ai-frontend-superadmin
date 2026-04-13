@@ -12,6 +12,11 @@ export interface FloatingElement {
 export interface HeroImage {
   url: string;
   alt?: string;
+  title?: string;
+  subtitle?: string;
+  description?: string;
+  cta_text?: string;
+  cta_link?: string;
 }
 
 export interface CMSPageContent {

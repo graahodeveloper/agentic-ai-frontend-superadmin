@@ -8,6 +8,7 @@ import { fileApi } from './features/fileApi';
 import { agentTemplateApi } from './features/agentTemplateApi/agentTemplateApi';
 import { planApi } from '@/features/plan/planApi';
 import { billingApi } from '@/features/subscriptionModel/billing/billingApi';
+import { cmsSettingsApi } from '@/features/cmsSettings/cmsSettingsApi';
 
 export const store = configureStore({
   reducer: {
@@ -20,6 +21,7 @@ export const store = configureStore({
     [fileApi.reducerPath]: fileApi.reducer,
     [planApi.reducerPath]: planApi.reducer,
     [billingApi.reducerPath]: billingApi.reducer,
+    [cmsSettingsApi.reducerPath]: cmsSettingsApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
@@ -37,8 +39,8 @@ export const store = configureStore({
     .concat(agentTemplateApi.middleware) // Add this line
     .concat(fileApi.middleware)
     .concat(planApi.middleware)
-    .concat(billingApi.middleware),
-    
+    .concat(billingApi.middleware)
+    .concat(cmsSettingsApi.middleware),
 });
 
 export type RootState = ReturnType<typeof store.getState>;

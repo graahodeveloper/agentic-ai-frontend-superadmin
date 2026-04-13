@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import Image from 'next/image';
 import {
   useGetCMSByPageTypeQuery,
   useCreateCMSSettingsMutation,
@@ -45,6 +44,7 @@ export default function LoginPageSettings() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingHeroSlider, setUploadingHeroSlider] = useState<number | null>(null);
   const [previewSlideIndex, setPreviewSlideIndex] = useState(0);
+  const [expandedSlide, setExpandedSlide] = useState<number | null>(null);
 
   const logoImageRef = useRef<HTMLInputElement>(null);
 
@@ -123,15 +123,23 @@ export default function LoginPageSettings() {
     }
   };
 
-  // Add hero slider image
+  // Add hero slider image with default content
   const addHeroSliderImage = () => {
+    const newSlide: HeroImage = {
+      url: '',
+      alt: `Slide ${formData.hero_images.length + 1}`,
+      title: formData.hero_title || 'Your Title Here',
+      subtitle: formData.hero_subtitle || 'Your subtitle here',
+      description: formData.hero_description || 'Your description here',
+      cta_text: formData.hero_cta_text || 'Watch Demo',
+      cta_link: formData.hero_cta_link || '/demo',
+    };
     setFormData((prev) => ({
       ...prev,
-      hero_images: [
-        ...prev.hero_images,
-        { url: '', alt: `Slide ${prev.hero_images.length + 1}` },
-      ],
+      hero_images: [...prev.hero_images, newSlide],
     }));
+    // Auto expand the newly added slide
+    setExpandedSlide(formData.hero_images.length);
   };
 
   // Remove hero slider image
@@ -143,6 +151,9 @@ export default function LoginPageSettings() {
     if (previewSlideIndex >= formData.hero_images.length - 1) {
       setPreviewSlideIndex(Math.max(0, formData.hero_images.length - 2));
     }
+    if (expandedSlide === index) {
+      setExpandedSlide(null);
+    }
   };
 
   // Move slider image up/down
@@ -152,6 +163,20 @@ export default function LoginPageSettings() {
     if (targetIndex < 0 || targetIndex >= newImages.length) return;
     [newImages[index], newImages[targetIndex]] = [newImages[targetIndex], newImages[index]];
     setFormData((prev) => ({ ...prev, hero_images: newImages }));
+    if (expandedSlide === index) {
+      setExpandedSlide(targetIndex);
+    } else if (expandedSlide === targetIndex) {
+      setExpandedSlide(index);
+    }
+  };
+
+  // Update slide field
+  const updateSlideField = (index: number, field: keyof HeroImage, value: string) => {
+    setFormData((prev) => {
+      const newImages = [...prev.hero_images];
+      newImages[index] = { ...newImages[index], [field]: value };
+      return { ...prev, hero_images: newImages };
+    });
   };
 
   // Save settings
@@ -189,10 +214,31 @@ export default function LoginPageSettings() {
     if (formData.hero_images.length > 1) {
       const interval = setInterval(() => {
         setPreviewSlideIndex((prev) => (prev + 1) % formData.hero_images.length);
-      }, 3000);
+      }, 4000);
       return () => clearInterval(interval);
     }
   }, [formData.hero_images.length]);
+
+  // Get current slide content for preview
+  const getCurrentSlideContent = () => {
+    if (formData.hero_images.length > 0 && formData.hero_images[previewSlideIndex]) {
+      const slide = formData.hero_images[previewSlideIndex];
+      return {
+        title: slide.title || formData.hero_title,
+        subtitle: slide.subtitle || formData.hero_subtitle,
+        description: slide.description || formData.hero_description,
+        cta_text: slide.cta_text || formData.hero_cta_text,
+        cta_link: slide.cta_link || formData.hero_cta_link,
+      };
+    }
+    return {
+      title: formData.hero_title,
+      subtitle: formData.hero_subtitle,
+      description: formData.hero_description,
+      cta_text: formData.hero_cta_text,
+      cta_link: formData.hero_cta_link,
+    };
+  };
 
   if (isLoading) {
     return (
@@ -215,6 +261,8 @@ export default function LoginPageSettings() {
       </div>
     );
   }
+
+  const currentContent = getCurrentSlideContent();
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
@@ -240,9 +288,12 @@ export default function LoginPageSettings() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Form Section */}
         <div className="space-y-6">
-          {/* Hero Content Card */}
+          {/* Default Hero Content Card (fallback when no slides) */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Hero Content</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">Default Hero Content</h2>
+            <p className="text-xs text-gray-500 mb-4">
+              This content is used as fallback when slides don&apos;t have their own text, or as template for new slides.
+            </p>
 
             <div className="space-y-4">
               <div>
@@ -269,11 +320,11 @@ export default function LoginPageSettings() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <textarea
+                <input
+                  type="text"
                   value={formData.hero_description}
                   onChange={(e) => setFormData((prev) => ({ ...prev, hero_description: e.target.value }))}
-                  rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4318ff] focus:border-transparent resize-none"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4318ff] focus:border-transparent"
                   placeholder="to help brands achieve explosive business growth."
                 />
               </div>
@@ -307,14 +358,14 @@ export default function LoginPageSettings() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Hero Slider Images</h2>
-                <p className="text-sm text-gray-500">Images will auto-rotate in the slider above the title</p>
+                <h2 className="text-lg font-semibold text-gray-900">Hero Slides</h2>
+                <p className="text-sm text-gray-500">Each slide has its own image and text content</p>
               </div>
               <button
                 onClick={addHeroSliderImage}
                 className="px-3 py-1.5 text-sm bg-[#4318ff] text-white rounded-lg hover:bg-[#3614cc] transition-colors"
               >
-                + Add Image
+                + Add Slide
               </button>
             </div>
 
@@ -323,83 +374,180 @@ export default function LoginPageSettings() {
                 <svg className="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                <p className="text-sm text-gray-500">No slider images added yet.</p>
-                <p className="text-xs text-gray-400 mt-1">Add images to create an auto-rotating slider</p>
+                <p className="text-sm text-gray-500">No slides added yet.</p>
+                <p className="text-xs text-gray-400 mt-1">Add slides to create an auto-rotating slider with custom text</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {formData.hero_images.map((image, index) => (
-                  <div key={index} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                    {/* Image Preview */}
+                  <div key={index} className="border border-gray-200 rounded-lg overflow-hidden">
+                    {/* Slide Header */}
                     <div
-                      className="w-24 h-18 bg-white rounded-lg border border-gray-200 flex items-center justify-center overflow-hidden cursor-pointer hover:border-[#4318ff] transition-colors flex-shrink-0"
-                      onClick={() => {
-                        const input = document.createElement('input');
-                        input.type = 'file';
-                        input.accept = 'image/*';
-                        input.onchange = (e: Event) => {
-                          const file = (e.target as HTMLInputElement).files?.[0];
-                          if (file) handleImageUpload(file, 'hero_slider', index);
-                        };
-                        input.click();
-                      }}
+                      className="flex items-center justify-between p-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
+                      onClick={() => setExpandedSlide(expandedSlide === index ? null : index)}
                     >
-                      {uploadingHeroSlider === index ? (
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#4318ff]"></div>
-                      ) : image.url ? (
-                        <img src={image.url} alt={image.alt} className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-[10px] text-gray-400 text-center px-1">Click to upload</span>
-                      )}
-                    </div>
-
-                    {/* Order & Alt Text */}
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <span className="text-xs font-medium text-gray-500">Slide {index + 1}</span>
-                        <div className="flex space-x-1">
-                          <button
-                            onClick={() => moveHeroSliderImage(index, 'up')}
-                            disabled={index === 0}
-                            className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
-                          >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => moveHeroSliderImage(index, 'down')}
-                            disabled={index === formData.hero_images.length - 1}
-                            className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
-                          >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                          </button>
+                      <div className="flex items-center space-x-3">
+                        {/* Image Preview Thumbnail */}
+                        <div
+                          className="w-16 h-12 bg-white rounded border border-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const input = document.createElement('input');
+                            input.type = 'file';
+                            input.accept = 'image/*';
+                            input.onchange = (ev: Event) => {
+                              const file = (ev.target as HTMLInputElement).files?.[0];
+                              if (file) handleImageUpload(file, 'hero_slider', index);
+                            };
+                            input.click();
+                          }}
+                        >
+                          {uploadingHeroSlider === index ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#4318ff]"></div>
+                          ) : image.url ? (
+                            <img src={image.url} alt={image.alt} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-[8px] text-gray-400 text-center">Upload</span>
+                          )}
+                        </div>
+                        <div>
+                          <span className="text-sm font-medium text-gray-700">Slide {index + 1}</span>
+                          <p className="text-xs text-gray-500 truncate max-w-[200px]">
+                            {image.title || 'No title set'}
+                          </p>
                         </div>
                       </div>
-                      <input
-                        type="text"
-                        value={image.alt || ''}
-                        onChange={(e) => {
-                          const newImages = [...formData.hero_images];
-                          newImages[index] = { ...newImages[index], alt: e.target.value };
-                          setFormData((prev) => ({ ...prev, hero_images: newImages }));
-                        }}
-                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-[#4318ff]"
-                        placeholder="Image description (alt text)"
-                      />
+                      <div className="flex items-center space-x-2">
+                        {/* Move buttons */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); moveHeroSliderImage(index, 'up'); }}
+                          disabled={index === 0}
+                          className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); moveHeroSliderImage(index, 'down'); }}
+                          disabled={index === formData.hero_images.length - 1}
+                          className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                        {/* Delete button */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); removeHeroSliderImage(index); }}
+                          className="p-1 text-red-500 hover:bg-red-50 rounded transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                        {/* Expand/Collapse icon */}
+                        <svg
+                          className={`w-5 h-5 text-gray-400 transition-transform ${expandedSlide === index ? 'rotate-180' : ''}`}
+                          fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
                     </div>
 
-                    {/* Delete Button */}
-                    <button
-                      onClick={() => removeHeroSliderImage(index)}
-                      className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
+                    {/* Expanded Slide Content */}
+                    {expandedSlide === index && (
+                      <div className="p-4 space-y-4 bg-white border-t border-gray-200">
+                        {/* Image URL */}
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Image URL (or click thumbnail to upload)</label>
+                          <input
+                            type="text"
+                            value={image.url || ''}
+                            onChange={(e) => updateSlideField(index, 'url', e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#4318ff]"
+                            placeholder="https://..."
+                          />
+                        </div>
+
+                        {/* Alt Text */}
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Alt Text</label>
+                          <input
+                            type="text"
+                            value={image.alt || ''}
+                            onChange={(e) => updateSlideField(index, 'alt', e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#4318ff]"
+                            placeholder="Image description"
+                          />
+                        </div>
+
+                        <div className="border-t border-gray-100 pt-4">
+                          <h4 className="text-sm font-medium text-gray-800 mb-3">Slide Text Content</h4>
+
+                          {/* Title */}
+                          <div className="mb-3">
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Title</label>
+                            <input
+                              type="text"
+                              value={image.title || ''}
+                              onChange={(e) => updateSlideField(index, 'title', e.target.value)}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#4318ff]"
+                              placeholder="Slide title"
+                            />
+                          </div>
+
+                          {/* Subtitle */}
+                          <div className="mb-3">
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Subtitle</label>
+                            <input
+                              type="text"
+                              value={image.subtitle || ''}
+                              onChange={(e) => updateSlideField(index, 'subtitle', e.target.value)}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#4318ff]"
+                              placeholder="Slide subtitle"
+                            />
+                          </div>
+
+                          {/* Description */}
+                          <div className="mb-3">
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+                            <input
+                              type="text"
+                              value={image.description || ''}
+                              onChange={(e) => updateSlideField(index, 'description', e.target.value)}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#4318ff]"
+                              placeholder="Slide description"
+                            />
+                          </div>
+
+                          {/* CTA */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">CTA Text</label>
+                              <input
+                                type="text"
+                                value={image.cta_text || ''}
+                                onChange={(e) => updateSlideField(index, 'cta_text', e.target.value)}
+                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#4318ff]"
+                                placeholder="Watch Demo"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">CTA Link</label>
+                              <input
+                                type="text"
+                                value={image.cta_link || ''}
+                                onChange={(e) => updateSlideField(index, 'cta_link', e.target.value)}
+                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#4318ff]"
+                                placeholder="/demo"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -485,7 +633,7 @@ export default function LoginPageSettings() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
               <h2 className="text-lg font-semibold text-gray-900">Live Preview</h2>
-              <p className="text-xs text-gray-500">This shows how the login page will look</p>
+              <p className="text-xs text-gray-500">This shows how the login page will look (text changes per slide)</p>
             </div>
 
             {/* Preview Container */}
@@ -512,9 +660,9 @@ export default function LoginPageSettings() {
                   </div>
                 </div>
 
-                {/* Right Side - Hero Preview */}
+                {/* Right Side - Hero Preview with rounded corners */}
                 <div
-                  className="w-1/2 p-4 flex flex-col items-center justify-center text-white relative"
+                  className="w-1/2 p-4 flex flex-col items-center justify-center text-white relative rounded-l-3xl"
                   style={{ background: formData.background_gradient }}
                 >
                   {/* Hero Slider Preview */}
@@ -536,14 +684,15 @@ export default function LoginPageSettings() {
                           </div>
                         )
                       ))}
-                      {/* Dots Indicator */}
+                      {/* Dots Indicator - moved to right side */}
                       {formData.hero_images.length > 1 && (
-                        <div className="absolute bottom-1 left-0 right-0 flex justify-center space-x-1">
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col space-y-1">
                           {formData.hero_images.map((_, index) => (
                             <div
                               key={index}
-                              className={`w-1.5 h-1.5 rounded-full transition-all ${
-                                index === previewSlideIndex ? 'bg-white w-3' : 'bg-white/50'
+                              onClick={() => setPreviewSlideIndex(index)}
+                              className={`cursor-pointer transition-all rounded-full ${
+                                index === previewSlideIndex ? 'h-4 w-1.5 bg-white' : 'h-1.5 w-1.5 bg-white/50'
                               }`}
                             />
                           ))}
@@ -556,20 +705,23 @@ export default function LoginPageSettings() {
                     </div>
                   )}
 
-                  {/* Title */}
-                  <h3 className="text-xs font-semibold text-center mb-1 px-2 leading-tight">
-                    {formData.hero_title || 'Your Title Here'}
+                  {/* Dynamic Title based on current slide */}
+                  <h3 className="text-xs font-semibold text-center mb-1 px-2 leading-tight transition-all duration-300">
+                    {currentContent.title || 'Your Title Here'}
                   </h3>
-                  <p className="text-[8px] text-center opacity-80 px-2">
-                    {formData.hero_subtitle}
+                  <p className="text-[8px] text-center opacity-80 px-2 transition-all duration-300">
+                    {currentContent.subtitle}
+                  </p>
+                  <p className="text-[7px] text-center opacity-60 px-2 transition-all duration-300">
+                    {currentContent.description}
                   </p>
 
-                  {/* Page Indicator */}
-                  <div className="absolute bottom-3 flex items-center justify-center gap-1">
-                    <div className="w-4 h-1 bg-white rounded-full" />
-                    <div className="w-1 h-1 bg-white/40 rounded-full" />
-                    <div className="w-1 h-1 bg-white/40 rounded-full" />
-                  </div>
+                  {/* CTA Button */}
+                  {currentContent.cta_text && (
+                    <div className="mt-2 px-2 py-1 bg-white/20 rounded-full text-[7px] backdrop-blur-sm">
+                      {currentContent.cta_text}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
