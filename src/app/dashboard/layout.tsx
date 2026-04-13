@@ -22,6 +22,9 @@ const NAV_ROUTES = {
     planSummary: `${BASE}/subscription/plan-summary`,
     agentComponentPricing: `${BASE}/subscription/agent-component-pricing`,
   },
+  cmsSettings: {
+    loginPage: `${BASE}/cms-settings/login-page`,
+  },
   settings: {
     manageUser: `${BASE}/settings/manage-user`,
     summary: `${BASE}/settings/summary`,
@@ -47,11 +50,13 @@ export default function DashboardLayout({
 
   const [userData, setUserData] = useState<User | null>(null);
   const [subscriptionOpen, setSubscriptionOpen] = useState(false);
+  const [cmsSettingsOpen, setCmsSettingsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isCreateTemplateDrawerOpen, setIsCreateTemplateDrawerOpen] = useState(false);
   const [editTemplate, setEditTemplate] = useState<AgentTemplate | null>(null);
 
   const subscriptionRef = useRef<HTMLDivElement>(null);
+  const cmsSettingsRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
 
   // ── Auth guard ────────────────────────────────────────────────────────────
@@ -86,6 +91,9 @@ export default function DashboardLayout({
       if (subscriptionRef.current && !subscriptionRef.current.contains(e.target as Node)) {
         setSubscriptionOpen(false);
       }
+      if (cmsSettingsRef.current && !cmsSettingsRef.current.contains(e.target as Node)) {
+        setCmsSettingsOpen(false);
+      }
       if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
         setSettingsOpen(false);
       }
@@ -97,6 +105,7 @@ export default function DashboardLayout({
   // ── Auto-expand the correct submenu based on current URL ──────────────────
   useEffect(() => {
     if (pathname.startsWith(`${BASE}/subscription`)) setSubscriptionOpen(true);
+    if (pathname.startsWith(`${BASE}/cms-settings`)) setCmsSettingsOpen(true);
     if (pathname.startsWith(`${BASE}/settings`)) setSettingsOpen(true);
   }, [pathname]);
 
@@ -225,6 +234,46 @@ export default function DashboardLayout({
                     key={href}
                     href={href}
                     onClick={() => setSubscriptionOpen(false)}
+                    className={subLinkCls(href)}
+                  >
+                    <span className={`font-medium ${isActive(href) ? 'text-indigo-700' : 'text-gray-700 group-hover:text-gray-900'}`}>
+                      {label}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            {/* CMS Settings */}
+            <div className="relative" ref={cmsSettingsRef}>
+              <button
+                onClick={() => setCmsSettingsOpen((o) => !o)}
+                className={groupBtnCls(`${BASE}/cms-settings`)}
+              >
+                <div className="flex items-center space-x-3">
+                  <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h2v7H7zm4-3h2v10h-2zm4 6h2v4h-2z"/>
+                  </svg>
+                  <span className="font-medium">CMS Settings</span>
+                </div>
+                <svg
+                  className={`w-4 h-4 flex-shrink-0 transition-transform duration-300 ${cmsSettingsOpen ? 'rotate-180' : ''}`}
+                  fill="currentColor" viewBox="0 0 20 20"
+                >
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+
+              <div className={dropdownCls(cmsSettingsOpen)}>
+                {(
+                  [
+                    { href: NAV_ROUTES.cmsSettings.loginPage, label: 'Login Page' },
+                  ] as const
+                ).map(({ href, label }) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={() => setCmsSettingsOpen(false)}
                     className={subLinkCls(href)}
                   >
                     <span className={`font-medium ${isActive(href) ? 'text-indigo-700' : 'text-gray-700 group-hover:text-gray-900'}`}>
