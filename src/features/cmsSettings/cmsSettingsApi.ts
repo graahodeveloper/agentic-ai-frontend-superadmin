@@ -1,5 +1,6 @@
 // src/features/cmsSettings/cmsSettingsApi.ts
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import { baseQueryWithReauth, getBaseUrl, getAccessToken } from '@/lib/api/baseQueryWithAuth';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -97,19 +98,17 @@ export interface ByPageTypeResponse {
   message?: string;
 }
 
-// ─── API Configuration ───────────────────────────────────────────────────────
+// ─── Custom base query for file uploads ──────────────────────────────────────
 
-const getBaseUrl = () => {
-  return process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000/api/v1/';
-};
-
-const baseQueryWithAuth = fetchBaseQuery({
+const baseQueryForUpload = fetchBaseQuery({
   baseUrl: getBaseUrl(),
   mode: 'cors',
   credentials: 'include',
-  prepareHeaders: async (headers, { endpoint }) => {
-    if (endpoint !== 'uploadCMSImage') {
-      headers.set('Content-Type', 'application/json');
+  prepareHeaders: (headers) => {
+    // Don't set Content-Type for FormData - browser will set it with boundary
+    const token = getAccessToken();
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
     }
     headers.set('Accept', 'application/json');
     return headers;
@@ -120,7 +119,7 @@ const baseQueryWithAuth = fetchBaseQuery({
 
 export const cmsSettingsApi = createApi({
   reducerPath: 'cmsSettingsApi',
-  baseQuery: baseQueryWithAuth,
+  baseQuery: baseQueryWithReauth,
   tagTypes: ['CMSSettings'],
   endpoints: (builder) => ({
     // Get all CMS settings
@@ -188,12 +187,23 @@ export const cmsSettingsApi = createApi({
 
     // Upload image to S3
     uploadCMSImage: builder.mutation<ImageUploadResponse, FormData>({
-      query: (formData) => ({
-        url: 'cms-settings/upload-image/',
-        method: 'POST',
-        body: formData,
-      }),
-      // Don't set Content-Type header for FormData - browser will set it automatically with boundary
+      queryFn: async (formData, api, extraOptions) => {
+        const result = await baseQueryForUpload(
+          {
+            url: 'cms-settings/upload-image/',
+            method: 'POST',
+            body: formData,
+          },
+          api,
+          extraOptions
+        );
+
+        if (result.error) {
+          return { error: result.error };
+        }
+
+        return { data: result.data as ImageUploadResponse };
+      },
     }),
   }),
 });

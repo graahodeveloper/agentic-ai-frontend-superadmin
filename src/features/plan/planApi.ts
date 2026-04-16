@@ -1,7 +1,6 @@
 // features/plan/planApi.ts
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+import { createApi } from '@reduxjs/toolkit/query/react';
+import { baseQueryWithReauth } from '@/lib/api/baseQueryWithAuth';
 
 // ============================================
 // INTERFACES & TYPES
@@ -164,20 +163,7 @@ export const getAdminIdFromStorage = (): string | null => {
 
 export const planApi = createApi({
   reducerPath: 'planApi',
-  baseQuery: fetchBaseQuery({
-    baseUrl: BASE_URL,
-    prepareHeaders: (headers) => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        headers.set('Authorization', `Bearer ${token}`);
-      }
-      const adminId = getAdminIdFromStorage();
-      if (adminId) {
-        headers.set('X-Admin-ID', adminId);
-      }
-      return headers;
-    },
-  }),
+  baseQuery: baseQueryWithReauth,
   tagTypes: ['Plan', 'PlanFeature', 'PlanAgent', 'PlanStats'],
   endpoints: (builder) => ({
     // ============================================

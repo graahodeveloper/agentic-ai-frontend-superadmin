@@ -1,7 +1,7 @@
 // src/features/user/userApi.ts
 import { User } from '@/types/auth';
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import { fetchAuthSession } from 'aws-amplify/auth';
+import { createApi } from '@reduxjs/toolkit/query/react';
+import { baseQueryWithReauth } from '@/lib/api/baseQueryWithAuth';
 
 export interface CreateUserRequest {
   first_name: string;
@@ -271,38 +271,10 @@ export interface UserCreatedAgentsListResponse {
   results?: UserCreatedAgent[];
 }
 
-// Get base URL from environment variables
-const getBaseUrl = () => {
-  return process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000/api/v1/';
-};
-
-// Base query with enhanced CORS handling
-const baseQueryWithAuth = fetchBaseQuery({
-  baseUrl: getBaseUrl(),
-  mode: 'cors', // Explicitly set CORS mode
-  credentials: 'include', // Include credentials for CORS requests
-  prepareHeaders: async (headers) => {
-    try {
-      // const session = await fetchAuthSession();
-      // const token = session.tokens?.accessToken?.toString();
-      
-      // if (token) {
-      //   headers.set('Authorization', `Bearer ${token}`);
-      // }
-      
-      headers.set('Content-Type', 'application/json');
-      headers.set('Accept', 'application/json');
-      return headers;
-    } catch (error) {
-      console.error('Error getting auth session:', error);
-      return headers;
-    }
-  },
-});
 
 export const userApi = createApi({
   reducerPath: 'userApi',
-  baseQuery: baseQueryWithAuth,
+  baseQuery: baseQueryWithReauth,
   tagTypes: ['User', 'UserCreatedAgent', 'AdminCreatedUser', 'Agent', 'UserAgentAccess', 'UserAccessSummary'],
   endpoints: (builder) => ({
     // NEW: Get User Access Summary - for users with role "user"
@@ -675,17 +647,15 @@ export const {
   useToggleUserCreatedAgentStatusMutation,
 } = userApi;
 
-// Helper function to create user after email verification
+// Helper function to create user after verification
+// Note: For Django-based auth, sub_id should be passed explicitly
 export const createUserAfterVerification = async (
   email: string,
   name: string,
-  mobile?: string
+  mobile?: string,
+  sub_id?: string
 ) => {
   try {
-    // Get Cognito user sub_id
-    const session = await fetchAuthSession();
-    const sub_id = session.tokens?.accessToken?.payload?.sub as string;
-
     // Split name into first and last name
     const nameParts = name.trim().split(' ');
     const first_name = nameParts[0] || '';
@@ -696,7 +666,7 @@ export const createUserAfterVerification = async (
       last_name,
       email,
       mobile: mobile || '',
-      sub_id,
+      sub_id: sub_id || '',
     };
 
     return userData;

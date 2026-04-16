@@ -1,4 +1,5 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import { createApi } from '@reduxjs/toolkit/query/react';
+import { baseQueryWithReauth } from '@/lib/api/baseQueryWithAuth';
 
 // Agent Template interfaces
 export interface AgentTemplate {
@@ -725,21 +726,9 @@ export interface AgentTemplatesQueryParams {
   page?: number;
 }
 
-const getBaseUrl = () => {
-  return process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000/api/v1/';
-};
-
-const baseQueryWithoutAuth = fetchBaseQuery({
-  baseUrl: getBaseUrl(),
-  prepareHeaders: (headers) => {
-    headers.set('Content-Type', 'application/json');
-    return headers;
-  },
-});
-
 export const agentTemplateApi = createApi({
   reducerPath: 'agentTemplateApi',
-  baseQuery: baseQueryWithoutAuth,
+  baseQuery: baseQueryWithReauth,
   tagTypes: ['AgentTemplate', 'AdminAssignment', 'TemplateAssignment', 'AgentInstance', 'Activation', 'Workspace', 'TemplateField'],
   endpoints: (builder) => ({
 
