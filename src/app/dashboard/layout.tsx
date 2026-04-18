@@ -13,6 +13,7 @@ const BASE = '/dashboard';
 const NAV_ROUTES = {
   agentTemplates: `${BASE}/agent-templates`,
   workspaces: `${BASE}/workspaces`,
+  demoUsers: `${BASE}/demo-users`,
   subscription: {
     plans: `${BASE}/subscription/plans`,
     components: `${BASE}/subscription/components`,
@@ -64,7 +65,10 @@ export default function DashboardLayout({
     try {
       const raw = localStorage.getItem('superAdminUser');
       const loggedIn = localStorage.getItem('isSuperAdminLoggedIn') === 'true';
-      if (!raw || !loggedIn) { router.replace('/auth'); return; }
+      const token = localStorage.getItem('superAdminToken');
+
+      // Check for user data, logged in flag, AND valid token
+      if (!raw || !loggedIn || !token) { router.replace('/auth'); return; }
 
       const adminData = JSON.parse(raw);
       if (!adminData?.email || !adminData?.id) { router.replace('/auth'); return; }
@@ -110,8 +114,13 @@ export default function DashboardLayout({
   }, [pathname]);
 
   const handleLogout = () => {
+    // Clear all auth-related localStorage items
     localStorage.removeItem('superAdminUser');
+    localStorage.removeItem('superAdminToken');
+    localStorage.removeItem('superAdminRefreshToken');
     localStorage.removeItem('isSuperAdminLoggedIn');
+    localStorage.removeItem('adminUser');
+    localStorage.removeItem('isAdminLoggedIn');
     router.replace('/auth');
   };
 
@@ -196,6 +205,14 @@ export default function DashboardLayout({
                 <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/>
               </svg>
               <span className="font-medium">Workspaces</span>
+            </Link>
+
+            {/* Demo Users */}
+            <Link href={NAV_ROUTES.demoUsers} className={linkCls(NAV_ROUTES.demoUsers)}>
+              <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
+              </svg>
+              <span className="font-medium">Demo Users</span>
             </Link>
 
             {/* Subscription Model */}

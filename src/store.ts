@@ -9,6 +9,7 @@ import { agentTemplateApi } from './features/agentTemplateApi/agentTemplateApi';
 import { planApi } from '@/features/plan/planApi';
 import { billingApi } from '@/features/subscriptionModel/billing/billingApi';
 import { cmsSettingsApi } from '@/features/cmsSettings/cmsSettingsApi';
+import { demoUsersApi } from '@/features/demoUsers/demoUsersApi';
 
 export const store = configureStore({
   reducer: {
@@ -17,11 +18,12 @@ export const store = configureStore({
     [agentApi.reducerPath]: agentApi.reducer,
     [authApi.reducerPath]: authApi.reducer,
     [activationApi.reducerPath]: activationApi.reducer,
-    [agentTemplateApi.reducerPath]: agentTemplateApi.reducer, // Add this line
+    [agentTemplateApi.reducerPath]: agentTemplateApi.reducer,
     [fileApi.reducerPath]: fileApi.reducer,
     [planApi.reducerPath]: planApi.reducer,
     [billingApi.reducerPath]: billingApi.reducer,
     [cmsSettingsApi.reducerPath]: cmsSettingsApi.reducer,
+    [demoUsersApi.reducerPath]: demoUsersApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
@@ -36,11 +38,12 @@ export const store = configureStore({
     .concat(agentApi.middleware)
     .concat(authApi.middleware)
     .concat(activationApi.middleware)
-    .concat(agentTemplateApi.middleware) // Add this line
+    .concat(agentTemplateApi.middleware)
     .concat(fileApi.middleware)
     .concat(planApi.middleware)
     .concat(billingApi.middleware)
-    .concat(cmsSettingsApi.middleware),
+    .concat(cmsSettingsApi.middleware)
+    .concat(demoUsersApi.middleware),
 });
 
 export type RootState = ReturnType<typeof store.getState>;
