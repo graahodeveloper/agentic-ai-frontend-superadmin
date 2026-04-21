@@ -105,8 +105,9 @@ const useGetPlanComponentsInPlan = (planId: string) => {
         throw new Error('Admin ID not found');
       }
 
+      const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1/';
       const response = await fetch(
-        `http://localhost:8000/api/v1/plans/${planId}/components/?admin_id=${adminId}`,
+        `${BASE_URL}plans/${planId}/components/?admin_id=${adminId}`,
         {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
