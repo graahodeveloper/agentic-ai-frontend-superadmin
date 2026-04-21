@@ -71,7 +71,7 @@ const useGetAgentComponents = (agentId: string) => {
         `${BASE_URL}agent-templates/${agentId}/components/?admin_id=${adminId}`,
         {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Authorization': `Bearer ${localStorage.getItem('superAdminToken')}`,
             'Content-Type': 'application/json',
           },
         }
@@ -184,7 +184,7 @@ const AgentComponentPricingManagement = () => {
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Authorization': `Bearer ${localStorage.getItem('superAdminToken')}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -232,7 +232,7 @@ const AgentComponentPricingManagement = () => {
         {
           method: 'PATCH',
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Authorization': `Bearer ${localStorage.getItem('superAdminToken')}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -276,7 +276,7 @@ const AgentComponentPricingManagement = () => {
           {
             method: 'DELETE',
             headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Authorization': `Bearer ${localStorage.getItem('superAdminToken')}`,
               'Content-Type': 'application/json',
             },
           }

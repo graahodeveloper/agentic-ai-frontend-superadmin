@@ -110,7 +110,7 @@ const useGetPlanComponentsInPlan = (planId: string) => {
         `${BASE_URL}plans/${planId}/components/?admin_id=${adminId}`,
         {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Authorization': `Bearer ${localStorage.getItem('superAdminToken')}`,
             'Content-Type': 'application/json',
           },
         }

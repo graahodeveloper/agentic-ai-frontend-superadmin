@@ -158,7 +158,18 @@ export interface GetPlansParams {
 // ============================================
 export const getAdminIdFromStorage = (): string | null => {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('admin_id');
+
+  // Get admin_id from superAdminUser object (consistent with billingApi)
+  const adminUser = localStorage.getItem('superAdminUser');
+  if (!adminUser) return null;
+
+  try {
+    const parsed = JSON.parse(adminUser);
+    return parsed.id || null;
+  } catch (error) {
+    console.error('Failed to parse superAdminUser from localStorage:', error);
+    return null;
+  }
 };
 
 export const planApi = createApi({
