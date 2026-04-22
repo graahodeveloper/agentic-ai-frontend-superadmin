@@ -42,12 +42,8 @@ export const store = configureStore({
     .concat(fileApi.middleware)
     .concat(planApi.middleware)
     .concat(billingApi.middleware)
-<<<<<<< HEAD
-    .concat(cmsSettingsApi.middleware),
-=======
     .concat(cmsSettingsApi.middleware)
     .concat(demoUsersApi.middleware),
->>>>>>> 207e9a0d1e53b3da79551ed42e00c2983f92e3b3
 });
 
 export type RootState = ReturnType<typeof store.getState>;
