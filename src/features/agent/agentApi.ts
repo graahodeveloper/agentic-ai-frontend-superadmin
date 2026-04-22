@@ -1,7 +1,7 @@
 // src/features/agent/agentApi.ts
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import { fetchAuthSession } from 'aws-amplify/auth';
-import { Agent, ActivationData } from '@/types/agent'; // Assuming Agent type is defined in this path
+import { createApi } from '@reduxjs/toolkit/query/react';
+import { baseQueryWithReauth, getStoredUser } from '@/lib/api/baseQueryWithAuth';
+import { Agent, ActivationData } from '@/types/agent';
 
 
 
@@ -45,35 +45,9 @@ export interface ToggleActivationResponse {
   message?: string;
 }
 
-// Get base URL from environment variables
-const getBaseUrl = () => {
-  return process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000/api/v1/';
-};
-
-// Base query with authentication (reuse from userApi pattern)
-const baseQueryWithAuth = fetchBaseQuery({
-  baseUrl: getBaseUrl(),
-  prepareHeaders: async (headers) => {
-    try {
-      const session = await fetchAuthSession();
-      const token = session.tokens?.accessToken?.toString();
-      
-      if (token) {
-        headers.set('Authorization', `Bearer ${token}`);
-      }
-      
-      headers.set('Content-Type', 'application/json');
-      return headers;
-    } catch (error) {
-      console.error('Error getting auth session:', error);
-      return headers;
-    }
-  },
-});
-
 export const agentApi = createApi({
   reducerPath: 'agentApi',
-  baseQuery: baseQueryWithAuth,
+  baseQuery: baseQueryWithReauth,
   tagTypes: ['Agent'],
   endpoints: (builder) => ({
     // Get agents by sub_id (main endpoint for your use case)
@@ -274,19 +248,13 @@ export const {
   // useUpdateAgentConfigurationMutation,
 } = agentApi;
 
-// Helper function to extract sub_id and fetch agents
-export const getAgentsForCurrentUser = async () => {
-  try {
-    const session = await fetchAuthSession();
-    const sub_id = session.tokens?.accessToken?.payload?.sub as string;
-    
-    if (!sub_id) {
-      throw new Error('No sub_id found in session');
-    }
-    
-    return sub_id;
-  } catch (error) {
-    console.error('Error getting user session for agents:', error);
-    throw error;
+// Helper function to get sub_id for current user
+export const getAgentsForCurrentUser = (): string => {
+  const user = getStoredUser();
+
+  if (!user?.sub_id && !user?.id) {
+    throw new Error('No user found in session');
   }
+
+  return user.sub_id || user.id;
 };

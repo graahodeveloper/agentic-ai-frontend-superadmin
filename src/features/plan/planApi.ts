@@ -1,7 +1,6 @@
 // features/plan/planApi.ts
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+import { createApi } from '@reduxjs/toolkit/query/react';
+import { baseQueryWithReauth } from '@/lib/api/baseQueryWithAuth';
 
 // ============================================
 // INTERFACES & TYPES
@@ -159,25 +158,23 @@ export interface GetPlansParams {
 // ============================================
 export const getAdminIdFromStorage = (): string | null => {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('admin_id');
+
+  // Get admin_id from superAdminUser object (consistent with billingApi)
+  const adminUser = localStorage.getItem('superAdminUser');
+  if (!adminUser) return null;
+
+  try {
+    const parsed = JSON.parse(adminUser);
+    return parsed.id || null;
+  } catch (error) {
+    console.error('Failed to parse superAdminUser from localStorage:', error);
+    return null;
+  }
 };
 
 export const planApi = createApi({
   reducerPath: 'planApi',
-  baseQuery: fetchBaseQuery({
-    baseUrl: BASE_URL,
-    prepareHeaders: (headers) => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        headers.set('Authorization', `Bearer ${token}`);
-      }
-      const adminId = getAdminIdFromStorage();
-      if (adminId) {
-        headers.set('X-Admin-ID', adminId);
-      }
-      return headers;
-    },
-  }),
+  baseQuery: baseQueryWithReauth,
   tagTypes: ['Plan', 'PlanFeature', 'PlanAgent', 'PlanStats'],
   endpoints: (builder) => ({
     // ============================================

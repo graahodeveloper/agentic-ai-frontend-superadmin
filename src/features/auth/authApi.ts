@@ -1,15 +1,21 @@
 import { createApi, BaseQueryFn, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import { 
-  signIn, 
-  signUp, 
-  signOut, 
-  fetchAuthSession, 
-  confirmSignUp, 
+import {
+  signIn,
+  signUp,
+  signOut,
+  fetchAuthSession,
+  confirmSignUp,
   resendSignUpCode,
   resetPassword,
   confirmResetPassword
 } from 'aws-amplify/auth';
 import { loginUser, logout } from './authReducer';
+import {
+  setTokens,
+  clearTokens,
+  setStoredUser,
+  getBaseUrl
+} from '@/lib/api/baseQueryWithAuth';
 
 // Fix: Make all body properties optional and add country
 type AuthArgs = {
@@ -27,12 +33,16 @@ type AuthArgs = {
 type AdminLoginResponse = {
   message?: string;
   login_timestamp?: string;
+  access?: string;       // JWT access token from Django
+  refresh?: string;      // JWT refresh token from Django
+  token?: string;        // Alternative token field
   user: {
     id: string;
     sub_id?: string;
     email: string;
     full_name: string;
     is_active: boolean;
+    role?: string;
   };
 };
 
@@ -257,7 +267,7 @@ const amplifyBaseQuery: BaseQueryFn<AuthArgs, AuthResult, AuthError> = async (ar
 
 // Django baseQuery for admin authentication
 const djangoBaseQuery = fetchBaseQuery({
-  baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1/',
+  baseUrl: getBaseUrl(),
   prepareHeaders: (headers) => {
     headers.set('Content-Type', 'application/json');
     return headers;
@@ -309,7 +319,7 @@ export const authApi = createApi({
       query: () => ({ url: 'logout' }),
     }),
 
-    // Django Admin Login - FIXED VERSION
+    // Django Admin Login - with JWT Token Support
     adminLogin: builder.mutation<AuthResult, { email: string; password: string }>({
       queryFn: async (credentials, api) => {
         try {
@@ -353,8 +363,29 @@ export const authApi = createApi({
 
           const user = response.user;
 
+          // Extract tokens from response (Django JWT returns access/refresh tokens)
+          const accessToken = response.access || response.token || '';
+          const refreshToken = response.refresh || '';
+
+          // Store JWT tokens if available
+          if (accessToken) {
+            setTokens(accessToken, refreshToken);
+            console.log('[Auth] JWT tokens stored successfully');
+          }
+
+          // Store user data
+          const storedUser = {
+            id: user.id,
+            sub_id: user.sub_id,
+            email: user.email,
+            full_name: user.full_name,
+            is_active: user.is_active,
+            role: user.role || 'super_admin',
+          };
+          setStoredUser(storedUser);
+
           const adminUserData = {
-            access: 'admin_session',
+            access: accessToken || 'admin_session',
             email: user.email,
             username: user.email,
             isAdmin: true,
@@ -364,12 +395,15 @@ export const authApi = createApi({
             first_name: user.full_name.split(' ')[0],
             last_name: user.full_name.split(' ').slice(1).join(' '),
             is_active: user.is_active,
+            role: user.role || 'super_admin',
             message: response.message || 'Admin login successful',
             login_timestamp: response.login_timestamp || new Date().toISOString(),
           };
 
+          // Also keep backward compatibility with existing storage keys
           localStorage.setItem('adminUser', JSON.stringify(adminUserData));
           localStorage.setItem('isAdminLoggedIn', 'true');
+          localStorage.setItem('isSuperAdminLoggedIn', 'true');
           api.dispatch(loginUser(adminUserData));
 
           return { data: adminUserData };
@@ -384,7 +418,8 @@ export const authApi = createApi({
     adminLogout: builder.mutation<AuthResult, void>({
       queryFn: async (_, api) => {
         try {
-          // Clear localStorage
+          // Clear all tokens and user data
+          clearTokens();
           localStorage.removeItem('adminUser');
           localStorage.removeItem('isAdminLoggedIn');
 
@@ -423,6 +458,7 @@ export const authApi = createApi({
         } catch (error) {
           console.error('Admin logout error:', error);
           // Still clear local state even if server request fails
+          clearTokens();
           localStorage.removeItem('adminUser');
           localStorage.removeItem('isAdminLoggedIn');
           api.dispatch(logout());

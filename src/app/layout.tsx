@@ -13,10 +13,15 @@ Amplify.configure(amplifyConfig);
 
 
 export const metadata: Metadata = {
-  title: "Graaho AI Agent",
-  description: "AI Agent Platform for Business Automation",
+  title: "Graaho AI · Super Admin",
+  description: "Super Admin Control Panel — Graaho AI Agent Platform",
   icons: {
-    icon: "/icon.png", // public/favicon.ico
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.png", type: "image/png", sizes: "512x512" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/icon.png",
   },
 };
 

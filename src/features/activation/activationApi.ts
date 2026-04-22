@@ -1,6 +1,6 @@
 // src/features/activation/activationApi.ts
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import { fetchAuthSession } from 'aws-amplify/auth';
+import { createApi } from '@reduxjs/toolkit/query/react';
+import { baseQueryWithReauth } from '@/lib/api/baseQueryWithAuth';
 
 // Activation interfaces
 export interface ActivationData {
@@ -46,35 +46,9 @@ export interface ActivationResponse {
   updated_at: string;
 }
 
-// Get base URL from environment variables
-const getBaseUrl = () => {
-  return process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000/api/v1/';
-};
-
-// Base query with authentication
-const baseQueryWithAuth = fetchBaseQuery({
-  baseUrl: getBaseUrl(),
-  prepareHeaders: async (headers) => {
-    try {
-      const session = await fetchAuthSession();
-      const token = session.tokens?.accessToken?.toString();
-      
-      if (token) {
-        headers.set('Authorization', `Bearer ${token}`);
-      }
-      
-      headers.set('Content-Type', 'application/json');
-      return headers;
-    } catch (error) {
-      console.error('Error getting auth session:', error);
-      return headers;
-    }
-  },
-});
-
 export const activationApi = createApi({
   reducerPath: 'activationApi',
-  baseQuery: baseQueryWithAuth,
+  baseQuery: baseQueryWithReauth,
   tagTypes: ['Activation', 'Agent'],
   endpoints: (builder) => ({
     // Create new activation
