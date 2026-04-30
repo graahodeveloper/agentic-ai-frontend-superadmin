@@ -14,6 +14,17 @@ const NAV_ROUTES = {
   agentTemplates: `${BASE}/agent-templates`,
   workspaces: `${BASE}/workspaces`,
   demoUsers: `${BASE}/demo-users`,
+  performanceAnalytics: {
+    overview: `${BASE}/performance-analytics`,
+    responseTime: `${BASE}/performance-analytics/response-time`,
+    endpoints: `${BASE}/performance-analytics/endpoints`,
+    slowRequests: `${BASE}/performance-analytics/slow-requests`,
+    statusCodes: `${BASE}/performance-analytics/status-codes`,
+    databaseQueries: `${BASE}/performance-analytics/database-queries`,
+    organizations: `${BASE}/performance-analytics/organizations`,
+    agents: `${BASE}/performance-analytics/agents`,
+    realtime: `${BASE}/performance-analytics/realtime`,
+  },
   subscription: {
     plans: `${BASE}/subscription/plans`,
     components: `${BASE}/subscription/components`,
@@ -53,12 +64,14 @@ export default function DashboardLayout({
   const [subscriptionOpen, setSubscriptionOpen] = useState(false);
   const [cmsSettingsOpen, setCmsSettingsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [performanceAnalyticsOpen, setPerformanceAnalyticsOpen] = useState(false);
   const [isCreateTemplateDrawerOpen, setIsCreateTemplateDrawerOpen] = useState(false);
   const [editTemplate, setEditTemplate] = useState<AgentTemplate | null>(null);
 
   const subscriptionRef = useRef<HTMLDivElement>(null);
   const cmsSettingsRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
+  const performanceAnalyticsRef = useRef<HTMLDivElement>(null);
 
   // ── Auth guard ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -101,6 +114,9 @@ export default function DashboardLayout({
       if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
         setSettingsOpen(false);
       }
+      if (performanceAnalyticsRef.current && !performanceAnalyticsRef.current.contains(e.target as Node)) {
+        setPerformanceAnalyticsOpen(false);
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -111,6 +127,7 @@ export default function DashboardLayout({
     if (pathname.startsWith(`${BASE}/subscription`)) setSubscriptionOpen(true);
     if (pathname.startsWith(`${BASE}/cms-settings`)) setCmsSettingsOpen(true);
     if (pathname.startsWith(`${BASE}/settings`)) setSettingsOpen(true);
+    if (pathname.startsWith(`${BASE}/performance-analytics`)) setPerformanceAnalyticsOpen(true);
   }, [pathname]);
 
   const handleLogout = () => {
@@ -214,6 +231,56 @@ export default function DashboardLayout({
               </svg>
               <span className="font-medium">Demo Users</span>
             </Link>
+
+            {/* Performance Analytics */}
+            <div className="relative" ref={performanceAnalyticsRef}>
+              <button
+                onClick={() => setPerformanceAnalyticsOpen((o) => !o)}
+                className={groupBtnCls(`${BASE}/performance-analytics`)}
+              >
+                <div className="flex items-center space-x-3">
+                  <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/>
+                    <path d="M21 14h-2v4h-4v2h6z"/>
+                  </svg>
+                  <span className="font-medium">Performance Analytics</span>
+                </div>
+                <svg
+                  className={`w-4 h-4 flex-shrink-0 transition-transform duration-300 ${performanceAnalyticsOpen ? 'rotate-180' : ''}`}
+                  fill="currentColor" viewBox="0 0 20 20"
+                >
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+
+              <div className={dropdownCls(performanceAnalyticsOpen)}>
+                {(
+                  [
+                    { href: NAV_ROUTES.performanceAnalytics.overview,        label: 'Overview Dashboard',     icon: '📊' },
+                    { href: NAV_ROUTES.performanceAnalytics.realtime,        label: 'Real-time Monitor',      icon: '🔴' },
+                    { href: NAV_ROUTES.performanceAnalytics.responseTime,    label: 'Response Time Analysis', icon: '⚡' },
+                    { href: NAV_ROUTES.performanceAnalytics.endpoints,       label: 'Endpoint Performance',   icon: '🔗' },
+                    { href: NAV_ROUTES.performanceAnalytics.slowRequests,    label: 'Slow Requests',          icon: '🐌' },
+                    { href: NAV_ROUTES.performanceAnalytics.statusCodes,     label: 'Status Codes',           icon: '📋' },
+                    { href: NAV_ROUTES.performanceAnalytics.databaseQueries, label: 'Database Queries',       icon: '🗄️' },
+                    { href: NAV_ROUTES.performanceAnalytics.organizations,   label: 'Organization Analytics', icon: '🏢' },
+                    { href: NAV_ROUTES.performanceAnalytics.agents,          label: 'Agent Analytics',        icon: '🤖' },
+                  ] as const
+                ).map(({ href, label, icon }) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={() => setPerformanceAnalyticsOpen(false)}
+                    className={subLinkCls(href)}
+                  >
+                    <span className="text-base">{icon}</span>
+                    <span className={`font-medium ${isActive(href) ? 'text-indigo-700' : 'text-gray-700 group-hover:text-gray-900'}`}>
+                      {label}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </div>
 
             {/* Subscription Model */}
             <div className="relative" ref={subscriptionRef}>
