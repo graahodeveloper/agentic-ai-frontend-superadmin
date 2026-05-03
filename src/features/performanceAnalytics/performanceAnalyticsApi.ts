@@ -137,29 +137,6 @@ export interface PerformanceSummary {
   agent_id: string | null;
 }
 
-export interface RealtimeMetrics {
-  stats: {
-    request_count: number;
-    avg_response_time_ms: number;
-    error_count: number;
-    requests_per_minute: number;
-    active_users: number;
-    active_organizations: number;
-  };
-  recent_requests: Array<{
-    id: string;
-    timestamp: string;
-    endpoint: string;
-    method: string;
-    response_time_ms: number;
-    status_code: number;
-    organization_name: string | null;
-    agent_name: string | null;
-  }>;
-  health_status: "healthy" | "degraded" | "critical";
-  timestamp: string;
-}
-
 // Organization list for filtering
 export interface OrganizationListItem {
   id: string;
@@ -331,15 +308,6 @@ export const performanceAnalyticsApi = createApi({
       providesTags: ["PerformanceAnalytics"],
     }),
 
-    // Get real-time metrics
-    getRealtimeMetrics: builder.query<RealtimeMetrics, FilterParams | void>({
-      query: (params) => ({
-        url: "performance-analytics/realtime/",
-        params: params || {},
-      }),
-      providesTags: ["PerformanceAnalytics"],
-    }),
-
     // Get single organization analytics
     getOrganizationAnalytics: builder.query<
       {
@@ -437,7 +405,6 @@ export const {
   useGetAgentBreakdownQuery,
   useGetQueryPerformanceQuery,
   useGetPerformanceSummariesQuery,
-  useGetRealtimeMetricsQuery,
   useGetOrganizationAnalyticsQuery,
   useGetAgentAnalyticsQuery,
   useGetErrorAnalysisQuery,

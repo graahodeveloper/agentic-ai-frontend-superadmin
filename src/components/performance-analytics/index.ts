@@ -6,4 +6,3 @@ export { EndpointPerformanceTable } from "./EndpointPerformanceTable";
 export { SlowRequestsTable } from "./SlowRequestsTable";
 export { QueryPerformanceChart } from "./QueryPerformanceChart";
 export { OrganizationBreakdownChart } from "./OrganizationBreakdownChart";
-export { RealtimeMetrics } from "./RealtimeMetrics";

@@ -6,7 +6,6 @@ import {
   useGetPerformanceOverviewQuery,
   useGetResponseTimeTrendQuery,
   useGetStatusDistributionQuery,
-  useGetRealtimeMetricsQuery,
   useGetOrganizationBreakdownQuery,
   useGetAgentBreakdownQuery,
 } from "@/features/performanceAnalytics/performanceAnalyticsApi";
@@ -38,7 +37,6 @@ export default function PerformanceOverviewPage() {
   const { data: overview, isLoading: overviewLoading, refetch: refetchOverview } = useGetPerformanceOverviewQuery(filterParams);
   const { data: responseTrend, isLoading: trendLoading } = useGetResponseTimeTrendQuery(filterParams);
   const { data: statusDist, isLoading: statusLoading } = useGetStatusDistributionQuery(filterParams);
-  const { data: realtime, isLoading: realtimeLoading } = useGetRealtimeMetricsQuery(undefined, { pollingInterval: 30000 });
   const { data: orgBreakdown, isLoading: orgLoading } = useGetOrganizationBreakdownQuery({ period, limit: 5 });
   const { data: agentBreakdown, isLoading: agentLoading } = useGetAgentBreakdownQuery({ period, limit: 5 });
 
@@ -77,58 +75,6 @@ export default function PerformanceOverviewPage() {
           { label: "Performance Analytics" },
         ]}
       />
-
-      {/* Real-time Status Bar */}
-      <div className="mx-6 mt-6">
-        <div className={`rounded-xl p-4 shadow-lg ${
-          realtime?.health_status === "healthy"
-            ? "bg-gradient-to-r from-green-500 to-emerald-600"
-            : realtime?.health_status === "degraded"
-            ? "bg-gradient-to-r from-yellow-500 to-orange-500"
-            : "bg-gradient-to-r from-red-500 to-rose-600"
-        }`}>
-          <div className="flex items-center justify-between text-white">
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <div className={`w-3 h-3 rounded-full ${realtime?.health_status === "healthy" ? "bg-white" : "bg-yellow-200"} animate-pulse`}></div>
-                <div className={`absolute inset-0 w-3 h-3 rounded-full ${realtime?.health_status === "healthy" ? "bg-white" : "bg-yellow-200"} animate-ping`}></div>
-              </div>
-              <div>
-                <h3 className="font-semibold text-lg">
-                  System Status: {realtime?.health_status === "healthy" ? "All Systems Operational" : realtime?.health_status === "degraded" ? "Performance Degraded" : "System Issues Detected"}
-                </h3>
-                <p className="text-white/80 text-sm">
-                  Real-time monitoring - Last updated: {realtime?.timestamp ? new Date(realtime.timestamp).toLocaleTimeString() : "--"}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-8">
-              <div className="text-center">
-                <p className="text-white/70 text-xs uppercase tracking-wider">Live Requests</p>
-                <p className="text-2xl font-bold">{realtime?.stats?.request_count?.toLocaleString() || 0}</p>
-              </div>
-              <div className="h-10 w-px bg-white/30"></div>
-              <div className="text-center">
-                <p className="text-white/70 text-xs uppercase tracking-wider">Avg Response</p>
-                <p className="text-2xl font-bold">{realtime?.stats?.avg_response_time_ms?.toFixed(0) || 0}<span className="text-sm">ms</span></p>
-              </div>
-              <div className="h-10 w-px bg-white/30"></div>
-              <div className="text-center">
-                <p className="text-white/70 text-xs uppercase tracking-wider">Errors</p>
-                <p className={`text-2xl font-bold ${(realtime?.stats?.error_count || 0) > 0 ? "text-yellow-200" : ""}`}>
-                  {realtime?.stats?.error_count || 0}
-                </p>
-              </div>
-              <div className="h-10 w-px bg-white/30"></div>
-              <div className="text-center">
-                <p className="text-white/70 text-xs uppercase tracking-wider">Req/Min</p>
-                <p className="text-2xl font-bold">{realtime?.stats?.requests_per_minute?.toFixed(1) || 0}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Filter Bar */}
       <div className="px-6 mt-6">
@@ -209,9 +155,8 @@ export default function PerformanceOverviewPage() {
       {/* Quick Navigation Cards */}
       <div className="px-6 mt-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Access</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
           {[
-            { href: "/dashboard/performance-analytics/realtime", label: "Real-time Monitor", icon: "🔴", color: "from-red-500 to-rose-600" },
             { href: "/dashboard/performance-analytics/response-time", label: "Response Time", icon: "⚡", color: "from-yellow-500 to-orange-500" },
             { href: "/dashboard/performance-analytics/endpoints", label: "Endpoints", icon: "🔗", color: "from-blue-500 to-indigo-600" },
             { href: "/dashboard/performance-analytics/slow-requests", label: "Slow Requests", icon: "🐌", color: "from-orange-500 to-red-500" },

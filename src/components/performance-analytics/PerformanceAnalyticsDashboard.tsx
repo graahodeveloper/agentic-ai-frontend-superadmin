@@ -10,7 +10,6 @@ import {
   useGetOrganizationBreakdownQuery,
   useGetAgentBreakdownQuery,
   useGetQueryPerformanceQuery,
-  useGetRealtimeMetricsQuery,
 } from "@/features/performanceAnalytics/performanceAnalyticsApi";
 import { StatsCards } from "./StatsCards";
 import { ResponseTimeChart } from "./ResponseTimeChart";
@@ -19,7 +18,6 @@ import { EndpointPerformanceTable } from "./EndpointPerformanceTable";
 import { SlowRequestsTable } from "./SlowRequestsTable";
 import { QueryPerformanceChart } from "./QueryPerformanceChart";
 import { OrganizationBreakdownChart } from "./OrganizationBreakdownChart";
-import { RealtimeMetrics } from "./RealtimeMetrics";
 
 type Period = "24h" | "7d" | "30d" | "90d";
 
@@ -45,8 +43,6 @@ export function PerformanceAnalyticsDashboard() {
     useGetAgentBreakdownQuery({ period, limit: 10 });
   const { data: queryPerf, isLoading: queryLoading } =
     useGetQueryPerformanceQuery({ period });
-  const { data: realtime, isLoading: realtimeLoading } =
-    useGetRealtimeMetricsQuery(undefined, { pollingInterval: 30000 });
 
   const periodOptions: { value: Period; label: string }[] = [
     { value: "24h", label: "Last 24 Hours" },
@@ -97,9 +93,6 @@ export function PerformanceAnalyticsDashboard() {
           </div>
         </div>
       </div>
-
-      {/* Real-time Stats Bar */}
-      <RealtimeMetrics data={realtime} isLoading={realtimeLoading} />
 
       {/* Stats Cards */}
       <StatsCards data={overview} isLoading={overviewLoading} />

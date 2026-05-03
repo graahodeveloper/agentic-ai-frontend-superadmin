@@ -23,7 +23,6 @@ const NAV_ROUTES = {
     databaseQueries: `${BASE}/performance-analytics/database-queries`,
     organizations: `${BASE}/performance-analytics/organizations`,
     agents: `${BASE}/performance-analytics/agents`,
-    realtime: `${BASE}/performance-analytics/realtime`,
   },
   subscription: {
     plans: `${BASE}/subscription/plans`,
@@ -257,7 +256,6 @@ export default function DashboardLayout({
                 {(
                   [
                     { href: NAV_ROUTES.performanceAnalytics.overview,        label: 'Overview Dashboard',     icon: '📊' },
-                    { href: NAV_ROUTES.performanceAnalytics.realtime,        label: 'Real-time Monitor',      icon: '🔴' },
                     { href: NAV_ROUTES.performanceAnalytics.responseTime,    label: 'Response Time Analysis', icon: '⚡' },
                     { href: NAV_ROUTES.performanceAnalytics.endpoints,       label: 'Endpoint Performance',   icon: '🔗' },
                     { href: NAV_ROUTES.performanceAnalytics.slowRequests,    label: 'Slow Requests',          icon: '🐌' },
