@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   useGetSlowRequestsQuery,
   useGetPerformanceOverviewQuery,
@@ -14,13 +14,18 @@ export default function SlowRequestsPage() {
   const [organizationId, setOrganizationId] = useState<string | undefined>();
   const [agentId, setAgentId] = useState<string | undefined>();
   const [threshold, setThreshold] = useState<number>(1000);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 20;
+
+  const resetPage = () => setCurrentPage(1);
 
   const filterParams = {
     period,
     organization_id: organizationId,
     agent_id: agentId,
     threshold,
-    limit: 50,
+    limit: PAGE_SIZE,
+    offset: (currentPage - 1) * PAGE_SIZE,
   };
 
   const { data: overview, isLoading: overviewLoading, refetch } = useGetPerformanceOverviewQuery({
@@ -28,7 +33,17 @@ export default function SlowRequestsPage() {
     organization_id: organizationId,
     agent_id: agentId,
   });
-  const { data: slowRequests, isLoading: slowLoading } = useGetSlowRequestsQuery(filterParams);
+  const { data: slowRequests, isLoading: slowLoading, isFetching: slowFetching } = useGetSlowRequestsQuery(filterParams);
+
+  const totalRequests = slowRequests?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalRequests / PAGE_SIZE));
+
+  const tableRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (tableRef.current) {
+      tableRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [currentPage]);
 
   const getMethodColor = (method: string) => {
     switch (method) {
@@ -62,7 +77,6 @@ export default function SlowRequestsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Page Header */}
       <PageHeader
         title="Slow Requests"
         description="Identify and analyze API requests that exceed response time thresholds"
@@ -78,15 +92,14 @@ export default function SlowRequestsPage() {
         ]}
       />
 
-      {/* Filter Bar */}
       <div className="px-6 mt-6">
         <FilterBar
           period={period}
-          onPeriodChange={setPeriod}
+          onPeriodChange={(p) => { setPeriod(p); resetPage(); }}
           organizationId={organizationId}
-          onOrganizationChange={setOrganizationId}
+          onOrganizationChange={(o) => { setOrganizationId(o); resetPage(); }}
           agentId={agentId}
-          onAgentChange={setAgentId}
+          onAgentChange={(a) => { setAgentId(a); resetPage(); }}
           showOrganizationFilter
           showAgentFilter
           onRefresh={() => refetch()}
@@ -94,12 +107,11 @@ export default function SlowRequestsPage() {
         />
       </div>
 
-      {/* Summary Stats */}
       <div className="px-6 mt-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             title="Slow Requests"
-            value={overview?.slow_requests || 0}
+            value={totalRequests || overview?.slow_requests || 0}
             icon={<svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67zM11.71 19c-1.78 0-3.22-1.4-3.22-3.14 0-1.62 1.05-2.76 2.81-3.12 1.77-.36 3.6-1.21 4.62-2.58.39 1.29.59 2.65.59 4.04 0 2.65-2.15 4.8-4.8 4.8z"/></svg>}
             color="orange"
             isLoading={overviewLoading}
@@ -145,10 +157,10 @@ export default function SlowRequestsPage() {
               {[500, 1000, 2000, 3000, 5000].map((t) => (
                 <button
                   key={t}
-                  onClick={() => setThreshold(t)}
+                  onClick={() => { setThreshold(t); resetPage(); }}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                     threshold === t
-                      ? "bg-purple-600 text-white shadow-sm"
+                      ? "bg-purple-600 text-white shadow-sm ring-2 ring-purple-200"
                       : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                   }`}
                 >
@@ -158,23 +170,36 @@ export default function SlowRequestsPage() {
             </div>
             <div className="ml-auto text-sm text-gray-500">
               Showing requests slower than <strong>{threshold}ms</strong>
+              {totalRequests > 0 && <span className="ml-2 text-gray-400">— {totalRequests} total</span>}
             </div>
           </div>
         </div>
       </div>
 
       {/* Slow Requests Table */}
-      <div className="px-6 mt-6 mb-8">
+      <div className="px-6 mt-6 mb-8" ref={tableRef}>
         <ChartCard
-          title="Slow Request Details"
-          description={`Found ${slowRequests?.total || slowRequests?.data?.length || 0} slow requests in the selected period`}
+          title={`Slow Request Details${totalRequests > 0 ? ` (${totalRequests} total)` : ""}`}
+          description={`Requests slower than ${threshold}ms — page ${currentPage} of ${totalPages}`}
           isLoading={slowLoading}
-          isEmpty={!slowRequests?.data?.length}
+          isEmpty={!slowRequests?.data?.length && !slowFetching}
         >
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
+            {slowFetching && !slowLoading && (
+              <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-lg">
+                <div className="flex items-center gap-3 bg-white border border-gray-200 shadow-md rounded-xl px-5 py-3">
+                  <svg className="w-5 h-5 animate-spin text-purple-600" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  <span className="text-sm font-medium text-gray-700">Loading...</span>
+                </div>
+              </div>
+            )}
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Timestamp</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Endpoint</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Response Time</th>
@@ -185,74 +210,151 @@ export default function SlowRequestsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {slowRequests?.data?.map((request) => (
-                  <tr key={request.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {new Date(request.timestamp).toLocaleDateString()}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {new Date(request.timestamp).toLocaleTimeString()}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-1 text-xs font-bold rounded border ${getMethodColor(request.method)}`}>
-                          {request.method}
-                        </span>
-                        <span className="text-sm font-mono text-gray-700 truncate max-w-xs">
-                          {request.path}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-32 bg-gray-200 rounded-full h-2 overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${getResponseTimeBarColor(request.response_time_ms)}`}
-                            style={{ width: getResponseTimeBarWidth(request.response_time_ms) }}
-                          ></div>
+                {slowRequests?.data?.map((request, index) => {
+                  const globalRank = (currentPage - 1) * PAGE_SIZE + index + 1;
+                  return (
+                    <tr key={request.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-4 text-sm text-gray-400">{globalRank}</td>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {new Date(request.timestamp).toLocaleDateString()}
                         </div>
-                        <span className="text-sm font-semibold text-gray-900 whitespace-nowrap">
-                          {request.response_time_ms.toFixed(0)}ms
+                        <div className="text-xs text-gray-500">
+                          {new Date(request.timestamp).toLocaleTimeString()}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-1 text-xs font-bold rounded border ${getMethodColor(request.method)}`}>
+                            {request.method}
+                          </span>
+                          <span className="text-sm font-mono text-gray-700 truncate max-w-xs">
+                            {request.path}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-32 bg-gray-200 rounded-full h-2 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${getResponseTimeBarColor(request.response_time_ms)}`}
+                              style={{ width: getResponseTimeBarWidth(request.response_time_ms) }}
+                            ></div>
+                          </div>
+                          <span className="text-sm font-semibold text-gray-900 whitespace-nowrap">
+                            {request.response_time_ms.toFixed(0)}ms
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(request.status_code)}`}>
+                          {request.status_code}
                         </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(request.status_code)}`}>
-                        {request.status_code}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-right text-sm text-gray-600">
-                      {request.query_count}
-                    </td>
-                    <td className="px-4 py-4 text-right text-sm text-gray-600">
-                      {request.query_time_ms.toFixed(0)}ms
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex flex-wrap gap-1">
-                        {request.organization_name && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
-                            {request.organization_name}
-                          </span>
-                        )}
-                        {request.agent_name && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
-                            {request.agent_name}
-                          </span>
-                        )}
-                        {request.user_email && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
-                            {request.user_email}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-4 py-4 text-right text-sm text-gray-600">
+                        {request.query_count}
+                      </td>
+                      <td className="px-4 py-4 text-right text-sm text-gray-600">
+                        {request.query_time_ms.toFixed(0)}ms
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex flex-wrap gap-1">
+                          {request.organization_name && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
+                              {request.organization_name}
+                            </span>
+                          )}
+                          {request.agent_name && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
+                              {request.agent_name}
+                            </span>
+                          )}
+                          {request.user_email && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
+                              {request.user_email}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-4 border-t border-gray-100">
+              <p className="text-sm text-gray-500">
+                Showing{" "}
+                <span className="font-medium text-gray-700">
+                  {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, totalRequests)}
+                </span>{" "}
+                of <span className="font-medium text-gray-700">{totalRequests}</span> requests
+                {slowFetching && (
+                  <span className="ml-2 inline-flex items-center gap-1 text-purple-600">
+                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                    Updating...
+                  </span>
+                )}
+              </p>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1 || slowFetching}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Prev
+                </button>
+
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                    .reduce((acc: (number | "...")[], p, idx, arr) => {
+                      if (idx > 0 && (p as number) - (arr[idx - 1] as number) > 1) acc.push("...");
+                      acc.push(p);
+                      return acc;
+                    }, [])
+                    .map((item, idx) =>
+                      item === "..." ? (
+                        <span key={`ellipsis-${idx}`} className="w-8 h-8 flex items-center justify-center text-gray-400 text-sm">…</span>
+                      ) : (
+                        <button
+                          key={item}
+                          onClick={() => setCurrentPage(item as number)}
+                          disabled={slowFetching}
+                          className={`w-8 h-8 text-sm font-medium rounded-lg transition-all ${
+                            currentPage === item
+                              ? "bg-purple-600 text-white shadow-sm ring-2 ring-purple-200"
+                              : "border border-gray-200 text-gray-600 hover:bg-purple-50 hover:border-purple-200 hover:text-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          }`}
+                        >
+                          {item}
+                        </button>
+                      )
+                    )}
+                </div>
+
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages || slowFetching}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  Next
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          )}
         </ChartCard>
       </div>
     </div>

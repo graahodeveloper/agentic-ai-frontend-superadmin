@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   useGetEndpointPerformanceQuery,
   useGetPerformanceOverviewQuery,
@@ -15,28 +15,54 @@ export default function EndpointPerformancePage() {
   const [period, setPeriod] = useState<Period>("7d");
   const [organizationId, setOrganizationId] = useState<string | undefined>();
   const [agentId, setAgentId] = useState<string | undefined>();
+  const [includeSuperAdmin, setIncludeSuperAdmin] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<SortBy>("request_count");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [methodFilter, setMethodFilter] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [showOnlyApiPaths, setShowOnlyApiPaths] = useState<boolean>(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 20;
 
   const filterParams = {
     period,
     organization_id: organizationId,
     agent_id: agentId,
-    limit: 50,
+    include_super_admin: includeSuperAdmin,
+    limit: PAGE_SIZE,
+    offset: (currentPage - 1) * PAGE_SIZE,
     sort_by: sortBy,
     sort_order: sortOrder,
     method: methodFilter || undefined,
     search: searchQuery || undefined,
+    path_prefix: showOnlyApiPaths ? '/api/' : undefined,
   };
+
+  const resetPage = () => setCurrentPage(1);
 
   const { data: overview, isLoading: overviewLoading, refetch } = useGetPerformanceOverviewQuery({
     period,
     organization_id: organizationId,
     agent_id: agentId,
+    include_super_admin: includeSuperAdmin,
   });
-  const { data: endpoints, isLoading: endpointsLoading } = useGetEndpointPerformanceQuery(filterParams);
+  const { data: endpoints, isLoading: endpointsLoading, isFetching: endpointsFetching, error: endpointsError } = useGetEndpointPerformanceQuery(filterParams);
+
+  const tableRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to table top on page change
+  useEffect(() => {
+    if (tableRef.current) {
+      tableRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [currentPage]);
+
+  const endpointsData = endpoints?.data || [];
+  const totalEndpoints = endpoints?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalEndpoints / PAGE_SIZE));
+
+  // Server-side filtering is now used — endpointsData is already filtered by path_prefix
+  const filteredEndpoints = endpointsData;
 
   const handleSort = (field: SortBy) => {
     if (field === sortBy) {
@@ -45,6 +71,7 @@ export default function EndpointPerformancePage() {
       setSortBy(field);
       setSortOrder("desc");
     }
+    resetPage();
   };
 
   const getMethodColor = (method: string) => {
@@ -105,15 +132,18 @@ export default function EndpointPerformancePage() {
       <div className="px-6 mt-6">
         <FilterBar
           period={period}
-          onPeriodChange={setPeriod}
+          onPeriodChange={(p) => { setPeriod(p); resetPage(); }}
           organizationId={organizationId}
-          onOrganizationChange={setOrganizationId}
+          onOrganizationChange={(o) => { setOrganizationId(o); resetPage(); }}
           agentId={agentId}
-          onAgentChange={setAgentId}
+          onAgentChange={(a) => { setAgentId(a); resetPage(); }}
           showOrganizationFilter
           showAgentFilter
           onRefresh={() => refetch()}
           isLoading={overviewLoading}
+          includeSuperAdmin={includeSuperAdmin}
+          onIncludeSuperAdminChange={(v) => { setIncludeSuperAdmin(v); resetPage(); }}
+          showSuperAdminToggle
         />
       </div>
 
@@ -122,7 +152,7 @@ export default function EndpointPerformancePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             title="Total Endpoints"
-            value={endpoints?.total || endpoints?.data?.length || 0}
+            value={totalEndpoints || endpointsData.length || 0}
             icon={<svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>}
             color="blue"
             isLoading={endpointsLoading}
@@ -172,7 +202,7 @@ export default function EndpointPerformancePage() {
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => { setSearchQuery(e.target.value); resetPage(); }}
                 placeholder="Search by path..."
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
               />
@@ -185,7 +215,7 @@ export default function EndpointPerformancePage() {
               </label>
               <select
                 value={methodFilter}
-                onChange={(e) => setMethodFilter(e.target.value)}
+                onChange={(e) => { setMethodFilter(e.target.value); resetPage(); }}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
               >
                 <option value="">All Methods</option>
@@ -218,7 +248,7 @@ export default function EndpointPerformancePage() {
                 Order
               </label>
               <button
-                onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                onClick={() => { setSortOrder(sortOrder === "asc" ? "desc" : "asc"); resetPage(); }}
                 className="px-4 py-2.5 border border-gray-300 rounded-lg text-sm bg-white hover:bg-gray-50 flex items-center gap-2"
               >
                 {sortOrder === "desc" ? (
@@ -234,19 +264,51 @@ export default function EndpointPerformancePage() {
                 )}
               </button>
             </div>
+
+            {/* API Only Toggle */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                Show
+              </label>
+              <button
+                onClick={() => { setShowOnlyApiPaths(!showOnlyApiPaths); resetPage(); }}
+                className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all border flex items-center gap-2 ${
+                  showOnlyApiPaths
+                    ? "bg-purple-50 border-purple-300 text-purple-700"
+                    : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
+                </svg>
+                {showOnlyApiPaths ? "API Only" : "All Paths"}
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Endpoints Table */}
-      <div className="px-6 mt-6 mb-8">
+      <div className="px-6 mt-6 mb-8" ref={tableRef}>
         <ChartCard
-          title="All Endpoints"
-          description={`Showing ${endpoints?.data?.length || 0} endpoints sorted by ${sortBy.replace("_", " ")}`}
+          title={`${showOnlyApiPaths ? "API Endpoints" : "All Endpoints"}${totalEndpoints > 0 ? ` (${totalEndpoints} total)` : ""}`}
+          description={`Showing ${filteredEndpoints.length} of ${totalEndpoints} endpoints sorted by ${sortBy.replace("_", " ")}${showOnlyApiPaths ? " (filtered to /api/ paths only)" : ""} — page ${currentPage} of ${totalPages}`}
           isLoading={endpointsLoading}
-          isEmpty={!endpoints?.data?.length}
+          isEmpty={!filteredEndpoints.length && !endpointsFetching}
         >
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
+            {/* Fetching overlay */}
+            {endpointsFetching && !endpointsLoading && (
+              <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-lg">
+                <div className="flex items-center gap-3 bg-white border border-gray-200 shadow-md rounded-xl px-5 py-3">
+                  <svg className="w-5 h-5 animate-spin text-purple-600" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  <span className="text-sm font-medium text-gray-700">Loading...</span>
+                </div>
+              </div>
+            )}
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
@@ -279,7 +341,6 @@ export default function EndpointPerformancePage() {
                       {sortBy === "max_response_time" && <span>{sortOrder === "desc" ? "↓" : "↑"}</span>}
                     </div>
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">P95</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Avg Queries</th>
                   <th
                     className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
@@ -290,13 +351,16 @@ export default function EndpointPerformancePage() {
                       {sortBy === "error_rate" && <span>{sortOrder === "desc" ? "↓" : "↑"}</span>}
                     </div>
                   </th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Last Request</th>
                   <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {endpoints?.data?.map((endpoint, index) => (
+                {filteredEndpoints.map((endpoint, index) => {
+                  const globalRank = (currentPage - 1) * PAGE_SIZE + index + 1;
+                  return (
                   <tr key={endpoint.endpoint} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-4 text-sm text-gray-500">{index + 1}</td>
+                    <td className="px-4 py-4 text-sm text-gray-500">{globalRank}</td>
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
                         <span className={`px-2.5 py-1 text-xs font-bold rounded border ${getMethodColor(endpoint.method)}`}>
@@ -329,9 +393,6 @@ export default function EndpointPerformancePage() {
                       {endpoint.max_response_time.toFixed(0)}ms
                     </td>
                     <td className="px-4 py-4 text-right text-sm text-gray-600">
-                      {endpoint.p95_response_time?.toFixed(0) || "N/A"}ms
-                    </td>
-                    <td className="px-4 py-4 text-right text-sm text-gray-600">
                       {endpoint.avg_query_count?.toFixed(1) || "0"}
                     </td>
                     <td className="px-4 py-4 text-right">
@@ -339,12 +400,18 @@ export default function EndpointPerformancePage() {
                         <span className={`text-sm font-semibold ${getErrorRateColor(endpoint.error_rate)}`}>
                           {endpoint.error_rate.toFixed(2)}%
                         </span>
-                        {endpoint.total_errors > 0 && (
-                          <span className="text-xs text-gray-400">
-                            {endpoint.total_errors} errors
-                          </span>
-                        )}
                       </div>
+                    </td>
+                    <td className="px-4 py-4 text-right text-sm text-gray-600">
+                      {endpoint.latest_request_at
+                        ? new Date(endpoint.latest_request_at).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit"
+                          })
+                        : "-"
+                      }
                     </td>
                     <td className="px-4 py-4 text-center">
                       {endpoint.error_rate < 1 && endpoint.avg_response_time < 300 ? (
@@ -362,10 +429,84 @@ export default function EndpointPerformancePage() {
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-4 border-t border-gray-100">
+              <p className="text-sm text-gray-500">
+                Showing{" "}
+                <span className="font-medium text-gray-700">
+                  {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, totalEndpoints)}
+                </span>{" "}
+                of <span className="font-medium text-gray-700">{totalEndpoints}</span> endpoints
+                {endpointsFetching && (
+                  <span className="ml-2 inline-flex items-center gap-1 text-purple-600">
+                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                    Updating...
+                  </span>
+                )}
+              </p>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1 || endpointsFetching}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Prev
+                </button>
+
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                    .reduce((acc: (number | "...")[], p, idx, arr) => {
+                      if (idx > 0 && (p as number) - (arr[idx - 1] as number) > 1) acc.push("...");
+                      acc.push(p);
+                      return acc;
+                    }, [])
+                    .map((item, idx) =>
+                      item === "..." ? (
+                        <span key={`ellipsis-${idx}`} className="w-8 h-8 flex items-center justify-center text-gray-400 text-sm">…</span>
+                      ) : (
+                        <button
+                          key={item}
+                          onClick={() => setCurrentPage(item as number)}
+                          disabled={endpointsFetching}
+                          className={`w-8 h-8 text-sm font-medium rounded-lg transition-all ${
+                            currentPage === item
+                              ? "bg-purple-600 text-white shadow-sm ring-2 ring-purple-200"
+                              : "border border-gray-200 text-gray-600 hover:bg-purple-50 hover:border-purple-200 hover:text-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          }`}
+                        >
+                          {item}
+                        </button>
+                      )
+                    )}
+                </div>
+
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages || endpointsFetching}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  Next
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          )}
         </ChartCard>
       </div>
     </div>

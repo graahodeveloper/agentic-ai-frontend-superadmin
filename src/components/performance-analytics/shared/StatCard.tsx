@@ -128,11 +128,11 @@ export function StatCard({
     >
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-500 mb-1 truncate">{title}</p>
+          <p className="text-sm font-semibold text-gray-700 mb-1 truncate">{title}</p>
           <p className={`${valueSizeClasses[size]} font-bold text-gray-900 truncate`}>
-            {prefix && <span className="text-lg font-normal">{prefix}</span>}
+            {prefix && <span className="text-lg font-normal text-gray-700">{prefix}</span>}
             {typeof value === "number" ? value.toLocaleString() : value}
-            {suffix && <span className="text-base font-normal ml-1 text-gray-500">{suffix}</span>}
+            {suffix && <span className="text-base font-medium ml-1 text-gray-700">{suffix}</span>}
           </p>
 
           {change !== undefined && (
@@ -157,12 +157,12 @@ export function StatCard({
                 )}
                 {Math.abs(change).toFixed(1)}%
               </span>
-              <span className="text-gray-400 ml-1.5">{changeLabel}</span>
+              <span className="text-gray-600 ml-1.5">{changeLabel}</span>
             </div>
           )}
 
           {description && (
-            <p className="text-xs text-gray-400 mt-2 truncate">{description}</p>
+            <p className="text-sm text-gray-600 mt-2 truncate">{description}</p>
           )}
         </div>
 

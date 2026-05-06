@@ -61,10 +61,10 @@ function StatCard({
     >
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm font-medium text-gray-500 mb-1">{title}</p>
+          <p className="text-sm font-semibold text-gray-700 mb-1">{title}</p>
           <p className="text-2xl font-bold text-gray-900">
             {value}
-            {suffix && <span className="text-sm font-normal ml-1">{suffix}</span>}
+            {suffix && <span className="text-base font-medium ml-1 text-gray-700">{suffix}</span>}
           </p>
           {change !== undefined && (
             <div
@@ -73,7 +73,8 @@ function StatCard({
               }`}
             >
               <span className="mr-1">{change >= 0 ? "↑" : "↓"}</span>
-              <span>{Math.abs(change)}% vs previous period</span>
+              <span className="font-medium">{Math.abs(change)}%</span>
+              <span className="text-gray-600 ml-1">vs previous period</span>
             </div>
           )}
         </div>

@@ -21,6 +21,10 @@ interface FilterBarProps {
   onRefresh?: () => void;
   isLoading?: boolean;
   className?: string;
+  // Super admin API calls toggle
+  includeSuperAdmin?: boolean;
+  onIncludeSuperAdminChange?: (include: boolean) => void;
+  showSuperAdminToggle?: boolean;
 }
 
 const periodOptions: { value: Period; label: string; description: string }[] = [
@@ -45,15 +49,19 @@ export function FilterBar({
   onRefresh,
   isLoading = false,
   className = "",
+  includeSuperAdmin = false,
+  onIncludeSuperAdminChange,
+  showSuperAdminToggle = true,
 }: FilterBarProps) {
   const { data: orgsData, isLoading: orgsLoading } = useGetOrganizationsListQuery(
-    undefined,
+    { include_super_admin: includeSuperAdmin },
     { skip: !showOrganizationFilter }
   );
 
+  // Only show agents when an organization is selected (hierarchical filtering)
   const { data: agentsData, isLoading: agentsLoading } = useGetAgentsListQuery(
-    { organization_id: organizationId },
-    { skip: !showAgentFilter }
+    { organization_id: organizationId, include_super_admin: includeSuperAdmin },
+    { skip: !showAgentFilter || !organizationId }
   );
 
   return (
@@ -108,7 +116,7 @@ export function FilterBar({
           </div>
         )}
 
-        {/* Agent Filter */}
+        {/* Agent Filter - Only enabled when organization is selected */}
         {showAgentFilter && onAgentChange && (
           <div className="min-w-[200px]">
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
@@ -117,22 +125,55 @@ export function FilterBar({
             <select
               value={agentId || ""}
               onChange={(e) => onAgentChange(e.target.value || undefined)}
-              disabled={agentsLoading}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white disabled:bg-gray-50 disabled:text-gray-400"
+              disabled={agentsLoading || !organizationId}
+              title={!organizationId ? "Select an organization first" : ""}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
             >
-              <option value="">All Agents</option>
+              <option value="">{organizationId ? "All Agents" : "Select org first..."}</option>
               {agentsData?.data.map((agent) => (
                 <option key={agent.id} value={agent.id}>
-                  {agent.name} - {agent.organization_name}
+                  {agent.name}
                 </option>
               ))}
             </select>
           </div>
         )}
 
+        {/* Include Super Admin Toggle */}
+        {showSuperAdminToggle && onIncludeSuperAdminChange && (
+          <div className="min-w-[180px]">
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+              Data Scope
+            </label>
+            <button
+              onClick={() => onIncludeSuperAdminChange(!includeSuperAdmin)}
+              className={`w-full flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-medium transition-all border ${
+                includeSuperAdmin
+                  ? "bg-purple-50 border-purple-300 text-purple-700"
+                  : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" />
+                </svg>
+                {includeSuperAdmin ? "All Data" : "User/Org Only"}
+              </span>
+              <div className={`w-8 h-4 rounded-full transition-colors flex items-center ${
+                includeSuperAdmin ? "bg-purple-500 justify-end" : "bg-gray-300 justify-start"
+              }`}>
+                <div className="w-3 h-3 bg-white rounded-full mx-0.5 shadow-sm"></div>
+              </div>
+            </button>
+          </div>
+        )}
+
         {/* Refresh Button */}
         {showRefresh && onRefresh && (
-          <div className="flex items-end">
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 invisible">
+              Action
+            </label>
             <button
               onClick={onRefresh}
               disabled={isLoading}
@@ -158,10 +199,26 @@ export function FilterBar({
       </div>
 
       {/* Active Filters Display */}
-      {(organizationId || agentId) && (
+      {(organizationId || agentId || includeSuperAdmin) && (
         <div className="mt-3 pt-3 border-t border-gray-100">
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="text-gray-500">Active filters:</span>
+            {includeSuperAdmin && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" />
+                </svg>
+                Incl. Super Admin
+                <button
+                  onClick={() => onIncludeSuperAdminChange?.(false)}
+                  className="ml-1 hover:text-amber-900"
+                >
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </span>
+            )}
             {organizationId && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">

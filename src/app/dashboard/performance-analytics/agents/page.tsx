@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   useGetAgentBreakdownQuery,
   useGetAgentAnalyticsQuery,
   useGetOrganizationsListQuery,
+  useGetEndpointPerformanceQuery,
 } from "@/features/performanceAnalytics/performanceAnalyticsApi";
 import { PageHeader, FilterBar, StatCard, ChartCard } from "@/components/performance-analytics/shared";
 import {
@@ -35,6 +36,20 @@ export default function AgentsPage() {
   const [organizationId, setOrganizationId] = useState<string | undefined>();
   const [selectedAgentId, setSelectedAgentId] = useState<string | undefined>(preselectedAgentId || undefined);
   const [searchQuery, setSearchQuery] = useState("");
+  const [agentEpPage, setAgentEpPage] = useState(1);
+  const [agentEpSort, setAgentEpSort] = useState<"request_count" | "avg_response_time" | "error_rate">("request_count");
+  const AGENT_EP_PAGE_SIZE = 20;
+  const agentEpTableRef = useRef<HTMLDivElement>(null);
+
+  // Reset endpoint page when agent or period changes
+  useEffect(() => { setAgentEpPage(1); }, [selectedAgentId, period]);
+
+  // Scroll to top on page change
+  useEffect(() => {
+    if (agentEpTableRef.current) {
+      agentEpTableRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [agentEpPage]);
 
   // Organization list available for filtering if needed
   useGetOrganizationsListQuery();
@@ -50,6 +65,22 @@ export default function AgentsPage() {
     { agent_id: selectedAgentId!, period },
     { skip: !selectedAgentId }
   );
+
+  // Full paginated endpoints for selected agent
+  const { data: agentEndpoints, isLoading: agentEpLoading, isFetching: agentEpFetching } = useGetEndpointPerformanceQuery(
+    {
+      period,
+      agent_id: selectedAgentId,
+      limit: AGENT_EP_PAGE_SIZE,
+      offset: (agentEpPage - 1) * AGENT_EP_PAGE_SIZE,
+      sort_by: agentEpSort,
+      sort_order: "desc",
+    },
+    { skip: !selectedAgentId }
+  );
+
+  const agentEpTotal = agentEndpoints?.total ?? 0;
+  const agentEpTotalPages = Math.max(1, Math.ceil(agentEpTotal / AGENT_EP_PAGE_SIZE));
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -301,33 +332,112 @@ export default function AgentsPage() {
                 </ResponsiveContainer>
               </ChartCard>
 
-              {/* Top Endpoints */}
-              <ChartCard
-                title="Top Endpoints"
-                description="Most used endpoints by this agent"
-                isLoading={analyticsLoading}
-                isEmpty={!agentAnalytics.top_endpoints?.length}
-              >
-                <div className="space-y-2">
-                  {agentAnalytics.top_endpoints?.slice(0, 8).map((endpoint, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className={`px-2 py-1 text-xs font-bold rounded ${
-                          endpoint.method === "GET" ? "bg-green-100 text-green-700" :
-                          endpoint.method === "POST" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-700"
+              {/* Top Endpoints — full paginated */}
+              <div ref={agentEpTableRef}>
+                <ChartCard
+                  title={`Top Endpoints${agentEpTotal > 0 ? ` (${agentEpTotal} total)` : ""}`}
+                  description={`All endpoints used by this agent sorted by ${agentEpSort.replace("_", " ")} — page ${agentEpPage} of ${agentEpTotalPages}`}
+                  isLoading={agentEpLoading}
+                  isEmpty={!agentEndpoints?.data?.length && !agentEpFetching}
+                >
+                  {/* Sort controls */}
+                  <div className="flex items-center gap-2 mb-4 flex-wrap">
+                    <span className="text-xs font-semibold text-gray-500 mr-1">Sort by:</span>
+                    {(["request_count", "avg_response_time", "error_rate"] as const).map(s => (
+                      <button key={s} onClick={() => { setAgentEpSort(s); setAgentEpPage(1); }}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                          agentEpSort === s ? "bg-purple-600 text-white shadow-sm" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                         }`}>
-                          {endpoint.method}
-                        </span>
-                        <span className="text-sm font-mono text-gray-700 truncate">{endpoint.path}</span>
+                        {s === "request_count" ? "Most Requests" : s === "avg_response_time" ? "Slowest" : "Error Rate"}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="relative overflow-x-auto">
+                    {agentEpFetching && !agentEpLoading && (
+                      <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-lg">
+                        <div className="flex items-center gap-3 bg-white border border-gray-200 shadow-md rounded-xl px-5 py-3">
+                          <svg className="w-5 h-5 animate-spin text-purple-600" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                          </svg>
+                          <span className="text-sm font-medium text-gray-700">Loading...</span>
+                        </div>
                       </div>
-                      <div className="text-right ml-4">
-                        <span className="text-sm font-semibold text-gray-900">{endpoint.request_count.toLocaleString()}</span>
-                        <p className="text-xs text-gray-500">{endpoint.avg_response_time.toFixed(0)}ms avg</p>
+                    )}
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
+                          <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Endpoint</th>
+                          <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Requests</th>
+                          <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Avg Resp</th>
+                          <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Error %</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {agentEndpoints?.data?.map((ep, idx) => {
+                          const globalRank = (agentEpPage - 1) * AGENT_EP_PAGE_SIZE + idx + 1;
+                          return (
+                            <tr key={ep.endpoint} className="hover:bg-purple-50/30 transition-colors">
+                              <td className="px-3 py-3 text-xs text-gray-400 font-medium">{globalRank}</td>
+                              <td className="px-3 py-3">
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-1.5 py-0.5 text-xs font-bold rounded flex-shrink-0 ${
+                                    ep.method === "GET" ? "bg-green-100 text-green-700" :
+                                    ep.method === "POST" ? "bg-blue-100 text-blue-700" :
+                                    ep.method === "PUT" ? "bg-amber-100 text-amber-700" :
+                                    ep.method === "DELETE" ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-700"
+                                  }`}>{ep.method}</span>
+                                  <span className="text-xs font-mono text-gray-800 truncate max-w-[220px]">{ep.path}</span>
+                                </div>
+                              </td>
+                              <td className="px-3 py-3 text-right text-sm font-semibold text-gray-900">{ep.request_count.toLocaleString()}</td>
+                              <td className="px-3 py-3 text-right text-sm text-gray-600">{ep.avg_response_time.toFixed(0)}ms</td>
+                              <td className="px-3 py-3 text-right">
+                                <span className={`text-sm font-medium ${
+                                  ep.error_rate < 1 ? "text-emerald-600" :
+                                  ep.error_rate < 5 ? "text-amber-600" : "text-red-600"
+                                }`}>{ep.error_rate.toFixed(1)}%</span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination */}
+                  {agentEpTotalPages > 1 && (
+                    <div className="flex items-center justify-between px-3 py-3 border-t border-gray-100 mt-2">
+                      <p className="text-xs text-gray-500">
+                        <span className="font-medium text-gray-700">{(agentEpPage - 1) * AGENT_EP_PAGE_SIZE + 1}–{Math.min(agentEpPage * AGENT_EP_PAGE_SIZE, agentEpTotal)}</span> of <span className="font-medium text-gray-700">{agentEpTotal}</span>
+                        {agentEpFetching && <span className="ml-2 inline-flex items-center gap-1 text-purple-600"><svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Updating...</span>}
+                      </p>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => setAgentEpPage(p => Math.max(1, p - 1))} disabled={agentEpPage === 1 || agentEpFetching}
+                          className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all">‹</button>
+                        {Array.from({ length: agentEpTotalPages }, (_, i) => i + 1)
+                          .filter(p => p === 1 || p === agentEpTotalPages || Math.abs(p - agentEpPage) <= 1)
+                          .reduce((acc: (number | "...")[], p, i, arr) => {
+                            if (i > 0 && (p as number) - (arr[i - 1] as number) > 1) acc.push("...");
+                            acc.push(p); return acc;
+                          }, [])
+                          .map((item, i) => item === "..." ? (
+                            <span key={`e${i}`} className="w-6 text-center text-gray-400 text-xs">…</span>
+                          ) : (
+                            <button key={item} onClick={() => setAgentEpPage(item as number)} disabled={agentEpFetching}
+                              className={`w-6 h-6 text-xs font-medium rounded-lg transition-all ${
+                                agentEpPage === item ? "bg-purple-600 text-white ring-2 ring-purple-200" : "border border-gray-200 text-gray-600 hover:bg-purple-50 hover:text-purple-700"
+                              }`}>{item}</button>
+                          ))}
+                        <button onClick={() => setAgentEpPage(p => Math.min(agentEpTotalPages, p + 1))} disabled={agentEpPage === agentEpTotalPages || agentEpFetching}
+                          className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all">›</button>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </ChartCard>
+                  )}
+                </ChartCard>
+              </div>
             </div>
           ) : (
             <ChartCard

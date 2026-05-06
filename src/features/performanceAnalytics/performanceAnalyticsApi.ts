@@ -38,11 +38,12 @@ export interface EndpointPerformance {
   avg_response_time: number;
   max_response_time: number;
   min_response_time: number;
-  p95_response_time: number;
-  p99_response_time: number;
+  p95_response_time?: number;
+  p99_response_time?: number;
   error_rate: number;
   avg_query_count: number;
   total_errors: number;
+  latest_request_at: string | null;
 }
 
 export interface StatusDistribution {
@@ -78,6 +79,34 @@ export interface SlowRequest {
   agent_name: string | null;
   ip_address: string | null;
   error_message: string | null;
+}
+
+export interface EndpointRequestItem {
+  id: string;
+  timestamp: string;
+  query_count: number;
+  query_time_ms: number;
+  response_time_ms: number;
+  status_code: number;
+  organization_id: string | null;
+  organization_name: string | null;
+  agent_id: string | null;
+  agent_name: string | null;
+}
+
+export interface EndpointRequestsResponse {
+  data: EndpointRequestItem[];
+  total: number;
+  endpoint: { path: string; method: string };
+  stats: {
+    avg_query_count: number;
+    max_query_count: number;
+    avg_response_time_ms: number;
+    max_response_time_ms: number;
+    avg_query_time_ms: number;
+    total_requests: number;
+    error_count: number;
+  };
 }
 
 export interface OrganizationBreakdown {
@@ -165,14 +194,17 @@ interface FilterParams extends DateRangeParams {
   organization_id?: string;
   agent_id?: string;
   user_id?: string;
+  include_super_admin?: boolean;
 }
 
 interface EndpointFilterParams extends FilterParams {
   limit?: number;
+  offset?: number;
   sort_by?: "request_count" | "avg_response_time" | "max_response_time" | "error_rate";
   sort_order?: "asc" | "desc";
   method?: string;
   search?: string;
+  path_prefix?: string;
 }
 
 interface SlowRequestsParams extends FilterParams {
@@ -189,15 +221,21 @@ export const performanceAnalyticsApi = createApi({
   tagTypes: ["PerformanceAnalytics", "Organizations", "Agents"],
   endpoints: (builder) => ({
     // Get organizations list for filtering dropdown
-    getOrganizationsList: builder.query<{ data: OrganizationListItem[] }, void>({
-      query: () => "performance-analytics/organizations-list/",
+    getOrganizationsList: builder.query<
+      { data: OrganizationListItem[] },
+      { include_super_admin?: boolean } | void
+    >({
+      query: (params) => ({
+        url: "performance-analytics/organizations-list/",
+        params: params || {},
+      }),
       providesTags: ["Organizations"],
     }),
 
     // Get agents list for filtering dropdown
     getAgentsList: builder.query<
       { data: AgentListItem[] },
-      { organization_id?: string }
+      { organization_id?: string; include_super_admin?: boolean }
     >({
       query: (params) => ({
         url: "performance-analytics/agents-list/",
@@ -263,7 +301,7 @@ export const performanceAnalyticsApi = createApi({
     // Get organization breakdown
     getOrganizationBreakdown: builder.query<
       { data: OrganizationBreakdown[]; total: number },
-      DateRangeParams & { limit?: number; sort_by?: string; search?: string }
+      DateRangeParams & { limit?: number; sort_by?: string; search?: string; include_super_admin?: boolean }
     >({
       query: (params) => ({
         url: "performance-analytics/organization-breakdown/",
@@ -390,6 +428,23 @@ export const performanceAnalyticsApi = createApi({
       }),
       providesTags: ["PerformanceAnalytics"],
     }),
+    // Get individual request logs for a specific endpoint (drill-down)
+    getEndpointRequests: builder.query<
+      EndpointRequestsResponse,
+      FilterParams & {
+        path: string;
+        method?: string;
+        sort_by?: 'query_count' | 'response_time' | 'timestamp' | 'query_time';
+        limit?: number;
+        offset?: number;
+      }
+    >({
+      query: (params) => ({
+        url: "performance-analytics/endpoint-requests/",
+        params,
+      }),
+      providesTags: ["PerformanceAnalytics"],
+    }),
   }),
 });
 
@@ -409,4 +464,5 @@ export const {
   useGetAgentAnalyticsQuery,
   useGetErrorAnalysisQuery,
   useGetPerformanceComparisonQuery,
+  useGetEndpointRequestsQuery,
 } = performanceAnalyticsApi;

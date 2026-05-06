@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   useGetOrganizationBreakdownQuery,
   useGetOrganizationAnalyticsQuery,
+  useGetEndpointPerformanceQuery,
 } from "@/features/performanceAnalytics/performanceAnalyticsApi";
 import { PageHeader, FilterBar, StatCard, ChartCard } from "@/components/performance-analytics/shared";
 import {
@@ -33,6 +34,20 @@ export default function OrganizationsPage() {
   const [period, setPeriod] = useState<Period>("7d");
   const [selectedOrgId, setSelectedOrgId] = useState<string | undefined>(preselectedOrgId || undefined);
   const [searchQuery, setSearchQuery] = useState("");
+  const [orgEndpointPage, setOrgEndpointPage] = useState(1);
+  const [orgEndpointSort, setOrgEndpointSort] = useState<"request_count" | "avg_response_time" | "error_rate">("request_count");
+  const ORG_EP_PAGE_SIZE = 20;
+  const orgEndpointTableRef = useRef<HTMLDivElement>(null);
+
+  // Reset endpoint page when org changes
+  useEffect(() => { setOrgEndpointPage(1); }, [selectedOrgId, period]);
+
+  // Scroll endpoint table to top on page change
+  useEffect(() => {
+    if (orgEndpointTableRef.current) {
+      orgEndpointTableRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [orgEndpointPage]);
 
   const { data: orgBreakdown, isLoading: breakdownLoading, refetch } = useGetOrganizationBreakdownQuery({
     period,
@@ -44,6 +59,22 @@ export default function OrganizationsPage() {
     { organization_id: selectedOrgId!, period },
     { skip: !selectedOrgId }
   );
+
+  // Full paginated endpoints for selected org
+  const { data: orgEndpoints, isLoading: orgEndpointsLoading, isFetching: orgEndpointsFetching } = useGetEndpointPerformanceQuery(
+    {
+      period,
+      organization_id: selectedOrgId,
+      limit: ORG_EP_PAGE_SIZE,
+      offset: (orgEndpointPage - 1) * ORG_EP_PAGE_SIZE,
+      sort_by: orgEndpointSort,
+      sort_order: "desc",
+    },
+    { skip: !selectedOrgId }
+  );
+
+  const orgEpTotal = orgEndpoints?.total ?? 0;
+  const orgEpTotalPages = Math.max(1, Math.ceil(orgEpTotal / ORG_EP_PAGE_SIZE));
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -259,31 +290,112 @@ export default function OrganizationsPage() {
                 </ResponsiveContainer>
               </ChartCard>
 
-              {/* Top Endpoints & Agents */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <ChartCard
-                  title="Top Endpoints"
-                  description="Most used endpoints by this organization"
-                  isLoading={analyticsLoading}
-                  isEmpty={!orgAnalytics.top_endpoints?.length}
-                >
-                  <div className="space-y-2">
-                    {orgAnalytics.top_endpoints?.slice(0, 5).map((endpoint, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className={`px-1.5 py-0.5 text-xs font-bold rounded ${
-                            endpoint.method === "GET" ? "bg-green-100 text-green-700" :
-                            endpoint.method === "POST" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-700"
+                {/* Top Endpoints — full paginated */}
+                <div ref={orgEndpointTableRef}>
+                  <ChartCard
+                    title={`Top Endpoints${orgEpTotal > 0 ? ` (${orgEpTotal} total)` : ""}`}
+                    description={`All endpoints used by this organization sorted by ${orgEndpointSort.replace("_", " ")} — page ${orgEndpointPage} of ${orgEpTotalPages}`}
+                    isLoading={orgEndpointsLoading}
+                    isEmpty={!orgEndpoints?.data?.length && !orgEndpointsFetching}
+                  >
+                    {/* Sort controls */}
+                    <div className="flex items-center gap-2 mb-4 flex-wrap">
+                      <span className="text-xs font-semibold text-gray-500 mr-1">Sort by:</span>
+                      {(["request_count", "avg_response_time", "error_rate"] as const).map(s => (
+                        <button key={s} onClick={() => { setOrgEndpointSort(s); setOrgEndpointPage(1); }}
+                          className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                            orgEndpointSort === s ? "bg-purple-600 text-white shadow-sm" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                           }`}>
-                            {endpoint.method}
-                          </span>
-                          <span className="text-xs font-mono text-gray-700 truncate">{endpoint.path}</span>
+                          {s === "request_count" ? "Most Requests" : s === "avg_response_time" ? "Slowest" : "Error Rate"}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="relative overflow-x-auto">
+                      {orgEndpointsFetching && !orgEndpointsLoading && (
+                        <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-lg">
+                          <div className="flex items-center gap-3 bg-white border border-gray-200 shadow-md rounded-xl px-5 py-3">
+                            <svg className="w-5 h-5 animate-spin text-purple-600" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                            </svg>
+                            <span className="text-sm font-medium text-gray-700">Loading...</span>
+                          </div>
                         </div>
-                        <span className="text-xs text-gray-500 whitespace-nowrap ml-2">{endpoint.request_count}</span>
+                      )}
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
+                            <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Endpoint</th>
+                            <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Requests</th>
+                            <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Avg Resp</th>
+                            <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Error %</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {orgEndpoints?.data?.map((ep, idx) => {
+                            const globalRank = (orgEndpointPage - 1) * ORG_EP_PAGE_SIZE + idx + 1;
+                            return (
+                              <tr key={ep.endpoint} className="hover:bg-purple-50/30 transition-colors">
+                                <td className="px-3 py-3 text-xs text-gray-400 font-medium">{globalRank}</td>
+                                <td className="px-3 py-3">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`px-1.5 py-0.5 text-xs font-bold rounded flex-shrink-0 ${
+                                      ep.method === "GET" ? "bg-green-100 text-green-700" :
+                                      ep.method === "POST" ? "bg-blue-100 text-blue-700" :
+                                      ep.method === "PUT" ? "bg-amber-100 text-amber-700" :
+                                      ep.method === "DELETE" ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-700"
+                                    }`}>{ep.method}</span>
+                                    <span className="text-xs font-mono text-gray-800 truncate max-w-[220px]">{ep.path}</span>
+                                  </div>
+                                </td>
+                                <td className="px-3 py-3 text-right text-sm font-semibold text-gray-900">{ep.request_count.toLocaleString()}</td>
+                                <td className="px-3 py-3 text-right text-sm text-gray-600">{ep.avg_response_time.toFixed(0)}ms</td>
+                                <td className="px-3 py-3 text-right">
+                                  <span className={`text-sm font-medium ${
+                                    ep.error_rate < 1 ? "text-emerald-600" :
+                                    ep.error_rate < 5 ? "text-amber-600" : "text-red-600"
+                                  }`}>{ep.error_rate.toFixed(1)}%</span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Pagination */}
+                    {orgEpTotalPages > 1 && (
+                      <div className="flex items-center justify-between px-3 py-3 border-t border-gray-100 mt-2">
+                        <p className="text-xs text-gray-500">
+                          <span className="font-medium text-gray-700">{(orgEndpointPage - 1) * ORG_EP_PAGE_SIZE + 1}–{Math.min(orgEndpointPage * ORG_EP_PAGE_SIZE, orgEpTotal)}</span> of <span className="font-medium text-gray-700">{orgEpTotal}</span>
+                          {orgEndpointsFetching && <span className="ml-2 inline-flex items-center gap-1 text-purple-600"><svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Updating...</span>}
+                        </p>
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => setOrgEndpointPage(p => Math.max(1, p - 1))} disabled={orgEndpointPage === 1 || orgEndpointsFetching}
+                            className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all">‹</button>
+                          {Array.from({ length: orgEpTotalPages }, (_, i) => i + 1)
+                            .filter(p => p === 1 || p === orgEpTotalPages || Math.abs(p - orgEndpointPage) <= 1)
+                            .reduce((acc: (number | "...")[], p, i, arr) => {
+                              if (i > 0 && (p as number) - ((arr as number[])[i - 1]) > 1) acc.push("...");
+                              acc.push(p); return acc;
+                            }, [])
+                            .map((item, i) => item === "..." ? (
+                              <span key={`e${i}`} className="w-6 text-center text-gray-400 text-xs">…</span>
+                            ) : (
+                              <button key={item} onClick={() => setOrgEndpointPage(item as number)} disabled={orgEndpointsFetching}
+                                className={`w-6 h-6 text-xs font-medium rounded-lg transition-all ${
+                                  orgEndpointPage === item ? "bg-purple-600 text-white ring-2 ring-purple-200" : "border border-gray-200 text-gray-600 hover:bg-purple-50 hover:text-purple-700"
+                                }`}>{item}</button>
+                            ))}
+                          <button onClick={() => setOrgEndpointPage(p => Math.min(orgEpTotalPages, p + 1))} disabled={orgEndpointPage === orgEpTotalPages || orgEndpointsFetching}
+                            className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all">›</button>
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                </ChartCard>
+                    )}
+                  </ChartCard>
+                </div>
 
                 <ChartCard
                   title="Active Agents"
@@ -308,7 +420,6 @@ export default function OrganizationsPage() {
                     ))}
                   </div>
                 </ChartCard>
-              </div>
             </div>
           ) : (
             <ChartCard

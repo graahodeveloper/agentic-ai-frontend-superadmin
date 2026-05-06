@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   useGetQueryPerformanceQuery,
   useGetPerformanceOverviewQuery,
   useGetEndpointPerformanceQuery,
 } from "@/features/performanceAnalytics/performanceAnalyticsApi";
 import { PageHeader, FilterBar, StatCard, ChartCard } from "@/components/performance-analytics/shared";
+import EndpointRequestsDrawer from "@/components/performance-analytics/EndpointRequestsDrawer";
 import {
   AreaChart,
   Area,
@@ -27,17 +28,36 @@ export default function DatabaseQueriesPage() {
   const [period, setPeriod] = useState<Period>("7d");
   const [organizationId, setOrganizationId] = useState<string | undefined>();
   const [agentId, setAgentId] = useState<string | undefined>();
+  const [endpointPage, setEndpointPage] = useState(1);
+  const PAGE_SIZE = 20;
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedEndpoint, setSelectedEndpoint] = useState<{ path: string; method: string } | null>(null);
+
+  const resetPage = () => setEndpointPage(1);
 
   const filterParams = { period, organization_id: organizationId, agent_id: agentId };
 
   const { data: overview, isLoading: overviewLoading, refetch } = useGetPerformanceOverviewQuery(filterParams);
   const { data: queryPerf, isLoading: queryLoading } = useGetQueryPerformanceQuery(filterParams);
-  const { data: endpoints, isLoading: endpointsLoading } = useGetEndpointPerformanceQuery({
+  const { data: endpoints, isLoading: endpointsLoading, isFetching: endpointsFetching } = useGetEndpointPerformanceQuery({
     ...filterParams,
-    limit: 10,
+    limit: PAGE_SIZE,
+    offset: (endpointPage - 1) * PAGE_SIZE,
     sort_by: "avg_response_time",
     sort_order: "desc",
   });
+
+  const totalEndpoints = endpoints?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalEndpoints / PAGE_SIZE));
+  const tableRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (tableRef.current) tableRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [endpointPage]);
+
+  const handleEndpointClick = (path: string, method: string) => {
+    setSelectedEndpoint({ path, method });
+    setDrawerOpen(true);
+  };
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -47,7 +67,6 @@ export default function DatabaseQueriesPage() {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
-  // Endpoints with most queries
   const topQueryEndpoints = endpoints?.data
     ?.filter(e => e.avg_query_count > 0)
     .sort((a, b) => b.avg_query_count - a.avg_query_count)
@@ -75,11 +94,11 @@ export default function DatabaseQueriesPage() {
       <div className="px-6 mt-6">
         <FilterBar
           period={period}
-          onPeriodChange={setPeriod}
+          onPeriodChange={(p) => { setPeriod(p); resetPage(); }}
           organizationId={organizationId}
-          onOrganizationChange={setOrganizationId}
+          onOrganizationChange={(o) => { setOrganizationId(o); resetPage(); }}
           agentId={agentId}
-          onAgentChange={setAgentId}
+          onAgentChange={(a) => { setAgentId(a); resetPage(); }}
           showOrganizationFilter
           showAgentFilter
           onRefresh={() => refetch()}
@@ -234,14 +253,25 @@ export default function DatabaseQueriesPage() {
       </div>
 
       {/* Endpoint Query Details */}
-      <div className="px-6 mt-6 mb-8">
+      <div className="px-6 mt-6 mb-8" ref={tableRef}>
         <ChartCard
-          title="Endpoint Query Analysis"
-          description="Detailed query statistics by API endpoint"
+          title={`Endpoint Query Analysis${totalEndpoints > 0 ? ` (${totalEndpoints} total)` : ""}`}
+          description={`Click any row to inspect individual request logs — page ${endpointPage} of ${totalPages}`}
           isLoading={endpointsLoading}
-          isEmpty={!endpoints?.data?.length}
+          isEmpty={!endpoints?.data?.length && !endpointsFetching}
         >
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
+            {endpointsFetching && !endpointsLoading && (
+              <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-lg">
+                <div className="flex items-center gap-3 bg-white border border-gray-200 shadow-md rounded-xl px-5 py-3">
+                  <svg className="w-5 h-5 animate-spin text-purple-600" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                  </svg>
+                  <span className="text-sm font-medium text-gray-700">Loading...</span>
+                </div>
+              </div>
+            )}
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
@@ -250,69 +280,64 @@ export default function DatabaseQueriesPage() {
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Avg Queries</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Avg Response</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Query Impact</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Optimization</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Logs</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {endpoints?.data?.map((endpoint) => {
+                {endpoints?.data?.map((endpoint, idx) => {
+                  const globalRank = (endpointPage - 1) * PAGE_SIZE + idx + 1;
                   const queryImpact = endpoint.avg_query_count > 10 ? "high" : endpoint.avg_query_count > 5 ? "medium" : "low";
                   return (
-                    <tr key={endpoint.endpoint} className="hover:bg-gray-50 transition-colors">
+                    <tr
+                      key={endpoint.endpoint}
+                      className="hover:bg-purple-50/40 transition-colors cursor-pointer group"
+                      onClick={() => handleEndpointClick(endpoint.path, endpoint.method)}
+                    >
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400 w-5 flex-shrink-0">{globalRank}.</span>
                           <span className={`px-2 py-1 text-xs font-bold rounded ${
                             endpoint.method === "GET" ? "bg-green-100 text-green-700" :
                             endpoint.method === "POST" ? "bg-blue-100 text-blue-700" :
                             endpoint.method === "PUT" ? "bg-yellow-100 text-yellow-700" :
                             endpoint.method === "DELETE" ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-700"
-                          }`}>
-                            {endpoint.method}
-                          </span>
+                          }`}>{endpoint.method}</span>
                           <span className="text-sm font-mono text-gray-900 truncate max-w-xs">{endpoint.path}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-4 text-right text-sm font-semibold text-gray-900">
-                        {endpoint.request_count.toLocaleString()}
-                      </td>
+                      <td className="px-4 py-4 text-right text-sm font-semibold text-gray-900">{endpoint.request_count.toLocaleString()}</td>
                       <td className="px-4 py-4 text-right">
                         <span className={`text-sm font-semibold ${
                           endpoint.avg_query_count > 10 ? "text-red-600" :
                           endpoint.avg_query_count > 5 ? "text-yellow-600" : "text-green-600"
-                        }`}>
-                          {endpoint.avg_query_count?.toFixed(1) || 0}
-                        </span>
+                        }`}>{endpoint.avg_query_count?.toFixed(1) || 0}</span>
                       </td>
-                      <td className="px-4 py-4 text-right text-sm text-gray-600">
-                        {endpoint.avg_response_time.toFixed(0)}ms
-                      </td>
+                      <td className="px-4 py-4 text-right text-sm text-gray-600">{endpoint.avg_response_time.toFixed(0)}ms</td>
                       <td className="px-4 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <div className="w-20 bg-gray-200 rounded-full h-2">
-                            <div
-                              className={`h-2 rounded-full ${
-                                queryImpact === "high" ? "bg-red-500" :
-                                queryImpact === "medium" ? "bg-yellow-500" : "bg-green-500"
-                              }`}
-                              style={{ width: `${Math.min((endpoint.avg_query_count / 15) * 100, 100)}%` }}
-                            ></div>
+                            <div className={`h-2 rounded-full ${
+                              queryImpact === "high" ? "bg-red-500" : queryImpact === "medium" ? "bg-yellow-500" : "bg-green-500"
+                            }`} style={{ width: `${Math.min((endpoint.avg_query_count / 15) * 100, 100)}%` }}></div>
                           </div>
-                          <span className="text-xs text-gray-500 capitalize">{queryImpact}</span>
+                          <span className="text-xs text-gray-500 capitalize w-14">{queryImpact}</span>
                         </div>
                       </td>
                       <td className="px-4 py-4 text-center">
                         {queryImpact === "high" ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
-                            Needs Review
-                          </span>
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">Needs Review</span>
                         ) : queryImpact === "medium" ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
-                            Consider
-                          </span>
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Consider</span>
                         ) : (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                            Optimal
-                          </span>
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Optimal</span>
                         )}
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-purple-50 text-purple-700 border border-purple-100 group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-600 transition-all">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                          Inspect
+                        </span>
                       </td>
                     </tr>
                   );
@@ -320,8 +345,62 @@ export default function DatabaseQueriesPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-4 border-t border-gray-100">
+              <p className="text-sm text-gray-500">
+                Showing <span className="font-medium text-gray-700">{(endpointPage - 1) * PAGE_SIZE + 1}–{Math.min(endpointPage * PAGE_SIZE, totalEndpoints)}</span> of <span className="font-medium text-gray-700">{totalEndpoints}</span> endpoints
+                {endpointsFetching && (
+                  <span className="ml-2 inline-flex items-center gap-1 text-purple-600 text-xs">
+                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+                    Updating...
+                  </span>
+                )}
+              </p>
+              <div className="flex items-center gap-1.5">
+                <button onClick={() => setEndpointPage(p => Math.max(1, p - 1))} disabled={endpointPage === 1 || endpointsFetching}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
+                  Prev
+                </button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(p => p === 1 || p === totalPages || Math.abs(p - endpointPage) <= 1)
+                    .reduce((acc: (number | "...")[], p, i, arr) => {
+                      if (i > 0 && (p as number) - (arr[i - 1] as number) > 1) acc.push("...");
+                      acc.push(p); return acc;
+                    }, [])
+                    .map((item, i) => item === "..." ? (
+                      <span key={`e${i}`} className="w-8 h-8 flex items-center justify-center text-gray-400 text-sm">…</span>
+                    ) : (
+                      <button key={item} onClick={() => setEndpointPage(item as number)} disabled={endpointsFetching}
+                        className={`w-8 h-8 text-sm font-medium rounded-lg transition-all ${
+                          endpointPage === item ? "bg-purple-600 text-white shadow-sm ring-2 ring-purple-200" : "border border-gray-200 text-gray-600 hover:bg-purple-50 hover:border-purple-200 hover:text-purple-700"
+                        }`}>{item}</button>
+                    ))}
+                </div>
+                <button onClick={() => setEndpointPage(p => Math.min(totalPages, p + 1))} disabled={endpointPage === totalPages || endpointsFetching}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+                  Next
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
+                </button>
+              </div>
+            </div>
+          )}
         </ChartCard>
       </div>
+
+      {/* Endpoint Requests Drawer */}
+      <EndpointRequestsDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        path={selectedEndpoint?.path ?? ""}
+        method={selectedEndpoint?.method ?? ""}
+        period={period}
+        organizationId={organizationId}
+        agentId={agentId}
+      />
     </div>
   );
 }
