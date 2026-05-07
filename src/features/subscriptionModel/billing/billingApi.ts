@@ -704,10 +704,14 @@ export const billingApi = createApi({
       ],
     }),
 
-    updatePlanComponentInclusion: builder.mutation<PlanComponentInclusion, { 
-      planId: string; 
-      inclusionId: string; 
-      data: Partial<AddComponentToPlanRequest>
+    updatePlanComponentInclusion: builder.mutation<PlanComponentInclusion, {
+      planId: string;
+      inclusionId: string;
+      data: {
+        quantity_multiplier?: number;
+        is_featured?: boolean;
+        display_order?: number;
+      }
     }>({
       query: ({ planId, inclusionId, data }) => {
         const adminId = getAdminId();

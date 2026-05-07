@@ -348,7 +348,7 @@ const PlanComponentInclusionManagement = () => {
   const handlePlanChange = useCallback((planId: string) => {
     setSelectedPlanId(planId);
     setCurrentPage(1);
-    setFormData({ component: '', quantity_multiplier: '1' });
+    setFormData({ component: '', quantity_multiplier: '1', is_featured: false });
   }, []);
 
   const resetForm = useCallback(() => {

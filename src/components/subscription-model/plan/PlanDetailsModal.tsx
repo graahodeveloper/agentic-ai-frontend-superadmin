@@ -65,15 +65,15 @@ const PlanDetailsModal: React.FC<PlanDetailsModalProps> = ({ plan, onClose, onEd
               </div>
               <div>
                 <p className="text-xs text-gray-600 mb-1">Components</p>
-                <p className="text-2xl font-bold text-purple-600">${parseFloat(plan.total_components_value).toFixed(2)}</p>
+                <p className="text-2xl font-bold text-purple-600">${parseFloat(plan.total_components_value || '0').toFixed(2)}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-600 mb-1">Agents</p>
-                <p className="text-2xl font-bold text-pink-600">${parseFloat(plan.total_agents_value).toFixed(2)}</p>
+                <p className="text-2xl font-bold text-pink-600">${parseFloat(plan.total_agents_value || '0').toFixed(2)}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-600 mb-1">Total Value</p>
-                <p className="text-2xl font-bold text-gray-900">${parseFloat(plan.total_plan_value).toFixed(2)}</p>
+                <p className="text-2xl font-bold text-gray-900">${parseFloat(plan.total_plan_value || '0').toFixed(2)}</p>
               </div>
             </div>
             <p className="text-sm text-gray-600 mt-4">
