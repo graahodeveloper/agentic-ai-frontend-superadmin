@@ -25,7 +25,7 @@ const getAdminId = (): string | null => {
 export interface PlanComponent {
   id: string;
   name: string;
-  component_type: 'compute_tokens' | 'storage_gb' | 'api_calls' | 'agent_instances' | 'active_agents' | 'custom';
+  component_type: string;  // User-defined free text component type
   description: string | null;
   quantity?: string | null;
   price?: string | null;
@@ -111,11 +111,15 @@ export interface Plan {
   is_public: boolean;
   display_order: number;
   featured: boolean;
-  included_components: PlanComponentInclusion[];
-  included_agents: PlanAgentInclusion[];
-  total_components_value: string;
-  total_agents_value: string;
-  total_plan_value: string;
+  // Full data (from PlanDetailSerializer)
+  included_components?: PlanComponentInclusion[];
+  included_agents?: PlanAgentInclusion[];
+  total_components_value?: string;
+  total_agents_value?: string;
+  total_plan_value?: string;
+  // Counts (from PlanSerializer list view)
+  components_count?: number;
+  agents_count?: number;
   created_at: string;
   updated_at: string;
 }
@@ -569,19 +573,22 @@ export const billingApi = createApi({
     // ============================================
     // PLAN COMPONENTS
     // ============================================
-    getPlanComponents: builder.query<PlanComponentsResponse, void | { 
-      component_type?: string; 
+    getPlanComponents: builder.query<PlanComponentsResponse, void | {
+      component_type?: string;
       is_active?: boolean;
       search?: string;
+      ordering?: string;
+      limit?: number;
+      offset?: number;
     }>({
       query: (params) => {
         const adminId = getAdminId();
         const queryParams = new URLSearchParams();
-        
+
         if (adminId) {
           queryParams.append('admin_id', adminId);
         }
-        
+
         if (params?.component_type) {
           queryParams.append('component_type', params.component_type);
         }
@@ -591,7 +598,16 @@ export const billingApi = createApi({
         if (params?.search) {
           queryParams.append('search', params.search);
         }
-        
+        if (params?.ordering) {
+          queryParams.append('ordering', params.ordering);
+        }
+        if (params?.limit !== undefined) {
+          queryParams.append('limit', String(params.limit));
+        }
+        if (params?.offset !== undefined) {
+          queryParams.append('offset', String(params.offset));
+        }
+
         return `/plan-components/?${queryParams.toString()}`;
       },
       providesTags: (result) =>
@@ -727,15 +743,23 @@ export const billingApi = createApi({
     // ============================================
     // AGENT PRICING
     // ============================================
-    getAgentPricing: builder.query<AgentPricingResponse, void | { agent?: string; is_active?: boolean; search?: string }>({
+    getAgentPricing: builder.query<AgentPricingResponse, void | {
+      agent?: string;
+      is_active?: boolean;
+      search?: string;
+      billing_method?: string;
+      ordering?: string;
+      limit?: number;
+      offset?: number;
+    }>({
       query: (params) => {
         const adminId = getAdminId();
         const queryParams = new URLSearchParams();
-        
+
         if (adminId) {
           queryParams.append('admin_id', adminId);
         }
-        
+
         if (params?.agent) {
           queryParams.append('agent', params.agent);
         }
@@ -745,7 +769,19 @@ export const billingApi = createApi({
         if (params?.search) {
           queryParams.append('search', params.search);
         }
-        
+        if (params?.billing_method) {
+          queryParams.append('billing_method', params.billing_method);
+        }
+        if (params?.ordering) {
+          queryParams.append('ordering', params.ordering);
+        }
+        if (params?.limit !== undefined) {
+          queryParams.append('limit', String(params.limit));
+        }
+        if (params?.offset !== undefined) {
+          queryParams.append('offset', String(params.offset));
+        }
+
         return `/agent-pricing/?${queryParams.toString()}`;
       },
       providesTags: (result) =>
@@ -850,10 +886,15 @@ export const billingApi = createApi({
       ],
     }),
 
-    updatePlanAgentInclusion: builder.mutation<PlanAgentInclusion, { 
-      planId: string; 
-      inclusionId: string; 
-      data: Partial<AddAgentToPlanRequest>
+    updatePlanAgentInclusion: builder.mutation<PlanAgentInclusion, {
+      planId: string;
+      inclusionId: string;
+      data: {
+        agent_pricing_id?: string;
+        included_instances?: number;
+        is_featured?: boolean;
+        display_order?: number;
+      }
     }>({
       query: ({ planId, inclusionId, data }) => {
         const adminId = getAdminId();

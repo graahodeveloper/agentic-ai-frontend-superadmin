@@ -1,6 +1,6 @@
 // components/subscription-model/plan/PlanComponentsManagement.tsx
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   useGetPlanComponentsQuery,
   useCreatePlanComponentMutation,
@@ -9,41 +9,12 @@ import {
   PlanComponent,
 } from '@/features/subscriptionModel/billing/billingApi';
 
-// Unit label options based on component type
-const unitLabelOptions: Record<string, Array<{ value: string; label: string }>> = {
-  compute_tokens: [
-    { value: 'tokens', label: 'Tokens' },
-    { value: 'thousand_tokens', label: 'Thousand Tokens' },
-    { value: 'million_tokens', label: 'Million Tokens' },
-  ],
-  storage_gb: [
-    { value: 'MB', label: 'Megabytes (MB)' },
-    { value: 'GB', label: 'Gigabytes (GB)' },
-    { value: 'TB', label: 'Terabytes (TB)' },
-  ],
-  api_calls: [
-    { value: 'calls', label: 'Calls' },
-    { value: 'thousand_calls', label: 'Thousand Calls' },
-    { value: 'million_calls', label: 'Million Calls' },
-  ],
-  agent_instances: [
-    { value: 'instances', label: 'Instances' },
-    { value: 'concurrent_instances', label: 'Concurrent Instances' },
-  ],
-  active_agents: [
-    { value: 'agents', label: 'Agents' },
-    { value: 'active_agents', label: 'Active Agents' },
-  ],
-  custom: [
-    { value: 'units', label: 'Units' },
-    { value: 'items', label: 'Items' },
-    { value: 'seats', label: 'Seats' },
-  ],
-};
-
+// ============================================
+// TYPES
+// ============================================
 interface FormData {
   name: string;
-  component_type: PlanComponent['component_type'];
+  component_type: string;
   description: string;
   unit_label: string;
   cost_per_unit: string;
@@ -56,18 +27,23 @@ interface FormData {
   is_renewable: boolean;
 }
 
-// Define query params interface
 interface QueryParams {
   search?: string;
   component_type?: string;
   is_active?: boolean;
+  ordering?: string;
+  limit?: number;
+  offset?: number;
 }
 
-const defaultFormData: FormData = {
+// ============================================
+// CONSTANTS
+// ============================================
+const DEFAULT_FORM_DATA: FormData = {
   name: '',
-  component_type: 'compute_tokens',
+  component_type: '',
   description: '',
-  unit_label: 'tokens',
+  unit_label: '',
   cost_per_unit: '',
   price_per_unit: '',
   promotion_code: '',
@@ -78,56 +54,283 @@ const defaultFormData: FormData = {
   is_renewable: false,
 };
 
-const componentTypeOptions = [
-  { value: 'compute_tokens', label: 'Compute Tokens' },
-  { value: 'storage_gb', label: 'Storage (GB)' },
-  { value: 'api_calls', label: 'API Calls' },
-  { value: 'agent_instances', label: 'Agent Instances' },
-  { value: 'active_agents', label: 'Active Agents' },
-  { value: 'custom', label: 'Custom' },
-];
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+const DEFAULT_PAGE_SIZE = 10;
 
+// ============================================
+// VALIDATION
+// ============================================
+const validateSnakeCaseField = (value: string, fieldName: string): { isValid: boolean; error: string } => {
+  if (!value.trim()) return { isValid: false, error: `${fieldName} is required` };
+  if (!/^[a-z]/.test(value)) return { isValid: false, error: 'Must start with a lowercase letter' };
+  if (!/^[a-z][a-z0-9_]*$/.test(value)) return { isValid: false, error: 'Only lowercase letters, numbers, and underscores allowed' };
+  if (/__/.test(value)) return { isValid: false, error: 'Consecutive underscores not allowed' };
+  if (/_$/.test(value)) return { isValid: false, error: 'Cannot end with underscore' };
+  if (value.length < 2) return { isValid: false, error: 'Minimum 2 characters required' };
+  if (value.length > 50) return { isValid: false, error: 'Maximum 50 characters allowed' };
+  return { isValid: true, error: '' };
+};
+
+const validateComponentType = (value: string) => validateSnakeCaseField(value, 'Component type');
+const validateUnitLabel = (value: string) => validateSnakeCaseField(value, 'Unit label');
+
+// ============================================
+// HELPER COMPONENTS
+// ============================================
+const LoadingSpinner = ({ size = 'md', className = '' }: { size?: 'sm' | 'md' | 'lg'; className?: string }) => {
+  const sizeClasses = { sm: 'h-4 w-4', md: 'h-6 w-6', lg: 'h-8 w-8' };
+  return (
+    <svg className={`animate-spin ${sizeClasses[size]} ${className}`} fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+    </svg>
+  );
+};
+
+const TableSkeleton = ({ rows = 5 }: { rows?: number }) => (
+  <div className="animate-pulse">
+    {Array.from({ length: rows }).map((_, i) => (
+      <div key={i} className="flex items-center gap-4 px-6 py-4 border-b border-gray-100">
+        <div className="flex-1 space-y-2">
+          <div className="h-4 bg-gray-200 rounded w-1/3" />
+          <div className="h-3 bg-gray-100 rounded w-1/2" />
+        </div>
+        <div className="h-6 bg-gray-200 rounded-full w-20" />
+        <div className="h-4 bg-gray-100 rounded w-16" />
+        <div className="h-4 bg-gray-100 rounded w-24" />
+        <div className="h-6 bg-gray-200 rounded-full w-16" />
+        <div className="flex gap-2">
+          <div className="h-8 w-8 bg-gray-100 rounded-lg" />
+          <div className="h-8 w-8 bg-gray-100 rounded-lg" />
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
+const EmptyState = ({ onCreateClick }: { onCreateClick: () => void }) => (
+  <div className="flex flex-col items-center justify-center py-16">
+    <div className="w-20 h-20 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-2xl flex items-center justify-center mb-6">
+      <svg className="w-10 h-10 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+      </svg>
+    </div>
+    <h3 className="text-xl font-semibold text-gray-900 mb-2">No components found</h3>
+    <p className="text-gray-500 mb-6 text-center max-w-sm">Get started by creating your first plan component to build subscription plans.</p>
+    <button
+      onClick={onCreateClick}
+      className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-all duration-200 shadow-lg shadow-indigo-500/25"
+    >
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+      </svg>
+      Create First Component
+    </button>
+  </div>
+);
+
+// Pagination Component
+const Pagination = ({
+  currentPage,
+  totalPages,
+  totalItems,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+  isLoading,
+}: {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
+  isLoading: boolean;
+}) => {
+  const startItem = (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalItems);
+
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    const maxVisible = 5;
+
+    if (totalPages <= maxVisible + 2) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (currentPage > 3) pages.push('...');
+
+      const start = Math.max(2, currentPage - 1);
+      const end = Math.min(totalPages - 1, currentPage + 1);
+
+      for (let i = start; i <= end; i++) pages.push(i);
+
+      if (currentPage < totalPages - 2) pages.push('...');
+      pages.push(totalPages);
+    }
+    return pages;
+  };
+
+  if (totalItems === 0) return null;
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 bg-gray-50/50 border-t border-gray-100">
+      <div className="flex items-center gap-4">
+        <span className="text-sm text-gray-600">
+          Showing <span className="font-semibold text-gray-900">{startItem}</span> to{' '}
+          <span className="font-semibold text-gray-900">{endItem}</span> of{' '}
+          <span className="font-semibold text-gray-900">{totalItems}</span> results
+        </span>
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-500">Per page:</label>
+          <select
+            value={pageSize}
+            onChange={(e) => onPageSizeChange(Number(e.target.value))}
+            disabled={isLoading}
+            className="px-2 py-1 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:opacity-50"
+          >
+            {PAGE_SIZE_OPTIONS.map((size) => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1 || isLoading}
+          className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          title="Previous"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+
+        {getPageNumbers().map((page, idx) => (
+          <button
+            key={idx}
+            onClick={() => typeof page === 'number' && onPageChange(page)}
+            disabled={page === '...' || page === currentPage || isLoading}
+            className={`min-w-[36px] h-9 px-3 text-sm font-medium rounded-lg transition-all ${
+              page === currentPage
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30'
+                : page === '...'
+                ? 'text-gray-400 cursor-default'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-40'
+            }`}
+          >
+            {page}
+          </button>
+        ))}
+
+        <button
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages || isLoading}
+          className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          title="Next"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// MAIN COMPONENT
+// ============================================
 const PlanComponentsManagement = () => {
+  // State
   const [searchTerm, setSearchTerm] = useState('');
   const [componentTypeFilter, setComponentTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedComponent, setSelectedComponent] = useState<PlanComponent | null>(null);
-  const [formData, setFormData] = useState<FormData>(defaultFormData);
-  const [availableUnitLabels, setAvailableUnitLabels] = useState(unitLabelOptions.compute_tokens);
-
-  const [isCreating, setIsCreating] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
+  const [formData, setFormData] = useState<FormData>(DEFAULT_FORM_DATA);
+  const [componentTypeError, setComponentTypeError] = useState('');
+  const [unitLabelError, setUnitLabelError] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Update available unit labels when component type changes
-  useEffect(() => {
-    const labels = unitLabelOptions[formData.component_type] || unitLabelOptions.custom;
-    setAvailableUnitLabels(labels);
-    if (labels.length > 0) {
-      setFormData((prev) => ({ ...prev, unit_label: labels[0].value }));
-    }
-  }, [formData.component_type]);
-
-  // Build query params with proper typing
-  const buildQueryParams = (): QueryParams => {
-    const params: QueryParams = {};
+  // Build query params
+  const queryParams = useMemo((): QueryParams => {
+    const params: QueryParams = {
+      ordering: '-created_at',
+      limit: pageSize,
+      offset: (currentPage - 1) * pageSize,
+    };
     if (searchTerm) params.search = searchTerm;
     if (componentTypeFilter !== 'all') params.component_type = componentTypeFilter;
     if (statusFilter === 'active') params.is_active = true;
     if (statusFilter === 'inactive') params.is_active = false;
     return params;
-  };
+  }, [searchTerm, componentTypeFilter, statusFilter, currentPage, pageSize]);
 
-  const { data: componentsResponse, isLoading } = useGetPlanComponentsQuery(buildQueryParams());
-  const [createComponent] = useCreatePlanComponentMutation();
-  const [updateComponent] = useUpdatePlanComponentMutation();
+  // RTK Query hooks
+  const { data: componentsResponse, isLoading, isFetching } = useGetPlanComponentsQuery(queryParams);
+  const { data: allComponentsResponse } = useGetPlanComponentsQuery({ ordering: '-created_at', limit: 1000 });
+  const [createComponent, { isLoading: isCreating }] = useCreatePlanComponentMutation();
+  const [updateComponent, { isLoading: isUpdating }] = useUpdatePlanComponentMutation();
   const [deleteComponent] = useDeletePlanComponentMutation();
 
+  // Derived state
   const components = componentsResponse?.results || [];
+  const totalItems = componentsResponse?.count || 0;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const isProcessing = isCreating || isUpdating;
+  const showOverlay = isFetching && !isLoading;
 
-  const buildSubmitData = (data: FormData) => ({
+  // Get unique component types for filter
+  const uniqueComponentTypes = useMemo(() => {
+    if (!allComponentsResponse?.results) return [];
+    const types = new Set(allComponentsResponse.results.map(c => c.component_type));
+    return Array.from(types).sort();
+  }, [allComponentsResponse?.results]);
+
+  // Handlers
+  const handleComponentTypeChange = useCallback((value: string) => {
+    const sanitized = value.toLowerCase().replace(/\s+/g, '_');
+    setFormData(prev => ({ ...prev, component_type: sanitized }));
+    setComponentTypeError(sanitized ? validateComponentType(sanitized).error : '');
+  }, []);
+
+  const handleUnitLabelChange = useCallback((value: string) => {
+    const sanitized = value.toLowerCase().replace(/\s+/g, '_');
+    setFormData(prev => ({ ...prev, unit_label: sanitized }));
+    setUnitLabelError(sanitized ? validateUnitLabel(sanitized).error : '');
+  }, []);
+
+  const resetForm = useCallback(() => {
+    setFormData(DEFAULT_FORM_DATA);
+    setSelectedComponent(null);
+    setComponentTypeError('');
+    setUnitLabelError('');
+  }, []);
+
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const handlePageSizeChange = useCallback((size: number) => {
+    setPageSize(size);
+    setCurrentPage(1);
+  }, []);
+
+  const handleFilterChange = useCallback((type: 'search' | 'componentType' | 'status', value: string) => {
+    setCurrentPage(1);
+    if (type === 'search') setSearchTerm(value);
+    else if (type === 'componentType') setComponentTypeFilter(value);
+    else setStatusFilter(value);
+  }, []);
+
+  const buildSubmitData = useCallback((data: FormData) => ({
     name: data.name,
     component_type: data.component_type,
     description: data.description || null,
@@ -140,44 +343,34 @@ const PlanComponentsManagement = () => {
     promotion_code: data.promotion_code || null,
     is_active: data.is_active,
     is_renewable: data.is_renewable,
-  });
+  }), []);
 
-  const handleCreateSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsCreating(true);
+
+    const typeValidation = validateComponentType(formData.component_type);
+    const unitValidation = validateUnitLabel(formData.unit_label);
+
+    if (!typeValidation.isValid) { setComponentTypeError(typeValidation.error); return; }
+    if (!unitValidation.isValid) { setUnitLabelError(unitValidation.error); return; }
+
     try {
-      await createComponent(buildSubmitData(formData)).unwrap();
+      if (isEditModalOpen && selectedComponent) {
+        await updateComponent({ id: selectedComponent.id, data: buildSubmitData(formData) }).unwrap();
+      } else {
+        await createComponent(buildSubmitData(formData)).unwrap();
+      }
       setIsCreateModalOpen(false);
-      resetForm();
-    } catch (error) {
-      console.error('Failed to create component:', error);
-      alert('Failed to create component. Please try again.');
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  const handleEditSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedComponent) return;
-    setIsUpdating(true);
-    try {
-      await updateComponent({
-        id: selectedComponent.id,
-        data: buildSubmitData(formData),
-      }).unwrap();
       setIsEditModalOpen(false);
       resetForm();
     } catch (error) {
-      console.error('Failed to update component:', error);
-      alert('Failed to update component. Please try again.');
-    } finally {
-      setIsUpdating(false);
+      console.error('Failed to save component:', error);
+      alert(`Failed to ${isEditModalOpen ? 'update' : 'create'} component. Please try again.`);
     }
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    if (!window.confirm(`Delete "${name}"? This action cannot be undone.`)) return;
     setDeletingId(id);
     try {
       await deleteComponent(id).unwrap();
@@ -189,7 +382,7 @@ const PlanComponentsManagement = () => {
     }
   };
 
-  const handleEdit = (component: PlanComponent) => {
+  const handleEdit = useCallback((component: PlanComponent) => {
     setSelectedComponent(component);
     setFormData({
       name: component.name,
@@ -206,91 +399,81 @@ const PlanComponentsManagement = () => {
       is_renewable: component.is_renewable,
     });
     setIsEditModalOpen(true);
-  };
+  }, []);
 
-  const resetForm = () => {
-    setFormData(defaultFormData);
-    setSelectedComponent(null);
-  };
-
-  const formatCurrency = (value: string | number | null | undefined, precision = 6) => {
+  const formatCurrency = (value: string | number | null | undefined) => {
     if (value === null || value === undefined || value === '') return '$0.00';
     const num = typeof value === 'string' ? parseFloat(value) : value;
-    return `$${num.toFixed(precision)}`;
+    return `$${num.toFixed(6)}`;
   };
 
-  const isPromotionValid = (component: PlanComponent) => {
+  const formatComponentType = (type: string) => {
+    return type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  };
+
+  const isPromotionActive = (component: PlanComponent) => {
     if (!component.promotion_code) return false;
     const now = new Date();
-    const validFrom = component.promotion_valid_from ? new Date(component.promotion_valid_from) : null;
-    const validUntil = component.promotion_valid_until ? new Date(component.promotion_valid_until) : null;
-    if (validFrom && now < validFrom) return false;
-    if (validUntil && now > validUntil) return false;
-    return true;
+    const from = component.promotion_valid_from ? new Date(component.promotion_valid_from) : null;
+    const until = component.promotion_valid_until ? new Date(component.promotion_valid_until) : null;
+    return (!from || now >= from) && (!until || now <= until);
   };
 
-  const isProcessing = isCreating || isUpdating;
-
   return (
-    <div className="w-full min-h-screen p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gray-50/30">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 mb-8">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-[#4318ff] to-[#7c75ff] bg-clip-text text-transparent">
-                Plan Components
-              </h1>
-              <p className="text-gray-600 mt-2">
-                Manage the building blocks of subscription plans ({componentsResponse?.count || 0} total)
+              <h1 className="text-2xl font-bold text-gray-900">Plan Components</h1>
+              <p className="text-gray-500 mt-1">
+                Manage building blocks for subscription plans
+                {totalItems > 0 && <span className="ml-1">• {totalItems} component{totalItems !== 1 ? 's' : ''}</span>}
               </p>
             </div>
             <button
               onClick={() => setIsCreateModalOpen(true)}
               disabled={isProcessing}
-              className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors shadow-sm"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl font-medium transition-all duration-200 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30"
             >
-              {isCreating ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>Creating...</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                  <span>Create Component</span>
-                </>
-              )}
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              <span>Create Component</span>
             </button>
           </div>
 
           {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-4 mt-6">
-            <input
-              type="text"
-              placeholder="Search components..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+            <div className="lg:col-span-2">
+              <div className="relative">
+                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search components..."
+                  value={searchTerm}
+                  onChange={(e) => handleFilterChange('search', e.target.value)}
+                  className="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                />
+              </div>
+            </div>
             <select
               value={componentTypeFilter}
-              onChange={(e) => setComponentTypeFilter(e.target.value)}
-              className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 min-w-[180px]"
+              onChange={(e) => handleFilterChange('componentType', e.target.value)}
+              className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-700 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
             >
-              <option value="all">All Types</option>
-              {componentTypeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
+              <option value="all">All Types ({uniqueComponentTypes.length})</option>
+              {uniqueComponentTypes.map((type) => (
+                <option key={type} value={type}>{formatComponentType(type)}</option>
               ))}
             </select>
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 min-w-[140px]"
+              onChange={(e) => handleFilterChange('status', e.target.value)}
+              className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-700 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
             >
               <option value="all">All Status</option>
               <option value="active">Active</option>
@@ -299,407 +482,406 @@ const PlanComponentsManagement = () => {
           </div>
         </div>
 
-        {/* Components Table */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        {/* Table */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden relative">
+          {/* Loading Overlay for refetch */}
+          {showOverlay && (
+            <div className="absolute inset-0 bg-white/70 backdrop-blur-[1px] z-10 flex items-center justify-center">
+              <div className="flex items-center gap-3 bg-white px-5 py-3 rounded-xl shadow-lg border border-gray-100">
+                <LoadingSpinner size="sm" className="text-indigo-600" />
+                <span className="text-sm font-medium text-gray-700">Updating...</span>
+              </div>
+            </div>
+          )}
+
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-20">
-              <div className="relative">
-                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600"></div>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="animate-ping rounded-full h-8 w-8 bg-indigo-100"></div>
-                </div>
-              </div>
-              <span className="mt-4 text-gray-600 font-medium">Loading components...</span>
-              <p className="text-sm text-gray-500 mt-2">Please wait while we fetch your data</p>
-            </div>
+            <TableSkeleton rows={pageSize} />
           ) : components.length === 0 ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="text-center">
-                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <h3 className="mt-4 text-lg font-semibold text-gray-900">No components found</h3>
-                <p className="mt-2 text-gray-600">Get started by creating your first component</p>
-                <button
-                  onClick={() => setIsCreateModalOpen(true)}
-                  className="mt-4 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
-                >
-                  Create First Component
-                </button>
-              </div>
-            </div>
+            <EmptyState onCreateClick={() => setIsCreateModalOpen(true)} />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Component</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Type</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Unit</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Cost / Price per Unit</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Promotion</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Created</th>
-                    <th className="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {components.map((component) => {
-                    const promotionValid = isPromotionValid(component);
-                    return (
-                      <tr key={component.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="text-sm font-semibold text-gray-900">{component.name}</div>
-                          {component.description && (
-                            <div className="text-xs text-gray-500 mt-1 line-clamp-2 max-w-md">{component.description}</div>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            {component.component_type.replace('_', ' ').toUpperCase()}
-                          </span>
-                          {component.is_renewable && (
-                            <span className="ml-2 inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              Renewable
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-100">
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Component</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Unit</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Pricing</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Promotion</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {components.map((component) => {
+                      const promoActive = isPromotionActive(component);
+                      return (
+                        <tr key={component.id} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="font-medium text-gray-900">{component.name}</div>
+                            {component.description && (
+                              <div className="text-sm text-gray-500 mt-0.5 line-clamp-1 max-w-xs">{component.description}</div>
+                            )}
+                            <div className="text-xs text-gray-400 mt-1">
+                              {new Date(component.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                              {formatComponentType(component.component_type)}
                             </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-gray-900">{component.unit_label || 'units'}</div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div>
-                              <div className="text-xs text-gray-500 mb-0.5">Cost</div>
-                              <div className="text-sm font-semibold text-gray-900">
-                                {formatCurrency(component.cost_per_unit)}
+                            {component.is_renewable && (
+                              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700">
+                                Renewable
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="text-sm text-gray-600 font-mono bg-gray-100 px-2 py-0.5 rounded">
+                              {component.unit_label}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="text-gray-400 w-10">Cost</span>
+                                <span className="font-medium text-gray-700">{formatCurrency(component.cost_per_unit)}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="text-gray-400 w-10">Price</span>
+                                <span className="font-semibold text-indigo-600">{formatCurrency(component.price_per_unit)}</span>
                               </div>
                             </div>
-                            <div className="w-px h-8 bg-gray-200" />
-                            <div>
-                              <div className="text-xs text-gray-500 mb-0.5">Price</div>
-                              <div className="text-sm font-semibold text-indigo-600">
-                                {formatCurrency(component.price_per_unit)}
+                          </td>
+                          <td className="px-6 py-4">
+                            {component.promotion_code ? (
+                              <div>
+                                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium ${
+                                  promoActive ? 'bg-purple-50 text-purple-700 border border-purple-100' : 'bg-gray-100 text-gray-500'
+                                }`}>
+                                  {promoActive && <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-pulse" />}
+                                  {component.promotion_code}
+                                </span>
+                                {component.discount_percentage && (
+                                  <div className="text-xs text-gray-500 mt-1">{component.discount_percentage}% off</div>
+                                )}
                               </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          {component.promotion_code ? (
-                            <div>
-                              <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                promotionValid ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'
-                              }`}>
-                                {component.promotion_code}
-                              </span>
-                              {component.discount_percentage && (
-                                <div className="text-xs mt-1 text-gray-600">{component.discount_percentage}% off</div>
-                              )}
-                              <span className={`text-xs mt-1 block ${promotionValid ? 'text-green-600' : 'text-gray-500'}`}>
-                                {promotionValid ? 'Active' : 'Inactive'}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-gray-400">No promotion</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold ${
-                            component.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                          }`}>
-                            {component.is_active ? 'Active' : 'Inactive'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-xs text-gray-500">
-                            {new Date(component.created_at).toLocaleDateString()}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => handleEdit(component)}
-                              disabled={isProcessing}
-                              className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 disabled:text-gray-400 disabled:hover:bg-transparent disabled:cursor-not-allowed rounded-lg transition-colors"
-                              title="Edit"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => handleDelete(component.id, component.name)}
-                              disabled={deletingId === component.id}
-                              className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 disabled:text-gray-400 disabled:hover:bg-transparent disabled:cursor-not-allowed rounded-lg transition-colors"
-                              title="Delete"
-                            >
-                              {deletingId === component.id ? (
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
-                              ) : (
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            ) : (
+                              <span className="text-sm text-gray-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                              component.is_active
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : 'bg-red-50 text-red-700'
+                            }`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${component.is_active ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                              {component.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => handleEdit(component)}
+                                disabled={isProcessing}
+                                className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg disabled:opacity-40 transition-all"
+                                title="Edit"
+                              >
+                                <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                 </svg>
-                              )}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                              </button>
+                              <button
+                                onClick={() => handleDelete(component.id, component.name)}
+                                disabled={deletingId === component.id}
+                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-40 transition-all"
+                                title="Delete"
+                              >
+                                {deletingId === component.id ? (
+                                  <LoadingSpinner size="sm" className="text-red-500" />
+                                ) : (
+                                  <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                pageSize={pageSize}
+                onPageChange={handlePageChange}
+                onPageSizeChange={handlePageSizeChange}
+                isLoading={isFetching}
+              />
+            </>
           )}
         </div>
       </div>
 
-      {/* Create / Edit Modal */}
+      {/* Modal */}
       {(isCreateModalOpen || isEditModalOpen) && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
-            <div className="flex items-start justify-between mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">
-                  {isEditModalOpen ? 'Edit Component' : 'Create New Component'}
-                </h2>
-                <p className="text-sm text-gray-600 mt-1">
-                  {isEditModalOpen ? 'Update component details' : 'Define a new plan component'}
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  if (!isProcessing) {
-                    isCreateModalOpen ? setIsCreateModalOpen(false) : setIsEditModalOpen(false);
-                    resetForm();
-                  }
-                }}
-                disabled={isProcessing}
-                className="p-2 rounded-full hover:bg-gray-100 disabled:hover:bg-transparent disabled:opacity-50 transition-colors"
-              >
-                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm" onClick={() => !isProcessing && (setIsCreateModalOpen(false), setIsEditModalOpen(false), resetForm())} />
 
-            <form onSubmit={isEditModalOpen ? handleEditSubmit : handleCreateSubmit} className="space-y-6">
-              {/* Name & Type */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Name *</label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    disabled={isProcessing}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Component Type *</label>
-                  <select
-                    value={formData.component_type}
-                    onChange={(e) =>
-                      setFormData({ ...formData, component_type: e.target.value as PlanComponent['component_type'] })
-                    }
-                    disabled={isProcessing}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
-                    required
-                  >
-                    {componentTypeOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  rows={2}
-                  disabled={isProcessing}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
-                />
-              </div>
-
-              {/* Unit Label */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Unit Label *</label>
-                <select
-                  value={formData.unit_label}
-                  onChange={(e) => setFormData({ ...formData, unit_label: e.target.value })}
-                  disabled={isProcessing}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
-                  required
-                >
-                  {availableUnitLabels.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Cost Per Unit & Price Per Unit */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Cost Per Unit ($)</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                    <input
-                      type="number"
-                      step="0.000001"
-                      min="0"
-                      value={formData.cost_per_unit}
-                      onChange={(e) => setFormData({ ...formData, cost_per_unit: e.target.value })}
-                      disabled={isProcessing}
-                      className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
-                      placeholder="0.000000"
-                    />
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-xl ${isEditModalOpen ? 'bg-amber-100' : 'bg-indigo-100'}`}>
+                    {isEditModalOpen ? (
+                      <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                    )}
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">Internal cost per unit for billing calculation</p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Price Per Unit ($)</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                    <input
-                      type="number"
-                      step="0.000001"
-                      min="0"
-                      value={formData.price_per_unit}
-                      onChange={(e) => setFormData({ ...formData, price_per_unit: e.target.value })}
-                      disabled={isProcessing}
-                      className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
-                      placeholder="0.000000"
-                    />
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">Price charged to clients per unit</p>
-                </div>
-              </div>
-
-              {/* Promotion Settings */}
-              <div className="border-t border-gray-200 pt-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Promotion Settings</h3>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Promotion Code</label>
+                    <h2 className="text-lg font-semibold text-gray-900">
+                      {isEditModalOpen ? 'Edit Component' : 'Create Component'}
+                    </h2>
+                    <p className="text-sm text-gray-500">
+                      {isEditModalOpen ? 'Update component details' : 'Add a new plan component'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => !isProcessing && (setIsCreateModalOpen(false), setIsEditModalOpen(false), resetForm())}
+                  disabled={isProcessing}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all disabled:opacity-50"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <form onSubmit={handleSubmit}>
+                <div className="px-6 py-5 max-h-[calc(100vh-280px)] overflow-y-auto space-y-6">
+                  {/* Basic Info */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.name}
+                        onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                        disabled={isProcessing}
+                        className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:opacity-50 transition-all"
+                        placeholder="e.g., API Calls"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Component Type <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.component_type}
+                        onChange={(e) => handleComponentTypeChange(e.target.value)}
+                        disabled={isProcessing}
+                        className={`w-full px-3.5 py-2.5 bg-gray-50 border rounded-xl focus:bg-white focus:ring-2 disabled:opacity-50 transition-all ${
+                          componentTypeError ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500' : 'border-gray-200 focus:ring-indigo-500/20 focus:border-indigo-500'
+                        }`}
+                        placeholder="e.g., api_calls"
+                        required
+                      />
+                      {componentTypeError && <p className="text-xs text-red-500 mt-1">{componentTypeError}</p>}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
+                    <textarea
+                      value={formData.description}
+                      onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                      disabled={isProcessing}
+                      rows={2}
+                      className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:opacity-50 transition-all resize-none"
+                      placeholder="Brief description..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Unit Label <span className="text-red-500">*</span>
+                    </label>
                     <input
                       type="text"
-                      value={formData.promotion_code}
-                      onChange={(e) => setFormData({ ...formData, promotion_code: e.target.value })}
+                      value={formData.unit_label}
+                      onChange={(e) => handleUnitLabelChange(e.target.value)}
                       disabled={isProcessing}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
-                      placeholder="e.g., SUMMER2024"
+                      className={`w-full px-3.5 py-2.5 bg-gray-50 border rounded-xl focus:bg-white focus:ring-2 disabled:opacity-50 transition-all ${
+                        unitLabelError ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500' : 'border-gray-200 focus:ring-indigo-500/20 focus:border-indigo-500'
+                      }`}
+                      placeholder="e.g., tokens, gb"
+                      required
                     />
+                    {unitLabelError && <p className="text-xs text-red-500 mt-1">{unitLabelError}</p>}
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Discount Percentage (%)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="100"
-                      value={formData.discount_percentage}
-                      onChange={(e) => setFormData({ ...formData, discount_percentage: e.target.value })}
-                      disabled={isProcessing}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
-                      placeholder="0–100"
-                    />
+                  {/* Pricing */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Cost Per Unit</label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                        <input
+                          type="number"
+                          step="0.000001"
+                          min="0"
+                          value={formData.cost_per_unit}
+                          onChange={(e) => setFormData(prev => ({ ...prev, cost_per_unit: e.target.value }))}
+                          disabled={isProcessing}
+                          className="w-full pl-8 pr-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:opacity-50 transition-all"
+                          placeholder="0.000000"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Price Per Unit</label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-500">$</span>
+                        <input
+                          type="number"
+                          step="0.000001"
+                          min="0"
+                          value={formData.price_per_unit}
+                          onChange={(e) => setFormData(prev => ({ ...prev, price_per_unit: e.target.value }))}
+                          disabled={isProcessing}
+                          className="w-full pl-8 pr-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:opacity-50 transition-all"
+                          placeholder="0.000000"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Promotion */}
+                  <div className="bg-purple-50/50 rounded-xl p-4 border border-purple-100">
+                    <h4 className="text-sm font-medium text-purple-900 mb-3">Promotion (Optional)</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Code</label>
+                        <input
+                          type="text"
+                          value={formData.promotion_code}
+                          onChange={(e) => setFormData(prev => ({ ...prev, promotion_code: e.target.value.toUpperCase() }))}
+                          disabled={isProcessing}
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 disabled:opacity-50 transition-all uppercase"
+                          placeholder="PROMO2024"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Discount %</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max="100"
+                          value={formData.discount_percentage}
+                          onChange={(e) => setFormData(prev => ({ ...prev, discount_percentage: e.target.value }))}
+                          disabled={isProcessing}
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 disabled:opacity-50 transition-all"
+                          placeholder="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Valid From</label>
+                        <input
+                          type="datetime-local"
+                          value={formData.promotion_valid_from}
+                          onChange={(e) => setFormData(prev => ({ ...prev, promotion_valid_from: e.target.value }))}
+                          disabled={isProcessing}
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 disabled:opacity-50 transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Valid Until</label>
+                        <input
+                          type="datetime-local"
+                          value={formData.promotion_valid_until}
+                          onChange={(e) => setFormData(prev => ({ ...prev, promotion_valid_until: e.target.value }))}
+                          disabled={isProcessing}
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 disabled:opacity-50 transition-all"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Toggles */}
+                  <div className="flex items-center gap-6">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          checked={formData.is_active}
+                          onChange={(e) => setFormData(prev => ({ ...prev, is_active: e.target.checked }))}
+                          disabled={isProcessing}
+                          className="sr-only peer"
+                        />
+                        <div className="w-10 h-5 bg-gray-200 rounded-full peer-checked:bg-emerald-500 peer-disabled:opacity-50 transition-colors" />
+                        <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-5 transition-transform" />
+                      </div>
+                      <span className="text-sm font-medium text-gray-700">Active</span>
+                    </label>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          checked={formData.is_renewable}
+                          onChange={(e) => setFormData(prev => ({ ...prev, is_renewable: e.target.checked }))}
+                          disabled={isProcessing}
+                          className="sr-only peer"
+                        />
+                        <div className="w-10 h-5 bg-gray-200 rounded-full peer-checked:bg-blue-500 peer-disabled:opacity-50 transition-colors" />
+                        <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-5 transition-transform" />
+                      </div>
+                      <span className="text-sm font-medium text-gray-700">Renewable</span>
+                    </label>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Valid From</label>
-                    <input
-                      type="datetime-local"
-                      value={formData.promotion_valid_from}
-                      onChange={(e) => setFormData({ ...formData, promotion_valid_from: e.target.value })}
-                      disabled={isProcessing}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Valid Until</label>
-                    <input
-                      type="datetime-local"
-                      value={formData.promotion_valid_until}
-                      onChange={(e) => setFormData({ ...formData, promotion_valid_until: e.target.value })}
-                      disabled={isProcessing}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
-                    />
-                  </div>
+                {/* Modal Footer */}
+                <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+                  <button
+                    type="button"
+                    onClick={() => !isProcessing && (setIsCreateModalOpen(false), setIsEditModalOpen(false), resetForm())}
+                    disabled={isProcessing}
+                    className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-xl font-medium hover:bg-gray-50 disabled:opacity-50 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isProcessing || !!componentTypeError || !!unitLabelError}
+                    className="inline-flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl font-medium transition-all shadow-lg shadow-indigo-500/25 disabled:shadow-none"
+                  >
+                    {isProcessing && <LoadingSpinner size="sm" />}
+                    {isProcessing ? (isEditModalOpen ? 'Updating...' : 'Creating...') : (isEditModalOpen ? 'Update' : 'Create')}
+                  </button>
                 </div>
-              </div>
-
-              {/* Toggles */}
-              <div className="flex items-center gap-6">
-                <label className="flex items-center space-x-3">
-                  <input
-                    type="checkbox"
-                    checked={formData.is_active}
-                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                    disabled={isProcessing}
-                    className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 disabled:cursor-not-allowed"
-                  />
-                  <span className="text-sm font-medium text-gray-900">Active</span>
-                </label>
-
-                <label className="flex items-center space-x-3">
-                  <input
-                    type="checkbox"
-                    checked={formData.is_renewable}
-                    onChange={(e) => setFormData({ ...formData, is_renewable: e.target.checked })}
-                    disabled={isProcessing}
-                    className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 disabled:cursor-not-allowed"
-                  />
-                  <span className="text-sm font-medium text-gray-900">Renewable</span>
-                </label>
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!isProcessing) {
-                      isCreateModalOpen ? setIsCreateModalOpen(false) : setIsEditModalOpen(false);
-                      resetForm();
-                    }
-                  }}
-                  disabled={isProcessing}
-                  className="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isProcessing}
-                  className="px-6 py-2.5 bg-gradient-to-r from-[#4318ff] to-[#7c75ff] text-white rounded-lg font-medium hover:from-[#3610d9] hover:to-[#6b63e6] disabled:from-indigo-400 disabled:to-indigo-400 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md flex items-center space-x-2"
-                >
-                  {isProcessing ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span>{isEditModalOpen ? 'Updating...' : 'Creating...'}</span>
-                    </>
-                  ) : (
-                    <span>{isEditModalOpen ? 'Update Component' : 'Create Component'}</span>
-                  )}
-                </button>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
         </div>
       )}

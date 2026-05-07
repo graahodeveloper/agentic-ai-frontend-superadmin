@@ -1,6 +1,6 @@
 // components/subscription-model/plan/AgentComponentPricingManagement.tsx
 "use client";
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   useGetAgentTemplatesByAdminIdQuery,
   AgentTemplate,
@@ -52,12 +52,17 @@ interface AgentComponentsResponse {
 const useGetAgentComponents = (agentId: string) => {
   const [data, setData] = useState<AgentComponentsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (isRefetch = false) => {
     if (!agentId) return;
 
-    setIsLoading(true);
+    if (isRefetch) {
+      setIsFetching(true);
+    } else {
+      setIsLoading(true);
+    }
     setError(null);
 
     try {
@@ -88,12 +93,13 @@ const useGetAgentComponents = (agentId: string) => {
       setError(err instanceof Error ? err.message : 'Failed to fetch components');
     } finally {
       setIsLoading(false);
+      setIsFetching(false);
     }
   }, [agentId]);
 
   useEffect(() => {
     if (agentId) {
-      fetchData();
+      fetchData(false);
     } else {
       setData(null);
     }
@@ -101,11 +107,11 @@ const useGetAgentComponents = (agentId: string) => {
 
   const refetch = () => {
     if (agentId) {
-      fetchData();
+      fetchData(true);
     }
   };
 
-  return { data, isLoading, error, refetch };
+  return { data, isLoading, isFetching, error, refetch };
 };
 
 interface FormData {
@@ -113,11 +119,519 @@ interface FormData {
   override_price: string;
 }
 
+// Loading Spinner Component
+const LoadingSpinner = ({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) => {
+  const sizeClasses = {
+    sm: 'h-4 w-4',
+    md: 'h-8 w-8',
+    lg: 'h-12 w-12'
+  };
+  return (
+    <div className={`animate-spin rounded-full border-b-2 border-indigo-600 ${sizeClasses[size]}`}></div>
+  );
+};
+
+// Table Skeleton Component
+const TableSkeleton = ({ rows = 5 }: { rows?: number }) => (
+  <div className="animate-pulse">
+    <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4">
+      <div className="flex gap-4">
+        {[1, 2, 3, 4, 5].map(i => (
+          <div key={i} className="h-4 bg-gray-200 rounded flex-1"></div>
+        ))}
+      </div>
+    </div>
+    {[...Array(rows)].map((_, index) => (
+      <div key={index} className="px-6 py-4 border-b border-gray-100">
+        <div className="flex gap-4 items-center">
+          <div className="h-10 w-10 bg-gray-200 rounded-lg"></div>
+          <div className="flex-1 space-y-2">
+            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+            <div className="h-3 bg-gray-100 rounded w-1/2"></div>
+          </div>
+          <div className="h-6 bg-gray-200 rounded w-20"></div>
+          <div className="h-4 bg-gray-200 rounded w-16"></div>
+          <div className="h-4 bg-gray-200 rounded w-16"></div>
+          <div className="flex gap-2">
+            <div className="h-8 w-8 bg-gray-200 rounded-lg"></div>
+            <div className="h-8 w-8 bg-gray-200 rounded-lg"></div>
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
+// Loading Overlay Component
+const LoadingOverlay = () => (
+  <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10 rounded-2xl">
+    <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-lg shadow-lg">
+      <LoadingSpinner size="sm" />
+      <span className="text-sm text-gray-600">Updating...</span>
+    </div>
+  </div>
+);
+
+// Delete Confirmation Modal Component
+const DeleteConfirmModal = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  componentName,
+  isDeleting
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  componentName: string;
+  isDeleting: boolean;
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
+        <div className="bg-gradient-to-r from-red-500 to-red-600 px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-white">Remove Component</h3>
+          </div>
+        </div>
+
+        <div className="p-6">
+          <p className="text-gray-700 mb-4">
+            Are you sure you want to remove <span className="font-semibold text-gray-900">&quot;{componentName}&quot;</span> from this agent?
+          </p>
+
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <svg className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div className="text-sm text-red-700">
+                This action cannot be undone. The component pricing configuration will be permanently removed.
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3">
+            <button
+              onClick={onClose}
+              disabled={isDeleting}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onConfirm}
+              disabled={isDeleting}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              {isDeleting ? (
+                <>
+                  <LoadingSpinner size="sm" />
+                  <span>Removing...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  <span>Remove</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Add Component Modal Component
+const AddComponentModal = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  formData,
+  setFormData,
+  availableComponents,
+  components,
+  agentName,
+  isAdding,
+  isLoadingComponents,
+  formatPrice,
+  formatCost
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (e: React.FormEvent) => void;
+  formData: FormData;
+  setFormData: React.Dispatch<React.SetStateAction<FormData>>;
+  availableComponents: PlanComponent[];
+  components: PlanComponent[];
+  agentName: string;
+  isAdding: boolean;
+  isLoadingComponents: boolean;
+  formatPrice: (price: string | number) => string;
+  formatCost: (cost: number) => string;
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-hidden shadow-2xl">
+        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-white">Add Component</h3>
+                <p className="text-indigo-200 text-sm">Configure pricing for {agentName}</p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              disabled={isAdding}
+              className="p-2 rounded-full hover:bg-white/20 transition-colors"
+            >
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={onSubmit} className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+          {/* Component Selection */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Select Component <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={formData.component_id}
+              onChange={(e) => setFormData({ ...formData, component_id: e.target.value })}
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+              required
+              disabled={isAdding || isLoadingComponents}
+            >
+              <option value="">-- Select a Component --</option>
+              {availableComponents.map((comp) => (
+                <option key={comp.id} value={comp.id}>
+                  {comp.name} ({comp.component_type})
+                </option>
+              ))}
+            </select>
+            {availableComponents.length === 0 && (
+              <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                All available components are already configured.
+              </p>
+            )}
+          </div>
+
+          {/* Override Price */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Override Price <span className="text-gray-400 font-normal">(Optional)</span>
+            </label>
+            <div className="relative">
+              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">$</div>
+              <input
+                type="number"
+                step="0.000001"
+                min="0"
+                value={formData.override_price}
+                onChange={(e) => setFormData({ ...formData, override_price: e.target.value })}
+                className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                placeholder="Leave empty for default price"
+                disabled={isAdding}
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Custom price per unit (overrides component&apos;s default price)
+            </p>
+          </div>
+
+          {/* Preview */}
+          {formData.component_id && (
+            <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+              <div className="flex items-center gap-2 mb-3">
+                <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                <span className="text-sm font-semibold text-gray-900">Cost Preview</span>
+              </div>
+              {(() => {
+                const selectedComp = components.find(c => c.id === formData.component_id);
+                if (!selectedComp) return null;
+                const consumptionRate = 1;
+                const effectivePrice = formData.override_price
+                  ? parseFloat(formData.override_price)
+                  : parseFloat(selectedComp.price_per_unit);
+                const costPerExecution = consumptionRate * effectivePrice;
+                return (
+                  <div className="text-sm text-gray-600 space-y-2">
+                    <div className="flex justify-between">
+                      <span>Consumption Rate:</span>
+                      <span className="font-medium">{consumptionRate} {selectedComp.unit_label}/execution</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Base Price:</span>
+                      <span className="font-medium">{formatPrice(parseFloat(selectedComp.price_per_unit))}/{selectedComp.unit_label}</span>
+                    </div>
+                    {formData.override_price && (
+                      <div className="flex justify-between text-orange-600">
+                        <span>Override Price:</span>
+                        <span className="font-medium">{formatPrice(parseFloat(formData.override_price))}/{selectedComp.unit_label}</span>
+                      </div>
+                    )}
+                    <div className="pt-2 border-t border-blue-200 flex justify-between text-indigo-700">
+                      <span className="font-semibold">Cost per Execution:</span>
+                      <span className="font-bold">{formatCost(costPerExecution)}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isAdding}
+              className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isAdding || !formData.component_id || availableComponents.length === 0}
+              className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium hover:from-indigo-700 hover:to-purple-700 transition-all shadow-sm hover:shadow-md disabled:opacity-50 flex items-center gap-2"
+            >
+              {isAdding ? (
+                <>
+                  <LoadingSpinner size="sm" />
+                  <span>Adding...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  <span>Add Component</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// Edit Component Modal Component
+const EditComponentModal = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  formData,
+  setFormData,
+  selectedComponent,
+  isUpdating,
+  formatPrice,
+  formatCost
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (e: React.FormEvent) => void;
+  formData: FormData;
+  setFormData: React.Dispatch<React.SetStateAction<FormData>>;
+  selectedComponent: AgentComponentPricing | null;
+  isUpdating: boolean;
+  formatPrice: (price: string | number) => string;
+  formatCost: (cost: number) => string;
+}) => {
+  if (!isOpen || !selectedComponent) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-hidden shadow-2xl">
+        <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-white">Edit Component</h3>
+                <p className="text-green-200 text-sm">{selectedComponent.component_name}</p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              disabled={isUpdating}
+              className="p-2 rounded-full hover:bg-white/20 transition-colors"
+            >
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={onSubmit} className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+          {/* Current Component Info */}
+          <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl">
+            <div className="flex items-center gap-2 mb-3">
+              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="text-sm font-semibold text-gray-900">Current Configuration</span>
+            </div>
+            <div className="text-sm text-gray-600 space-y-2">
+              <div className="flex justify-between">
+                <span>Component:</span>
+                <span className="font-medium text-gray-900">{selectedComponent.component_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Type:</span>
+                <span className="font-medium">{selectedComponent.component_type_display}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Consumption Rate:</span>
+                <span className="font-medium">{selectedComponent.consumption_rate} {selectedComponent.unit_label}/execution</span>
+              </div>
+              <div className="flex justify-between text-indigo-600">
+                <span>Base Price:</span>
+                <span className="font-medium">{formatPrice(selectedComponent.base_price_per_unit)}/{selectedComponent.unit_label}</span>
+              </div>
+              {selectedComponent.override_price_per_unit && (
+                <div className="flex justify-between text-orange-600">
+                  <span>Current Override:</span>
+                  <span className="font-medium">{formatPrice(selectedComponent.override_price_per_unit)}/{selectedComponent.unit_label}</span>
+                </div>
+              )}
+              <div className="pt-2 border-t border-gray-200 flex justify-between text-green-600">
+                <span className="font-semibold">Current Cost:</span>
+                <span className="font-bold">{formatCost(selectedComponent.cost_per_execution)}/execution</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Override Price */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Override Price <span className="text-gray-400 font-normal">(Optional)</span>
+            </label>
+            <div className="relative">
+              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">$</div>
+              <input
+                type="number"
+                step="0.000001"
+                min="0"
+                value={formData.override_price}
+                onChange={(e) => setFormData({ ...formData, override_price: e.target.value })}
+                className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all"
+                placeholder="Leave empty for default price"
+                disabled={isUpdating}
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Leave empty to remove override and use base price
+            </p>
+          </div>
+
+          {/* Updated Cost Preview */}
+          <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
+            <div className="flex items-center gap-2 mb-3">
+              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+              <span className="text-sm font-semibold text-gray-900">Updated Cost Preview</span>
+            </div>
+            <div className="text-sm text-gray-600 space-y-2">
+              <div className="flex justify-between">
+                <span>Consumption Rate:</span>
+                <span className="font-medium">{selectedComponent.consumption_rate} {selectedComponent.unit_label}/execution</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Effective Price:</span>
+                <span className="font-medium">
+                  {formatPrice(formData.override_price ? parseFloat(formData.override_price) : selectedComponent.base_price_per_unit)}/{selectedComponent.unit_label}
+                </span>
+              </div>
+              <div className="pt-2 border-t border-green-200 flex justify-between text-green-700">
+                <span className="font-semibold">New Cost per Execution:</span>
+                <span className="font-bold">
+                  {formatCost(
+                    selectedComponent.consumption_rate *
+                    (formData.override_price
+                      ? parseFloat(formData.override_price)
+                      : selectedComponent.base_price_per_unit)
+                  )}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isUpdating}
+              className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isUpdating}
+              className="px-5 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-medium hover:from-green-700 hover:to-emerald-700 transition-all shadow-sm hover:shadow-md disabled:opacity-50 flex items-center gap-2"
+            >
+              {isUpdating ? (
+                <>
+                  <LoadingSpinner size="sm" />
+                  <span>Updating...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Update Component</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 const AgentComponentPricingManagement = () => {
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedComponent, setSelectedComponent] = useState<AgentComponentPricing | null>(null);
+  const [componentToDelete, setComponentToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isAgentChanging, setIsAgentChanging] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -126,6 +640,14 @@ const AgentComponentPricingManagement = () => {
     component_id: '',
     override_price: '',
   });
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  // Filter state
+  const [typeFilter, setTypeFilter] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const adminId = getAdminId();
 
@@ -144,6 +666,7 @@ const AgentComponentPricingManagement = () => {
   const {
     data: agentComponentsData,
     isLoading: isLoadingAgentComponents,
+    isFetching: isFetchingAgentComponents,
     error: agentComponentsError,
     refetch: refetchAgentComponents
   } = useGetAgentComponents(selectedAgentId);
@@ -151,15 +674,45 @@ const AgentComponentPricingManagement = () => {
   const agentComponents = agentComponentsData?.components || [];
   const selectedAgent = agentTemplates.find(a => a.id === selectedAgentId);
 
+  // Get unique component types for filter
+  const componentTypes = useMemo(() => {
+    const types = new Set<string>();
+    agentComponents.forEach(c => types.add(c.component_type));
+    return Array.from(types);
+  }, [agentComponents]);
+
+  // Filtered and paginated components
+  const filteredComponents = useMemo(() => {
+    return agentComponents.filter(comp => {
+      const matchesType = !typeFilter || comp.component_type === typeFilter;
+      const matchesSearch = !searchQuery ||
+        comp.component_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        comp.component_type_display.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesType && matchesSearch;
+    });
+  }, [agentComponents, typeFilter, searchQuery]);
+
+  const paginatedComponents = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredComponents.slice(startIndex, startIndex + pageSize);
+  }, [filteredComponents, currentPage, pageSize]);
+
+  const totalPages = Math.ceil(filteredComponents.length / pageSize);
+
   // Calculate totals
-  const totalCostPerExecution = agentComponents.reduce((sum, comp) => sum + comp.cost_per_execution, 0);
-  
+  const totalCostPerExecution = useMemo(() => {
+    return agentComponents.reduce((sum, comp) => sum + comp.cost_per_execution, 0);
+  }, [agentComponents]);
+
   // Handle agent change
-  const handleAgentChange = (agentId: string) => {
+  const handleAgentChange = useCallback((agentId: string) => {
     setIsAgentChanging(true);
     setSelectedAgentId(agentId);
+    setCurrentPage(1);
+    setTypeFilter('');
+    setSearchQuery('');
     resetForm();
-  };
+  }, []);
 
   // Reset loading state when components are loaded
   useEffect(() => {
@@ -167,6 +720,11 @@ const AgentComponentPricingManagement = () => {
       setIsAgentChanging(false);
     }
   }, [isLoadingAgentComponents]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [typeFilter, searchQuery, pageSize]);
 
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -191,7 +749,7 @@ const AgentComponentPricingManagement = () => {
             components: [
               {
                 component_id: formData.component_id,
-                consumption_rate: 1, // Default consumption rate set to 1
+                consumption_rate: 1,
                 override_price: formData.override_price ? parseFloat(formData.override_price) : null,
               }
             ]
@@ -237,7 +795,7 @@ const AgentComponentPricingManagement = () => {
           },
           body: JSON.stringify({
             component_id: selectedComponent.component_id,
-            consumption_rate: selectedComponent.consumption_rate, // Keep original consumption rate
+            consumption_rate: selectedComponent.consumption_rate,
             override_price: formData.override_price ? parseFloat(formData.override_price) : null,
           }),
         }
@@ -260,78 +818,98 @@ const AgentComponentPricingManagement = () => {
     }
   };
 
-  const handleRemove = async (componentId: string, componentName: string) => {
-    if (!selectedAgentId) return;
+  const handleRemoveConfirm = async () => {
+    if (!selectedAgentId || !componentToDelete) return;
 
-    if (window.confirm(`Remove "${componentName}" from this agent? This cannot be undone.`)) {
-      setIsRemoving(true);
+    setIsRemoving(true);
 
-      try {
-        const adminId = getAdminId();
-        if (!adminId) throw new Error('Admin ID not found');
+    try {
+      const adminId = getAdminId();
+      if (!adminId) throw new Error('Admin ID not found');
 
-        const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
-        const response = await fetch(
-          `${BASE_URL}agent-templates/${selectedAgentId}/remove_component/?component_id=${componentId}&admin_id=${adminId}`,
-          {
-            method: 'DELETE',
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('superAdminToken')}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || errorData.message || 'Failed to remove component');
+      const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+      const response = await fetch(
+        `${BASE_URL}agent-templates/${selectedAgentId}/remove_component/?component_id=${componentToDelete.id}&admin_id=${adminId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('superAdminToken')}`,
+            'Content-Type': 'application/json',
+          },
         }
+      );
 
-        refetchAgentComponents();
-      } catch (error: unknown) {
-        console.error('Failed to remove component:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Failed to remove component from agent';
-        alert(errorMessage);
-      } finally {
-        setIsRemoving(false);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || errorData.message || 'Failed to remove component');
       }
+
+      setIsDeleteModalOpen(false);
+      setComponentToDelete(null);
+      refetchAgentComponents();
+    } catch (error: unknown) {
+      console.error('Failed to remove component:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to remove component from agent';
+      alert(errorMessage);
+    } finally {
+      setIsRemoving(false);
     }
   };
 
-  const handleEdit = (component: AgentComponentPricing) => {
+  const handleEdit = useCallback((component: AgentComponentPricing) => {
     setSelectedComponent(component);
     setFormData({
       component_id: component.component_id,
       override_price: component.override_price_per_unit ? component.override_price_per_unit.toString() : '',
     });
     setIsEditModalOpen(true);
-  };
+  }, []);
 
-  const resetForm = () => {
+  const handleDeleteClick = useCallback((componentId: string, componentName: string) => {
+    setComponentToDelete({ id: componentId, name: componentName });
+    setIsDeleteModalOpen(true);
+  }, []);
+
+  const resetForm = useCallback(() => {
     setFormData({
       component_id: '',
       override_price: '',
     });
     setSelectedComponent(null);
-  };
+  }, []);
 
   // Get available components (not already in agent)
-  const getAvailableComponents = () => {
+  const availableComponents = useMemo(() => {
     const includedComponentIds = agentComponents.map(c => c.component_id);
     return components.filter(c => !includedComponentIds.includes(c.id));
-  };
-
-  const availableComponents = getAvailableComponents();
+  }, [agentComponents, components]);
 
   // Helper functions
-  const formatPrice = (price: string | number) => {
+  const formatPrice = useCallback((price: string | number) => {
     const num = typeof price === 'string' ? parseFloat(price) : price;
     return `$${num.toFixed(4)}`;
-  };
+  }, []);
 
-  const formatCost = (cost: number) => {
+  const formatCost = useCallback((cost: number) => {
     return `$${cost.toFixed(6)}`;
-  };
+  }, []);
+
+  // Pagination helper
+  const getPageNumbers = useCallback(() => {
+    const pages: (number | string)[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      if (currentPage <= 3) {
+        pages.push(1, 2, 3, 4, '...', totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+      } else {
+        pages.push(1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages);
+      }
+    }
+    return pages;
+  }, [currentPage, totalPages]);
 
   return (
     <div className="w-full min-h-screen p-4 sm:p-6 lg:p-8">
@@ -340,7 +918,7 @@ const AgentComponentPricingManagement = () => {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8 mb-6 sm:mb-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 sm:gap-6">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-[#4318ff] to-[#7c75ff] bg-clip-text text-transparent">
+              <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                 Agent Component Pricing
               </h1>
               <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base">
@@ -359,7 +937,7 @@ const AgentComponentPricingManagement = () => {
                 <select
                   value={selectedAgentId}
                   onChange={(e) => handleAgentChange(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none bg-white"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none bg-white transition-all"
                   disabled={isLoadingAgents}
                 >
                   <option value="">-- Select an Agent Template --</option>
@@ -369,9 +947,14 @@ const AgentComponentPricingManagement = () => {
                     </option>
                   ))}
                 </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
                 {isLoadingAgents && (
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600"></div>
+                  <div className="absolute right-10 top-1/2 transform -translate-y-1/2">
+                    <LoadingSpinner size="sm" />
                   </div>
                 )}
               </div>
@@ -379,11 +962,11 @@ const AgentComponentPricingManagement = () => {
                 <button
                   onClick={() => setIsAddModalOpen(true)}
                   disabled={availableComponents.length === 0 || isLoadingAgentComponents || isAgentChanging}
-                  className="flex items-center justify-center space-x-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed min-w-[140px]"
+                  className="flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-medium transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed min-w-[160px]"
                 >
                   {isLoadingAgentComponents ? (
                     <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <LoadingSpinner size="sm" />
                       <span>Loading...</span>
                     </>
                   ) : (
@@ -400,37 +983,36 @@ const AgentComponentPricingManagement = () => {
           </div>
 
           {/* Selected Agent Summary */}
-          {selectedAgent && (
+          {selectedAgent && !isAgentChanging && (
             <div className="mt-4 sm:mt-6 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-100">
-              {isAgentChanging ? (
-                <div className="flex items-center justify-center py-4">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
-                  <span className="ml-3 text-gray-600">Loading agent details...</span>
-                </div>
-              ) : (
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div>
-                    <h3 className="font-bold text-lg text-gray-900">{selectedAgent.name}</h3>
-                    <div className="flex flex-wrap gap-3 mt-2">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                        {selectedAgent.agent_type.toUpperCase()}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h3 className="font-bold text-lg text-gray-900">{selectedAgent.name}</h3>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                      {selectedAgent.agent_type.toUpperCase()}
+                    </span>
+                    {selectedAgent.agent_variant && (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                        {selectedAgent.agent_variant}
                       </span>
-                      {selectedAgent.agent_variant && (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                          {selectedAgent.agent_variant}
-                        </span>
-                      )}
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${selectedAgent.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                        {selectedAgent.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                    </div>
+                    )}
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${selectedAgent.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      {selectedAgent.is_active ? 'Active' : 'Inactive'}
+                    </span>
                   </div>
-                  <div className="text-center sm:text-right">
+                </div>
+                <div className="flex gap-6">
+                  <div className="text-center">
                     <div className="text-2xl font-bold text-indigo-600">{agentComponents.length}</div>
-                    <div className="text-sm text-gray-600">Components Configured</div>
+                    <div className="text-sm text-gray-600">Components</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600">{formatCost(totalCostPerExecution)}</div>
+                    <div className="text-sm text-gray-600">Cost/Execution</div>
                   </div>
                 </div>
-              )}
+              </div>
             </div>
           )}
         </div>
@@ -456,22 +1038,18 @@ const AgentComponentPricingManagement = () => {
           </div>
         )}
 
-        {/* Loading State */}
-        {selectedAgentId && (isLoadingAgentComponents || isAgentChanging) && !agentComponentsError && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 sm:p-12">
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-              <h3 className="mt-4 text-lg font-semibold text-gray-900">Loading Components</h3>
-              <p className="mt-2 text-gray-600 text-center">
-                Loading component pricing for {selectedAgent?.name}...
-              </p>
-            </div>
+        {/* Initial Loading State */}
+        {selectedAgentId && isLoadingAgentComponents && !isFetchingAgentComponents && !agentComponentsError && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <TableSkeleton rows={5} />
           </div>
         )}
 
         {/* Components Table */}
-        {selectedAgentId && !isLoadingAgentComponents && !isAgentChanging && !agentComponentsError && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        {selectedAgentId && !isLoadingAgentComponents && !agentComponentsError && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden relative">
+            {isFetchingAgentComponents && <LoadingOverlay />}
+
             {agentComponents.length === 0 ? (
               <div className="flex items-center justify-center py-12 sm:py-20">
                 <div className="text-center max-w-md px-4">
@@ -487,38 +1065,86 @@ const AgentComponentPricingManagement = () => {
                   <button
                     onClick={() => setIsAddModalOpen(true)}
                     disabled={availableComponents.length === 0}
-                    className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="mt-4 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mx-auto"
                   >
-                    {availableComponents.length === 0 ? 'No Components Available' : 'Add First Component'}
+                    {availableComponents.length === 0 ? (
+                      'No Components Available'
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Add First Component
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
             ) : (
               <>
+                {/* Filters */}
+                <div className="px-4 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    {/* Search */}
+                    <div className="flex-1 relative">
+                      <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <input
+                        type="text"
+                        placeholder="Search components..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                      />
+                    </div>
+
+                    {/* Type Filter */}
+                    <div className="relative">
+                      <select
+                        value={typeFilter}
+                        onChange={(e) => setTypeFilter(e.target.value)}
+                        className="w-full sm:w-48 px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none bg-white transition-all"
+                      >
+                        <option value="">All Types</option>
+                        {componentTypes.map(type => (
+                          <option key={type} value={type}>{type}</option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Table */}
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                       <tr>
-                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Component</th>
-                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase hidden md:table-cell">Consumption Rate</th>
-                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Base Price</th>
-                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Cost/Execution</th>
-                        <th className="px-4 sm:px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase">Actions</th>
+                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Component</th>
+                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden md:table-cell">Consumption Rate</th>
+                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Base Price</th>
+                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden lg:table-cell">Override</th>
+                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Cost/Execution</th>
+                        <th className="px-4 sm:px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {agentComponents.map((component) => (
-                        <tr key={component.id} className="hover:bg-gray-50 transition-colors">
+                      {paginatedComponents.map((component) => (
+                        <tr key={component.id} className="hover:bg-gray-50/50 transition-colors">
                           <td className="px-4 sm:px-6 py-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center">
-                                <span className="text-indigo-600 font-bold">
+                              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center flex-shrink-0">
+                                <span className="text-indigo-600 font-bold text-sm">
                                   {component.component_type.charAt(0).toUpperCase()}
                                 </span>
                               </div>
-                              <div>
-                                <div className="text-sm font-semibold text-gray-900">{component.component_name}</div>
+                              <div className="min-w-0">
+                                <div className="text-sm font-semibold text-gray-900 truncate">{component.component_name}</div>
                                 <div className="text-xs text-gray-500 mt-0.5">{component.component_type_display}</div>
                               </div>
                             </div>
@@ -533,6 +1159,15 @@ const AgentComponentPricingManagement = () => {
                               {formatPrice(component.base_price_per_unit)}/{component.unit_label}
                             </div>
                           </td>
+                          <td className="px-4 sm:px-6 py-4 hidden lg:table-cell">
+                            {component.override_price_per_unit ? (
+                              <span className="inline-flex px-2.5 py-1 bg-orange-100 text-orange-800 rounded-lg text-sm font-medium">
+                                {formatPrice(component.override_price_per_unit)}
+                              </span>
+                            ) : (
+                              <span className="text-sm text-gray-400">—</span>
+                            )}
+                          </td>
                           <td className="px-4 sm:px-6 py-4">
                             <div className="text-sm font-bold text-green-600">
                               {formatCost(component.cost_per_execution)}
@@ -543,30 +1178,22 @@ const AgentComponentPricingManagement = () => {
                               <button
                                 onClick={() => handleEdit(component)}
                                 disabled={isUpdating || isRemoving}
-                                className="p-1.5 sm:p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50"
-                                title="Edit"
+                                className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50"
+                                title="Edit pricing"
                               >
-                                {isUpdating ? (
-                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
-                                ) : (
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                  </svg>
-                                )}
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
                               </button>
                               <button
-                                onClick={() => handleRemove(component.component_id, component.component_name)}
+                                onClick={() => handleDeleteClick(component.component_id, component.component_name)}
                                 disabled={isUpdating || isRemoving}
-                                className="p-1.5 sm:p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                                title="Remove"
+                                className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                                title="Remove component"
                               >
-                                {isRemoving ? (
-                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
-                                ) : (
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                )}
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
                               </button>
                             </div>
                           </td>
@@ -577,14 +1204,105 @@ const AgentComponentPricingManagement = () => {
                 </div>
 
                 {/* Summary Row */}
-                <div className="bg-gray-50 px-4 sm:px-6 py-4 border-t border-gray-200">
-                  <div className="flex justify-end">
-                    <div className="text-sm">
-                      <span className="font-semibold text-gray-700">Total Cost per Execution: </span>
-                      <span className="font-bold text-green-600 text-lg ml-2">{formatCost(totalCostPerExecution)}</span>
+                <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-4 sm:px-6 py-4 border-t border-gray-200">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="text-sm text-gray-600">
+                      Showing <span className="font-medium">{paginatedComponents.length}</span> of{' '}
+                      <span className="font-medium">{filteredComponents.length}</span> components
+                      {filteredComponents.length !== agentComponents.length && (
+                        <span className="text-gray-400"> (filtered from {agentComponents.length} total)</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-gray-700">Total Cost per Execution:</span>
+                      <span className="text-lg font-bold text-green-600 bg-green-50 px-3 py-1 rounded-lg">{formatCost(totalCostPerExecution)}</span>
                     </div>
                   </div>
                 </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="px-4 sm:px-6 py-4 border-t border-gray-100 bg-white">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                      {/* Page Size Selector */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-600">Rows per page:</span>
+                        <select
+                          value={pageSize}
+                          onChange={(e) => setPageSize(Number(e.target.value))}
+                          className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                        >
+                          {[5, 10, 20, 50].map(size => (
+                            <option key={size} value={size}>{size}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Page Navigation */}
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setCurrentPage(1)}
+                          disabled={currentPage === 1}
+                          className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          title="First page"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                          disabled={currentPage === 1}
+                          className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          title="Previous page"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                          </svg>
+                        </button>
+
+                        {getPageNumbers().map((page, index) => (
+                          typeof page === 'number' ? (
+                            <button
+                              key={index}
+                              onClick={() => setCurrentPage(page)}
+                              className={`min-w-[36px] h-9 rounded-lg text-sm font-medium transition-colors ${
+                                currentPage === page
+                                  ? 'bg-indigo-600 text-white'
+                                  : 'hover:bg-gray-100 text-gray-700'
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          ) : (
+                            <span key={index} className="px-2 text-gray-400">...</span>
+                          )
+                        ))}
+
+                        <button
+                          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                          disabled={currentPage === totalPages}
+                          className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          title="Next page"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => setCurrentPage(totalPages)}
+                          disabled={currentPage === totalPages}
+                          className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          title="Last page"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -603,20 +1321,26 @@ const AgentComponentPricingManagement = () => {
               <p className="mt-2 text-gray-600">
                 Choose an agent template from the dropdown above to configure its component pricing
               </p>
-              <div className="mt-6 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl">
+              <div className="mt-6 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-100">
                 <div className="text-sm text-gray-700">
-                  <div className="font-medium mb-1">What is Component Pricing?</div>
-                  <ul className="text-left space-y-1 text-xs">
+                  <div className="font-semibold mb-3 text-indigo-900">What is Component Pricing?</div>
+                  <ul className="text-left space-y-2 text-sm">
                     <li className="flex items-start gap-2">
-                      <span className="text-indigo-600">✓</span>
+                      <svg className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
                       <span>Define how much of each component an agent consumes per execution</span>
                     </li>
                     <li className="flex items-start gap-2">
-                      <span className="text-indigo-600">✓</span>
+                      <svg className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
                       <span>Set custom pricing that overrides default component prices</span>
                     </li>
                     <li className="flex items-start gap-2">
-                      <span className="text-indigo-600">✓</span>
+                      <svg className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
                       <span>Calculate accurate costs for agent operations</span>
                     </li>
                   </ul>
@@ -628,259 +1352,51 @@ const AgentComponentPricingManagement = () => {
       </div>
 
       {/* Add Component Modal */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl">
-            <div className="flex items-start justify-between mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">Add Component Pricing</h2>
-                <p className="text-sm text-gray-600 mt-1">
-                  Configure pricing for {selectedAgent?.name}
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setIsAddModalOpen(false);
-                  resetForm();
-                }}
-                className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                disabled={isAdding}
-              >
-                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <form onSubmit={handleAddSubmit} className="space-y-6">
-              {/* Component Selection */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Select Component <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.component_id}
-                  onChange={(e) => setFormData({ ...formData, component_id: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  required
-                  disabled={isAdding || isLoadingComponents}
-                >
-                  <option value="">-- Select a Component --</option>
-                  {availableComponents.map((comp) => (
-                    <option key={comp.id} value={comp.id}>
-                      {comp.name} ({comp.component_type})
-                    </option>
-                  ))}
-                </select>
-                {availableComponents.length === 0 && (
-                  <p className="text-xs text-red-500 mt-1">All available components are already configured.</p>
-                )}
-              </div>
-
-              {/* Override Price */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Override Price (Optional)
-                </label>
-                <div className="relative">
-                  <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</div>
-                  <input
-                    type="number"
-                    step="0.000001"
-                    min="0"
-                    value={formData.override_price}
-                    onChange={(e) => setFormData({ ...formData, override_price: e.target.value })}
-                    className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                    placeholder="Leave empty to use default"
-                    disabled={isAdding}
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Custom price per unit (overrides component&apos;s default price)
-                </p>
-              </div>
-
-              {/* Preview */}
-              {formData.component_id && (
-                <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
-                  <div className="text-sm font-semibold text-gray-900 mb-2">Cost Preview:</div>
-                  {(() => {
-                    const selectedComp = components.find(c => c.id === formData.component_id);
-                    if (!selectedComp) return null;
-                    const consumptionRate = 1; // Default consumption rate
-                    const effectivePrice = formData.override_price 
-                      ? parseFloat(formData.override_price) 
-                      : parseFloat(selectedComp.price_per_unit);
-                    const costPerExecution = consumptionRate * effectivePrice;
-                    return (
-                      <div className="text-sm text-gray-600 space-y-1">
-                        <div>Consumption: {consumptionRate} {selectedComp.unit_label}/execution (default)</div>
-                        <div>Base Price: {formatPrice(parseFloat(selectedComp.price_per_unit))}/{selectedComp.unit_label}</div>
-                        {formData.override_price && (
-                          <div>Override Price: {formatPrice(parseFloat(formData.override_price))}/{selectedComp.unit_label}</div>
-                        )}
-                        <div className="font-semibold text-indigo-700">
-                          Cost per Execution: {formatCost(costPerExecution)}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsAddModalOpen(false);
-                    resetForm();
-                  }}
-                  className="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
-                  disabled={isAdding}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 bg-gradient-to-r from-[#4318ff] to-[#7c75ff] text-white rounded-lg font-medium hover:from-[#3610d9] hover:to-[#6b63e6] transition-all shadow-sm hover:shadow-md disabled:opacity-50 flex items-center gap-2"
-                  disabled={isAdding || !formData.component_id || availableComponents.length === 0}
-                >
-                  {isAdding ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span>Adding...</span>
-                    </>
-                  ) : (
-                    'Add Component'
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <AddComponentModal
+        isOpen={isAddModalOpen}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          resetForm();
+        }}
+        onSubmit={handleAddSubmit}
+        formData={formData}
+        setFormData={setFormData}
+        availableComponents={availableComponents}
+        components={components}
+        agentName={selectedAgent?.name || ''}
+        isAdding={isAdding}
+        isLoadingComponents={isLoadingComponents}
+        formatPrice={formatPrice}
+        formatCost={formatCost}
+      />
 
       {/* Edit Component Modal */}
-      {isEditModalOpen && selectedComponent && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
-            <div className="flex items-start justify-between mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">Edit Component Pricing</h2>
-                <p className="text-sm text-gray-600 mt-1">
-                  Update: {selectedComponent.component_name}
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setIsEditModalOpen(false);
-                  resetForm();
-                }}
-                className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                disabled={isUpdating}
-              >
-                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+      <EditComponentModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          resetForm();
+        }}
+        onSubmit={handleEditSubmit}
+        formData={formData}
+        setFormData={setFormData}
+        selectedComponent={selectedComponent}
+        isUpdating={isUpdating}
+        formatPrice={formatPrice}
+        formatCost={formatCost}
+      />
 
-            <form onSubmit={handleEditSubmit} className="space-y-6">
-              {/* Current Component Info */}
-              <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl">
-                <div className="text-sm font-semibold text-gray-900 mb-2">Component Details:</div>
-                <div className="text-sm text-gray-600 space-y-1">
-                  <div className="font-medium">{selectedComponent.component_name}</div>
-                  <div>{selectedComponent.component_type_display}</div>
-                  <div>Consumption Rate: {selectedComponent.consumption_rate} {selectedComponent.unit_label}/execution</div>
-                  <div className="text-indigo-600">
-                    Base Price: {formatPrice(selectedComponent.base_price_per_unit)}/{selectedComponent.unit_label}
-                  </div>
-                  {selectedComponent.override_price_per_unit && (
-                    <div className="text-orange-600">
-                      Current Override: {formatPrice(selectedComponent.override_price_per_unit)}/{selectedComponent.unit_label}
-                    </div>
-                  )}
-                  <div className="text-green-600 font-semibold">
-                    Current Cost: {formatCost(selectedComponent.cost_per_execution)}/execution
-                  </div>
-                </div>
-              </div>
-
-              {/* Override Price */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Override Price (Optional)
-                </label>
-                <div className="relative">
-                  <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</div>
-                  <input
-                    type="number"
-                    step="0.000001"
-                    min="0"
-                    value={formData.override_price}
-                    onChange={(e) => setFormData({ ...formData, override_price: e.target.value })}
-                    className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                    placeholder="Leave empty for default"
-                    disabled={isUpdating}
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Custom price per unit (overrides component&apos;s default price)
-                </p>
-              </div>
-
-              {/* Preview */}
-              <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
-                <div className="text-sm font-semibold text-gray-900 mb-2">Updated Cost:</div>
-                <div className="text-sm text-gray-600 space-y-1">
-                  <div>
-                    Consumption: {selectedComponent.consumption_rate} {selectedComponent.unit_label}/execution
-                  </div>
-                  <div className="font-semibold text-green-700">
-                    Cost per Execution: {formatCost(
-                      selectedComponent.consumption_rate * 
-                      (formData.override_price 
-                        ? parseFloat(formData.override_price) 
-                        : selectedComponent.base_price_per_unit)
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsEditModalOpen(false);
-                    resetForm();
-                  }}
-                  className="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
-                  disabled={isUpdating}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 bg-gradient-to-r from-[#4318ff] to-[#7c75ff] text-white rounded-lg font-medium hover:from-[#3610d9] hover:to-[#6b63e6] transition-all shadow-sm hover:shadow-md disabled:opacity-50 flex items-center gap-2"
-                  disabled={isUpdating}
-                >
-                  {isUpdating ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span>Updating...</span>
-                    </>
-                  ) : (
-                    'Update Component'
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setComponentToDelete(null);
+        }}
+        onConfirm={handleRemoveConfirm}
+        componentName={componentToDelete?.name || ''}
+        isDeleting={isRemoving}
+      />
     </div>
   );
 };
