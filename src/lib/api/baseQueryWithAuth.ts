@@ -109,7 +109,12 @@ export const clearTokenCache = (): void => {
 // ─── Base URL ─────────────────────────────────────────────────────────────────
 
 export const getBaseUrl = (): string => {
-  return process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000/api/v1/';
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (!baseUrl) {
+    console.error('NEXT_PUBLIC_API_BASE_URL environment variable is not set');
+    throw new Error('API base URL not configured. Please set NEXT_PUBLIC_API_BASE_URL in your environment.');
+  }
+  return baseUrl;
 };
 
 // ─── Base Query with Authentication ───────────────────────────────────────────

@@ -71,7 +71,10 @@ const useGetAgentComponents = (agentId: string) => {
         throw new Error('Admin ID not found');
       }
 
-      const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+      const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+      if (!BASE_URL) {
+        throw new Error('API base URL not configured');
+      }
       const response = await fetch(
         `${BASE_URL}agent-templates/${agentId}/components/?admin_id=${adminId}`,
         {
@@ -736,7 +739,10 @@ const AgentComponentPricingManagement = () => {
       const adminId = getAdminId();
       if (!adminId) throw new Error('Admin ID not found');
 
-      const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+      const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+      if (!BASE_URL) {
+        throw new Error('API base URL not configured');
+      }
       const response = await fetch(
         `${BASE_URL}agent-templates/${selectedAgentId}/components/?admin_id=${adminId}`,
         {
@@ -784,7 +790,10 @@ const AgentComponentPricingManagement = () => {
       const adminId = getAdminId();
       if (!adminId) throw new Error('Admin ID not found');
 
-      const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+      const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+      if (!BASE_URL) {
+        throw new Error('API base URL not configured');
+      }
       const response = await fetch(
         `${BASE_URL}agent-templates/${selectedAgentId}/update_component/?admin_id=${adminId}`,
         {
@@ -827,7 +836,10 @@ const AgentComponentPricingManagement = () => {
       const adminId = getAdminId();
       if (!adminId) throw new Error('Admin ID not found');
 
-      const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+      const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+      if (!BASE_URL) {
+        throw new Error('API base URL not configured');
+      }
       const response = await fetch(
         `${BASE_URL}agent-templates/${selectedAgentId}/remove_component/?component_id=${componentToDelete.id}&admin_id=${adminId}`,
         {

@@ -243,7 +243,10 @@ const useGetPlanComponentsInPlan = (planId: string) => {
       const adminId = getAdminId();
       if (!adminId) throw new Error('Admin ID not found');
 
-      const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1/';
+      const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+      if (!BASE_URL) {
+        throw new Error('API base URL not configured');
+      }
       const response = await fetch(
         `${BASE_URL}plans/${planId}/components/?admin_id=${adminId}&ordering=-created_at`,
         {
