@@ -138,6 +138,16 @@ export interface PlanComponentsResponse {
   results: PlanComponent[];
 }
 
+export interface ComponentTypeOption {
+  value: string;
+  label: string;
+}
+
+export interface ComponentTypesResponse {
+  types: ComponentTypeOption[];
+  count: number;
+}
+
 export interface AgentPricingResponse {
   count: number;
   next: string | null;
@@ -671,6 +681,18 @@ export const billingApi = createApi({
       invalidatesTags: [{ type: 'PlanComponent', id: 'LIST' }],
     }),
 
+    // Get unique component types for dropdown/autocomplete
+    getComponentTypes: builder.query<ComponentTypesResponse, string | void>({
+      query: (search) => {
+        const adminId = getAdminId();
+        const queryParams = new URLSearchParams();
+        if (adminId) queryParams.append('admin_id', adminId);
+        if (search) queryParams.append('search', search);
+        return `/plan-components/component_types/?${queryParams.toString()}`;
+      },
+      providesTags: [{ type: 'PlanComponent', id: 'TYPES' }],
+    }),
+
     // ============================================
     // PLAN COMPONENT INCLUSIONS
     // ============================================
@@ -1009,14 +1031,15 @@ export const {
   useDeletePlanMutation,
   useDuplicatePlanMutation,
   useGetPlanStatsQuery,
-  
+
   useGetPlanSummaryQuery,
-  
+
   useGetPlanComponentsQuery,
   useGetPlanComponentQuery,
   useCreatePlanComponentMutation,
   useUpdatePlanComponentMutation,
   useDeletePlanComponentMutation,
+  useGetComponentTypesQuery,
   
   useGetPlanComponentsInPlanQuery,
   useAddComponentToPlanMutation,
