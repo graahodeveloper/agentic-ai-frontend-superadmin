@@ -1,9 +1,8 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { 
-  AgentTemplate, 
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  AgentTemplate,
   useGetTemplateInstancesQuery,
   getAdminIdFromStorage,
-  TemplateInstance,
 } from '@/features/agentTemplateApi/agentTemplateApi';
 
 interface ViewInstancesDrawerProps {

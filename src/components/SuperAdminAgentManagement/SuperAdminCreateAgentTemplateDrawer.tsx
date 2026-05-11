@@ -113,7 +113,6 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
   isOpen,
   onClose,
   onAgentCreated,
-  currentUser,
   editTemplate = null,
   isEditMode = false,
 }) => {
@@ -156,7 +155,6 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
   const {
     data: templateFieldsData,
     isLoading: isLoadingFields,
-    error: fieldsError,
   } = useGetTemplateFieldsByTemplateIdQuery(
     { template_id: editTemplate?.id || '', admin_id: adminId || '' },
     { skip: !isEditMode || !editTemplate?.id || !adminId }

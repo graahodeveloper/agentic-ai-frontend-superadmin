@@ -33,7 +33,6 @@ const ComboboxWithSuggestions: React.FC<ComboboxWithSuggestionsProps> = ({
   isLoading = false,
   allowCustom = true,
   formatValue,
-  validateValue,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
@@ -274,6 +273,7 @@ const ComboboxWithSuggestions: React.FC<ComboboxWithSuggestionsProps> = ({
                     : 'text-emerald-700 hover:bg-emerald-50/50'
                 }`}
                 role="option"
+                aria-selected={highlightedIndex === filteredOptions.length}
               >
                 <div className="flex items-center justify-center w-6 h-6 bg-emerald-100 rounded-lg">
                   <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -283,7 +283,7 @@ const ComboboxWithSuggestions: React.FC<ComboboxWithSuggestionsProps> = ({
                 <div className="flex flex-col">
                   <span className="font-medium">Create new type</span>
                   <span className="text-xs text-emerald-600 font-mono">
-                    "{formatValue ? formatValue(inputValue) : inputValue}"
+                    &quot;{formatValue ? formatValue(inputValue) : inputValue}&quot;
                   </span>
                 </div>
               </li>

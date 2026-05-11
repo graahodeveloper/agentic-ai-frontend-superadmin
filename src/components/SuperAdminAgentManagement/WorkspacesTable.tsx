@@ -14,7 +14,6 @@ const PAGE_SIZE = 20;
 
 interface WorkspacesTableProps {
   isLoading?: boolean;
-  onRefresh?: () => void;
 }
 
 interface DeleteModalState {
@@ -27,7 +26,6 @@ interface DeleteModalState {
 
 const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
   isLoading: externalLoading,
-  onRefresh,
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteModal, setDeleteModal] = useState<DeleteModalState>({

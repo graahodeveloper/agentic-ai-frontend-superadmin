@@ -3,11 +3,7 @@ import React, { useState } from 'react';
 import { useAdminLoginMutation } from '@/features/auth/authApi';
 import { LoginFormData, FormErrors } from '@/types/auth';
 
-type LoginComponentProps = {
-  onSwitchToRegister: () => void;
-};
-
-const LoginComponent: React.FC<LoginComponentProps> = ({ onSwitchToRegister }) => {
+const LoginComponent: React.FC = () => {
   //================== State Variables ==================
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({

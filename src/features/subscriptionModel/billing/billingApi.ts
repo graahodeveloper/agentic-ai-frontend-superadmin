@@ -641,7 +641,7 @@ export const billingApi = createApi({
       query: (data) => {
         const adminId = getAdminId();
         const cleanData = Object.fromEntries(
-          Object.entries(data).filter(([_, v]) => v !== undefined)
+          Object.entries(data).filter(([, v]) => v !== undefined)
         );
         return {
           url: `/plan-components/?admin_id=${adminId}`,
@@ -656,7 +656,7 @@ export const billingApi = createApi({
       query: ({ id, data }) => {
         const adminId = getAdminId();
         const cleanData = Object.fromEntries(
-          Object.entries(data).filter(([_, v]) => v !== undefined)
+          Object.entries(data).filter(([, v]) => v !== undefined)
         );
         return {
           url: `/plan-components/${id}/?admin_id=${adminId}`,

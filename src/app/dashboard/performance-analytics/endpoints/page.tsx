@@ -46,7 +46,7 @@ export default function EndpointPerformancePage() {
     agent_id: agentId,
     include_super_admin: includeSuperAdmin,
   });
-  const { data: endpoints, isLoading: endpointsLoading, isFetching: endpointsFetching, error: endpointsError } = useGetEndpointPerformanceQuery(filterParams);
+  const { data: endpoints, isLoading: endpointsLoading, isFetching: endpointsFetching } = useGetEndpointPerformanceQuery(filterParams);
 
   const tableRef = useRef<HTMLDivElement>(null);
 

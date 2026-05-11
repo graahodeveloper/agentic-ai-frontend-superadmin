@@ -60,9 +60,7 @@ const AuthPage = () => {
             </div>
 
             {/* Form Content */}
-            <LoginComponent 
-              onSwitchToRegister={() => console.log('Registration not available')}
-            />
+            <LoginComponent />
           </div>
         </div>
       </div>

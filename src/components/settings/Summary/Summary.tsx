@@ -3,9 +3,9 @@ import React, { useState } from 'react';
 import { useGetUsersQuery } from '@/features/user/userApi';
 
 const Summary: React.FC = () => {
-  const [currentPage, setCurrentPage] = useState(1);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [currentPage] = useState(1);
+  const [searchTerm] = useState('');
+  const [statusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
   const { 
     data: usersData, 

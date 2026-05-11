@@ -34,7 +34,6 @@ const PlanSummary = () => {
 
   const {
     data: summaryData,
-    isLoading: isLoadingSummary,
     isFetching: isFetchingSummary,
     error: summaryError,
     refetch: refetchSummary,

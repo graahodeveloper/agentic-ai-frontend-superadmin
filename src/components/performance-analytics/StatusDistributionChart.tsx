@@ -7,7 +7,6 @@ import {
   Cell,
   ResponsiveContainer,
   Tooltip,
-  Legend,
 } from "recharts";
 import { StatusDistribution } from "@/features/performanceAnalytics/performanceAnalyticsApi";
 

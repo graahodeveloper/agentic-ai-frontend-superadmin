@@ -47,7 +47,6 @@ const UserManagementInterface = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   // const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   // const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   // const [editFormData, setEditFormData] = useState<UpdateUserRequest>({});
