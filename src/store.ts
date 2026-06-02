@@ -11,6 +11,7 @@ import { billingApi } from '@/features/subscriptionModel/billing/billingApi';
 import { cmsSettingsApi } from '@/features/cmsSettings/cmsSettingsApi';
 import { demoUsersApi } from '@/features/demoUsers/demoUsersApi';
 import { performanceAnalyticsApi } from '@/features/performanceAnalytics/performanceAnalyticsApi';
+import { mlAnalyticsApi } from '@/features/mlAnalytics/mlAnalyticsApi';
 
 export const store = configureStore({
   reducer: {
@@ -26,6 +27,7 @@ export const store = configureStore({
     [cmsSettingsApi.reducerPath]: cmsSettingsApi.reducer,
     [demoUsersApi.reducerPath]: demoUsersApi.reducer,
     [performanceAnalyticsApi.reducerPath]: performanceAnalyticsApi.reducer,
+    [mlAnalyticsApi.reducerPath]: mlAnalyticsApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
@@ -46,7 +48,8 @@ export const store = configureStore({
     .concat(billingApi.middleware)
     .concat(cmsSettingsApi.middleware)
     .concat(demoUsersApi.middleware)
-    .concat(performanceAnalyticsApi.middleware),
+    .concat(performanceAnalyticsApi.middleware)
+    .concat(mlAnalyticsApi.middleware),
 });
 
 export type RootState = ReturnType<typeof store.getState>;

@@ -270,7 +270,10 @@ export const planApi = createApi({
     // GET PUBLIC PLANS
     // ============================================
     getPublicPlans: builder.query<Plan[], void>({
-      query: () => '/plans/public/',
+      query: () => {
+        const adminId = getAdminIdFromStorage();
+        return adminId ? `/plans/public/?admin_id=${adminId}` : '/plans/public/';
+      },
       providesTags: [{ type: 'Plan', id: 'PUBLIC' }],
     }),
 

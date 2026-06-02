@@ -258,6 +258,7 @@ export default function PerformanceOverviewPage() {
             { href: "/dashboard/performance-analytics/database-queries", label: "DB Queries", icon: "🗄️", color: "from-purple-500 to-violet-600" },
             { href: "/dashboard/performance-analytics/organizations", label: "Organizations", icon: "🏢", color: "from-cyan-500 to-blue-600" },
             { href: "/dashboard/performance-analytics/agents", label: "Agents", icon: "🤖", color: "from-pink-500 to-rose-600" },
+            { href: "/dashboard/performance-analytics/ml-analytics", label: "ML Server", icon: "🧠", color: "from-indigo-500 to-purple-600" },
           ].map((item) => (
             <Link
               key={item.href}

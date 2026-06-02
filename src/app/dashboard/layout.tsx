@@ -23,6 +23,7 @@ const NAV_ROUTES = {
     databaseQueries: `${BASE}/performance-analytics/database-queries`,
     organizations: `${BASE}/performance-analytics/organizations`,
     agents: `${BASE}/performance-analytics/agents`,
+    mlAnalytics: `${BASE}/performance-analytics/ml-analytics`,
   },
   subscription: {
     plans: `${BASE}/subscription/plans`,
@@ -158,14 +159,15 @@ export default function DashboardLayout({
         : 'text-gray-700 hover:bg-white/60'
     }`;
 
-  const dropdownCls = (open: boolean) =>
-    `absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-100 overflow-hidden transition-all duration-300 z-50 ${
-      open ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible -translate-y-2'
+  // Inline submenu styles (accordion style - not absolute positioned)
+  const submenuContainerCls = (open: boolean) =>
+    `overflow-hidden transition-all duration-300 ease-in-out ${
+      open ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
     }`;
 
   const subLinkCls = (href: string) =>
-    `w-full px-4 py-3 text-left transition-colors duration-200 flex items-center space-x-3 group ${
-      isActive(href) ? 'bg-indigo-50' : 'hover:bg-gray-50'
+    `w-full pl-10 pr-4 py-2.5 text-left transition-colors duration-200 flex items-center space-x-3 group rounded-lg ${
+      isActive(href) ? 'bg-white/80 text-[var(--color-primary-purple)] font-semibold' : 'text-gray-600 hover:bg-white/50 hover:text-gray-900'
     }`;
 
   // Don't render until auth check completes
@@ -178,18 +180,18 @@ export default function DashboardLayout({
         setEditTemplate,
       }}
     >
-      <div className="min-h-screen bg-gray-50 flex">
+      <div className="min-h-screen bg-gray-50">
 
-        {/* ── Sidebar ──────────────────────────────────────────────────────── */}
-        <aside className="w-75 bg-[linear-gradient(90deg,_#fff_-11.17%,_#c9c7ea_100%)] pl-3 pr-3 pt-6 pb-8 flex-shrink-0 flex flex-col">
+        {/* ── Sidebar - Fixed Position ──────────────────────────────────────────────────────── */}
+        <aside className="fixed top-0 left-0 w-75 h-screen bg-[linear-gradient(90deg,_#fff_-11.17%,_#c9c7ea_100%)] pl-3 pr-3 pt-6 pb-8 flex flex-col z-50 overflow-hidden">
 
           {/* Logo */}
-          <div className="flex flex-col items-center justify-center space-y-3 mb-6">
+          <div className="flex flex-col items-center justify-center space-y-3 mb-6 flex-shrink-0">
             <Image src="/graaho_logo.png" alt="Graaho Logo" width={180} height={60} className="object-cover" priority />
           </div>
 
           {/* User chip */}
-          <div className="flex items-center space-x-3 mb-8 p-3 bg-white/50 rounded-lg">
+          <div className="flex items-center space-x-3 mb-6 p-3 bg-white/50 rounded-lg flex-shrink-0">
             <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
               <Image src="/man_place_holder.png" alt="Avatar" width={40} height={40} className="object-cover" />
             </div>
@@ -204,8 +206,8 @@ export default function DashboardLayout({
             </div>
           </div>
 
-          {/* Navigation */}
-          <nav className="space-y-2 flex-1">
+          {/* Navigation - Scrollable */}
+          <nav className="space-y-2 flex-1 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
 
             {/* Agent Templates */}
             <Link href={NAV_ROUTES.agentTemplates} className={linkCls(NAV_ROUTES.agentTemplates)}>
@@ -232,7 +234,7 @@ export default function DashboardLayout({
             </Link>
 
             {/* Performance Analytics */}
-            <div className="relative" ref={performanceAnalyticsRef}>
+            <div ref={performanceAnalyticsRef}>
               <button
                 onClick={() => setPerformanceAnalyticsOpen((o) => !o)}
                 className={groupBtnCls(`${BASE}/performance-analytics`)}
@@ -252,36 +254,36 @@ export default function DashboardLayout({
                 </svg>
               </button>
 
-              <div className={dropdownCls(performanceAnalyticsOpen)}>
-                {(
-                  [
-                    { href: NAV_ROUTES.performanceAnalytics.overview,        label: 'Overview Dashboard',     icon: '📊' },
-                    { href: NAV_ROUTES.performanceAnalytics.responseTime,    label: 'Response Time Analysis', icon: '⚡' },
-                    { href: NAV_ROUTES.performanceAnalytics.endpoints,       label: 'Endpoint Performance',   icon: '🔗' },
-                    { href: NAV_ROUTES.performanceAnalytics.slowRequests,    label: 'Slow Requests',          icon: '🐌' },
-                    { href: NAV_ROUTES.performanceAnalytics.statusCodes,     label: 'Status Codes',           icon: '📋' },
-                    { href: NAV_ROUTES.performanceAnalytics.databaseQueries, label: 'Database Queries',       icon: '🗄️' },
-                    { href: NAV_ROUTES.performanceAnalytics.organizations,   label: 'Organization Analytics', icon: '🏢' },
-                    { href: NAV_ROUTES.performanceAnalytics.agents,          label: 'Agent Analytics',        icon: '🤖' },
-                  ] as const
-                ).map(({ href, label, icon }) => (
-                  <Link
-                    key={href}
-                    href={href}
-                    onClick={() => setPerformanceAnalyticsOpen(false)}
-                    className={subLinkCls(href)}
-                  >
-                    <span className="text-base">{icon}</span>
-                    <span className={`font-medium ${isActive(href) ? 'text-indigo-700' : 'text-gray-700 group-hover:text-gray-900'}`}>
-                      {label}
-                    </span>
-                  </Link>
-                ))}
+              <div className={submenuContainerCls(performanceAnalyticsOpen)}>
+                <div className="py-1 space-y-0.5">
+                  {(
+                    [
+                      { href: NAV_ROUTES.performanceAnalytics.overview,        label: 'Overview Dashboard',     icon: '📊' },
+                      { href: NAV_ROUTES.performanceAnalytics.responseTime,    label: 'Response Time Analysis', icon: '⚡' },
+                      { href: NAV_ROUTES.performanceAnalytics.endpoints,       label: 'Endpoint Performance',   icon: '🔗' },
+                      { href: NAV_ROUTES.performanceAnalytics.slowRequests,    label: 'Slow Requests',          icon: '🐌' },
+                      { href: NAV_ROUTES.performanceAnalytics.statusCodes,     label: 'Status Codes',           icon: '📋' },
+                      { href: NAV_ROUTES.performanceAnalytics.databaseQueries, label: 'Database Queries',       icon: '🗄️' },
+                      { href: NAV_ROUTES.performanceAnalytics.organizations,   label: 'Organization Analytics', icon: '🏢' },
+                      { href: NAV_ROUTES.performanceAnalytics.agents,          label: 'Agent Analytics',        icon: '🤖' },
+                      { href: NAV_ROUTES.performanceAnalytics.mlAnalytics,     label: 'ML Server Analytics',    icon: '🧠' },
+                    ] as const
+                  ).map(({ href, label, icon }) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      className={subLinkCls(href)}
+                    >
+                      <span className="text-sm">{icon}</span>
+                      <span className="text-sm">{label}</span>
+                    </Link>
+                  ))}
+                </div>
               </div>
             </div>
 
             {/* Subscription Model */}
-            <div className="relative" ref={subscriptionRef}>
+            <div ref={subscriptionRef}>
               <button
                 onClick={() => setSubscriptionOpen((o) => !o)}
                 className={groupBtnCls(`${BASE}/subscription`)}
@@ -300,34 +302,34 @@ export default function DashboardLayout({
                 </svg>
               </button>
 
-              <div className={dropdownCls(subscriptionOpen)}>
-                {(
-                  [
-                    { href: NAV_ROUTES.subscription.plans,                label: 'Plans' },
-                    { href: NAV_ROUTES.subscription.components,           label: 'Components' },
-                    { href: NAV_ROUTES.subscription.agentPricing,         label: 'Agent Pricing' },
-                    { href: NAV_ROUTES.subscription.linkComponents,       label: 'Link Components' },
-                    { href: NAV_ROUTES.subscription.linkAgents,           label: 'Link Agents' },
-                    { href: NAV_ROUTES.subscription.agentComponentPricing,label: 'Agent Component Pricing' },
-                    { href: NAV_ROUTES.subscription.planSummary,          label: 'Plan Summary' },
-                  ] as const
-                ).map(({ href, label }) => (
-                  <Link
-                    key={href}
-                    href={href}
-                    onClick={() => setSubscriptionOpen(false)}
-                    className={subLinkCls(href)}
-                  >
-                    <span className={`font-medium ${isActive(href) ? 'text-indigo-700' : 'text-gray-700 group-hover:text-gray-900'}`}>
-                      {label}
-                    </span>
-                  </Link>
-                ))}
+              <div className={submenuContainerCls(subscriptionOpen)}>
+                <div className="py-1 space-y-0.5">
+                  {(
+                    [
+                      { href: NAV_ROUTES.subscription.plans,                label: 'Plans',                   icon: '📋' },
+                      { href: NAV_ROUTES.subscription.components,           label: 'Components',              icon: '🧩' },
+                      { href: NAV_ROUTES.subscription.agentPricing,         label: 'Agent Pricing',           icon: '💰' },
+                      { href: NAV_ROUTES.subscription.linkComponents,       label: 'Link Components',         icon: '🔗' },
+                      { href: NAV_ROUTES.subscription.linkAgents,           label: 'Link Agents',             icon: '🤝' },
+                      { href: NAV_ROUTES.subscription.agentComponentPricing,label: 'Agent Component Pricing', icon: '💎' },
+                      { href: NAV_ROUTES.subscription.planSummary,          label: 'Plan Summary',            icon: '📊' },
+                    ] as const
+                  ).map(({ href, label, icon }) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      className={subLinkCls(href)}
+                    >
+                      <span className="text-sm">{icon}</span>
+                      <span className="text-sm">{label}</span>
+                    </Link>
+                  ))}
+                </div>
               </div>
             </div>
 
             {/* CMS Settings */}
-            <div className="relative" ref={cmsSettingsRef}>
+            <div ref={cmsSettingsRef}>
               <button
                 onClick={() => setCmsSettingsOpen((o) => !o)}
                 className={groupBtnCls(`${BASE}/cms-settings`)}
@@ -346,28 +348,28 @@ export default function DashboardLayout({
                 </svg>
               </button>
 
-              <div className={dropdownCls(cmsSettingsOpen)}>
-                {(
-                  [
-                    { href: NAV_ROUTES.cmsSettings.loginPage, label: 'Login Page' },
-                  ] as const
-                ).map(({ href, label }) => (
-                  <Link
-                    key={href}
-                    href={href}
-                    onClick={() => setCmsSettingsOpen(false)}
-                    className={subLinkCls(href)}
-                  >
-                    <span className={`font-medium ${isActive(href) ? 'text-indigo-700' : 'text-gray-700 group-hover:text-gray-900'}`}>
-                      {label}
-                    </span>
-                  </Link>
-                ))}
+              <div className={submenuContainerCls(cmsSettingsOpen)}>
+                <div className="py-1 space-y-0.5">
+                  {(
+                    [
+                      { href: NAV_ROUTES.cmsSettings.loginPage, label: 'Login Page', icon: '🔐' },
+                    ] as const
+                  ).map(({ href, label, icon }) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      className={subLinkCls(href)}
+                    >
+                      <span className="text-sm">{icon}</span>
+                      <span className="text-sm">{label}</span>
+                    </Link>
+                  ))}
+                </div>
               </div>
             </div>
 
             {/* Settings */}
-            <div className="relative" ref={settingsRef}>
+            <div ref={settingsRef}>
               <button
                 onClick={() => setSettingsOpen((o) => !o)}
                 className={groupBtnCls(`${BASE}/settings`)}
@@ -386,30 +388,30 @@ export default function DashboardLayout({
                 </svg>
               </button>
 
-              <div className={dropdownCls(settingsOpen)}>
-                {(
-                  [
-                    { href: NAV_ROUTES.settings.manageUser, label: 'Manage User' },
-                    { href: NAV_ROUTES.settings.summary,    label: 'Summary' },
-                  ] as const
-                ).map(({ href, label }) => (
-                  <Link
-                    key={href}
-                    href={href}
-                    onClick={() => setSettingsOpen(false)}
-                    className={subLinkCls(href)}
-                  >
-                    <span className={`font-medium ${isActive(href) ? 'text-indigo-700' : 'text-gray-700 group-hover:text-gray-900'}`}>
-                      {label}
-                    </span>
-                  </Link>
-                ))}
+              <div className={submenuContainerCls(settingsOpen)}>
+                <div className="py-1 space-y-0.5">
+                  {(
+                    [
+                      { href: NAV_ROUTES.settings.manageUser, label: 'Manage User', icon: '👤' },
+                      { href: NAV_ROUTES.settings.summary,    label: 'Summary',     icon: '📑' },
+                    ] as const
+                  ).map(({ href, label, icon }) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      className={subLinkCls(href)}
+                    >
+                      <span className="text-sm">{icon}</span>
+                      <span className="text-sm">{label}</span>
+                    </Link>
+                  ))}
+                </div>
               </div>
             </div>
           </nav>
 
           {/* Logout */}
-          <div className="border-t border-gray-200 pt-4 mt-4">
+          <div className="border-t border-gray-200 pt-4 mt-4 flex-shrink-0">
             <button
               onClick={handleLogout}
               className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left cursor-pointer transition-colors hover:bg-white/60 text-gray-700"
@@ -422,8 +424,8 @@ export default function DashboardLayout({
           </div>
         </aside>
 
-        {/* ── Main content (children = current page) ────────────────────────── */}
-        <main className="flex-1 flex flex-col min-w-0 min-h-screen pb-16">
+        {/* ── Main content (children = current page) - With left margin for fixed sidebar ────────────────────────── */}
+        <main className="ml-75 flex-1 flex flex-col min-w-0 min-h-screen pb-16">
           {children}
         </main>
 
@@ -446,7 +448,7 @@ export default function DashboardLayout({
         {/* ── Footer ───────────────────────────────────────────────────────── */}
         <footer className="fixed bottom-0 left-75 right-0 bg-gradient-to-r from-slate-50 to-gray-50 border-t border-slate-200/60 backdrop-blur-sm z-40">
           <div className="px-8 py-4 flex items-center justify-end">
-            <p className="text-xs font-medium text-slate-700">© 2025 Graaho Technologies</p>
+            <p className="text-xs font-medium text-slate-700">© 2026 Graaho Technologies</p>
           </div>
           <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-slate-300/50 to-transparent" />
         </footer>
