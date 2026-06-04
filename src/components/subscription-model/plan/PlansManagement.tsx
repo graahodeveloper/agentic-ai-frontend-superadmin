@@ -235,6 +235,8 @@ const CreateEditPlanModal: React.FC<CreateEditPlanModalProps> = ({
     billing_period: 'monthly' as 'monthly' | 'quarterly' | 'yearly',
     billing_mode: 'prepaid' as 'prepaid' | 'postpaid',
     grace_period_days: '7',
+    has_trial: false,
+    trial_period_days: '0',
     is_active: true,
     is_public: false,
     display_order: '',
@@ -253,6 +255,8 @@ const CreateEditPlanModal: React.FC<CreateEditPlanModalProps> = ({
         billing_period: plan.billing_period,
         billing_mode: plan.billing_mode,
         grace_period_days: plan.grace_period_days?.toString() || '7',
+        has_trial: plan.has_trial || false,
+        trial_period_days: plan.trial_period_days?.toString() || '0',
         is_active: plan.is_active,
         is_public: plan.is_public,
         display_order: plan.display_order?.toString() || '',
@@ -267,6 +271,8 @@ const CreateEditPlanModal: React.FC<CreateEditPlanModalProps> = ({
         billing_period: 'monthly',
         billing_mode: 'prepaid',
         grace_period_days: '7',
+        has_trial: false,
+        trial_period_days: '0',
         is_active: true,
         is_public: false,
         display_order: '',
@@ -283,12 +289,25 @@ const CreateEditPlanModal: React.FC<CreateEditPlanModalProps> = ({
       newErrors.name = 'Plan name is required';
     }
 
-    if (!formData.base_price || parseFloat(formData.base_price) < 0) {
-      newErrors.base_price = 'Valid price is required';
+    // Price validation - skip for free plans (auto-set to 0)
+    if (formData.plan_type !== 'free') {
+      if (!formData.base_price || parseFloat(formData.base_price) < 0) {
+        newErrors.base_price = 'Valid price is required';
+      }
+
+      if (formData.grace_period_days && parseInt(formData.grace_period_days) < 0) {
+        newErrors.grace_period_days = 'Grace period cannot be negative';
+      }
     }
 
-    if (formData.grace_period_days && parseInt(formData.grace_period_days) < 0) {
-      newErrors.grace_period_days = 'Grace period cannot be negative';
+    // Validate trial period days when trial is enabled
+    if (formData.has_trial) {
+      const trialDays = parseInt(formData.trial_period_days);
+      if (!formData.trial_period_days || trialDays <= 0) {
+        newErrors.trial_period_days = 'Trial period must be at least 1 day';
+      } else if (trialDays > 365) {
+        newErrors.trial_period_days = 'Trial period cannot exceed 365 days';
+      }
     }
 
     setErrors(newErrors);
@@ -303,14 +322,19 @@ const CreateEditPlanModal: React.FC<CreateEditPlanModalProps> = ({
     }
 
     try {
+      // For free plans, auto-set pricing fields
+      const isFreePlan = formData.plan_type === 'free';
+
       const planData: CreatePlanRequest = {
         name: formData.name,
         description: formData.description || undefined,
         plan_type: formData.plan_type,
-        base_price: parseFloat(formData.base_price),
-        billing_period: formData.billing_period,
-        billing_mode: formData.billing_mode,
-        grace_period_days: formData.grace_period_days ? parseInt(formData.grace_period_days) : 7,
+        base_price: isFreePlan ? 0 : parseFloat(formData.base_price || '0'),
+        billing_period: isFreePlan ? 'monthly' : formData.billing_period,
+        billing_mode: isFreePlan ? 'prepaid' : formData.billing_mode,
+        grace_period_days: isFreePlan ? 0 : (formData.grace_period_days ? parseInt(formData.grace_period_days) : 7),
+        has_trial: formData.has_trial,
+        trial_period_days: formData.has_trial ? parseInt(formData.trial_period_days) : 0,
         is_active: formData.is_active,
         is_public: formData.is_public,
         display_order: formData.display_order ? parseInt(formData.display_order) : 0,
@@ -441,7 +465,21 @@ const CreateEditPlanModal: React.FC<CreateEditPlanModalProps> = ({
                 </label>
                 <select
                   value={formData.plan_type}
-                  onChange={(e) => handleInputChange('plan_type', e.target.value)}
+                  onChange={(e) => {
+                    handleInputChange('plan_type', e.target.value);
+                    // Auto-set defaults for free plan
+                    if (e.target.value === 'free') {
+                      handleInputChange('base_price', '0');
+                      handleInputChange('billing_mode', 'prepaid');
+                      handleInputChange('billing_period', 'monthly');
+                      handleInputChange('grace_period_days', '0');
+                      // Enable trial by default for free plans
+                      if (!formData.has_trial) {
+                        handleInputChange('has_trial', true);
+                        handleInputChange('trial_period_days', '14');
+                      }
+                    }
+                  }}
                   disabled={isLoading}
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed"
                 >
@@ -469,82 +507,355 @@ const CreateEditPlanModal: React.FC<CreateEditPlanModalProps> = ({
               </div>
             </div>
 
-            {/* Base Price & Billing Period */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Base Price (USD) <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.base_price}
-                    onChange={(e) => handleInputChange('base_price', e.target.value)}
+            {/* FREE PLAN: Trial Period Settings (Shown at Top for Free Plans) */}
+            {formData.plan_type === 'free' && (
+              <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 rounded-xl p-5 border border-emerald-200/60">
+                {/* Header with Toggle */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200">
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-gray-900">Free Trial Duration</h3>
+                      <p className="text-xs text-gray-500">Set how long users can access this free plan</p>
+                    </div>
+                  </div>
+                  {/* Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleInputChange('has_trial', !formData.has_trial);
+                      if (!formData.has_trial && formData.trial_period_days === '0') {
+                        handleInputChange('trial_period_days', '14');
+                      }
+                    }}
                     disabled={isLoading}
-                    className={`w-full pl-8 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                      errors.base_price ? 'border-red-300' : 'border-gray-200'
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      formData.has_trial
+                        ? 'bg-gradient-to-r from-emerald-500 to-teal-600 shadow-lg shadow-emerald-200'
+                        : 'bg-gray-300'
                     }`}
-                    placeholder="0.00"
-                    min="0"
-                  />
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-all duration-300 ${
+                        formData.has_trial ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
                 </div>
-                {errors.base_price && <p className="mt-1 text-sm text-red-600">{errors.base_price}</p>}
-              </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Billing Period <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.billing_period}
-                  onChange={(e) => handleInputChange('billing_period', e.target.value)}
-                  disabled={isLoading}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                >
-                  <option value="monthly">Monthly</option>
-                  <option value="quarterly">Quarterly</option>
-                  <option value="yearly">Yearly</option>
-                </select>
-              </div>
-            </div>
+                {/* Trial Duration Options */}
+                {formData.has_trial ? (
+                  <div className="space-y-4">
+                    {/* Quick Presets */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">
+                        Quick Select
+                      </label>
+                      <div className="grid grid-cols-4 gap-2">
+                        {[
+                          { days: 7, label: '7 days' },
+                          { days: 14, label: '14 days' },
+                          { days: 30, label: '30 days' },
+                          { days: 60, label: '60 days' },
+                        ].map((option) => {
+                          const isSelected = parseInt(formData.trial_period_days) === option.days;
+                          return (
+                            <button
+                              key={option.days}
+                              type="button"
+                              onClick={() => handleInputChange('trial_period_days', option.days.toString())}
+                              disabled={isLoading}
+                              className={`relative px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border-2 ${
+                                isSelected
+                                  ? 'bg-white border-emerald-500 text-emerald-700 shadow-md'
+                                  : 'bg-white/60 border-transparent text-gray-600 hover:border-emerald-200 hover:bg-white'
+                              } disabled:opacity-50`}
+                            >
+                              {option.days === 14 && (
+                                <span className="absolute -top-2 -right-1 px-1.5 py-0.5 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[8px] font-bold rounded-full">
+                                  POPULAR
+                                </span>
+                              )}
+                              {option.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
 
-            {/* Billing Mode & Grace Period */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Billing Mode <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.billing_mode}
-                  onChange={(e) => handleInputChange('billing_mode', e.target.value)}
-                  disabled={isLoading}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                >
-                  <option value="prepaid">Prepaid (Pay first, use later)</option>
-                  <option value="postpaid">Postpaid (Use first, pay later)</option>
-                </select>
-              </div>
+                    {/* Manual Input */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">
+                        Or Enter Custom Days
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          value={formData.trial_period_days}
+                          onChange={(e) => handleInputChange('trial_period_days', e.target.value)}
+                          disabled={isLoading}
+                          className={`w-full px-4 py-3 pr-16 border-2 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed ${
+                            errors.trial_period_days ? 'border-red-300' : 'border-gray-200'
+                          }`}
+                          placeholder="Enter number of days"
+                          min="1"
+                          max="365"
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">
+                          days
+                        </span>
+                      </div>
+                      {errors.trial_period_days && (
+                        <p className="mt-1.5 text-sm text-red-600 flex items-center gap-1">
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                          </svg>
+                          {errors.trial_period_days}
+                        </p>
+                      )}
+                    </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Grace Period (Days)
-                </label>
-                <input
-                  type="number"
-                  value={formData.grace_period_days}
-                  onChange={(e) => handleInputChange('grace_period_days', e.target.value)}
-                  disabled={isLoading}
-                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                    errors.grace_period_days ? 'border-red-300' : 'border-gray-200'
-                  }`}
-                  placeholder="7"
-                  min="0"
-                />
-                {errors.grace_period_days && <p className="mt-1 text-sm text-red-600">{errors.grace_period_days}</p>}
+                    {/* Summary */}
+                    <div className="bg-white/80 rounded-lg p-3 border border-emerald-100">
+                      <p className="text-sm text-gray-700">
+                        Users will have <span className="font-bold text-emerald-600">{formData.trial_period_days} days</span> of free access.
+                        After the trial expires, they&apos;ll need to upgrade to continue.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
+                    <div className="flex items-start gap-2">
+                      <svg className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      <p className="text-sm text-amber-800">
+                        <span className="font-semibold">Unlimited access:</span> Without a trial period, users can use this free plan forever. Enable trial to set a time limit.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
+
+            {/* PAID PLANS: Pricing Section */}
+            {formData.plan_type !== 'free' && (
+              <>
+                {/* Base Price & Billing Period */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Base Price (USD) <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.base_price}
+                        onChange={(e) => handleInputChange('base_price', e.target.value)}
+                        disabled={isLoading}
+                        className={`w-full pl-8 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed ${
+                          errors.base_price ? 'border-red-300' : 'border-gray-200'
+                        }`}
+                        placeholder="0.00"
+                        min="0"
+                      />
+                    </div>
+                    {errors.base_price && <p className="mt-1 text-sm text-red-600">{errors.base_price}</p>}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Billing Period <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formData.billing_period}
+                      onChange={(e) => handleInputChange('billing_period', e.target.value)}
+                      disabled={isLoading}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    >
+                      <option value="monthly">Monthly</option>
+                      <option value="quarterly">Quarterly</option>
+                      <option value="yearly">Yearly</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Billing Mode & Grace Period */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Billing Mode <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formData.billing_mode}
+                      onChange={(e) => handleInputChange('billing_mode', e.target.value)}
+                      disabled={isLoading}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    >
+                      <option value="prepaid">Prepaid (Pay first, use later)</option>
+                      <option value="postpaid">Postpaid (Use first, pay later)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Grace Period (Days)
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.grace_period_days}
+                      onChange={(e) => handleInputChange('grace_period_days', e.target.value)}
+                      disabled={isLoading}
+                      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed ${
+                        errors.grace_period_days ? 'border-red-300' : 'border-gray-200'
+                      }`}
+                      placeholder="7"
+                      min="0"
+                    />
+                    {errors.grace_period_days && <p className="mt-1 text-sm text-red-600">{errors.grace_period_days}</p>}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* PAID PLANS: Trial Period Settings */}
+            {formData.plan_type !== 'free' && (
+              <div className="bg-gradient-to-br from-violet-50 to-indigo-50 rounded-xl p-5 space-y-4 border border-violet-200/60">
+                {/* Section Header */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-violet-200">
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-gray-900">Free Trial Period</h3>
+                      <p className="text-xs text-gray-500">Let users try before they buy</p>
+                    </div>
+                  </div>
+                  {/* Master Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleInputChange('has_trial', !formData.has_trial);
+                      if (!formData.has_trial && formData.trial_period_days === '0') {
+                        handleInputChange('trial_period_days', '14');
+                      }
+                    }}
+                    disabled={isLoading}
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      formData.has_trial
+                        ? 'bg-gradient-to-r from-violet-500 to-indigo-600 shadow-lg shadow-violet-200'
+                        : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-all duration-300 ${
+                        formData.has_trial ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Trial Configuration - Animated Expansion */}
+                <div className={`transition-all duration-300 ease-in-out overflow-hidden ${
+                  formData.has_trial ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
+                }`}>
+                  <div className="pt-4 space-y-4">
+                    {/* Quick Duration Presets */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">
+                        Quick Select
+                      </label>
+                      <div className="grid grid-cols-4 gap-2">
+                        {[
+                          { days: 7, label: '7 days' },
+                          { days: 14, label: '14 days' },
+                          { days: 30, label: '30 days' },
+                          { days: 60, label: '60 days' },
+                        ].map((option) => {
+                          const isSelected = parseInt(formData.trial_period_days) === option.days;
+                          return (
+                            <button
+                              key={option.days}
+                              type="button"
+                              onClick={() => handleInputChange('trial_period_days', option.days.toString())}
+                              disabled={isLoading}
+                              className={`relative px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border-2 ${
+                                isSelected
+                                  ? 'bg-white border-violet-500 text-violet-700 shadow-md'
+                                  : 'bg-white/50 border-transparent text-gray-600 hover:border-violet-200 hover:bg-white'
+                              } disabled:opacity-50`}
+                            >
+                              {option.days === 14 && (
+                                <span className="absolute -top-2 -right-1 px-1.5 py-0.5 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[8px] font-bold rounded-full">
+                                  POPULAR
+                                </span>
+                              )}
+                              {option.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Manual Input */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">
+                        Or Enter Custom Days
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          value={formData.trial_period_days}
+                          onChange={(e) => handleInputChange('trial_period_days', e.target.value)}
+                          disabled={isLoading}
+                          className={`w-full px-4 py-3 pr-16 border-2 rounded-xl focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed ${
+                            errors.trial_period_days ? 'border-red-300' : 'border-gray-200'
+                          }`}
+                          placeholder="Enter number of days"
+                          min="1"
+                          max="365"
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">
+                          days
+                        </span>
+                      </div>
+                      {errors.trial_period_days && (
+                        <p className="mt-1.5 text-sm text-red-600 flex items-center gap-1">
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                          </svg>
+                          {errors.trial_period_days}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Summary */}
+                    <div className="bg-white/80 rounded-lg p-3 border border-violet-100">
+                      <p className="text-sm text-gray-700">
+                        Users will have <span className="font-bold text-violet-600">{formData.trial_period_days} days</span> of free access
+                        before billing starts.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Collapsed State Info */}
+                {!formData.has_trial && (
+                  <p className="text-xs text-gray-500 pl-13">
+                    Enable to offer a free trial period for new subscribers
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Status Toggles */}
             <div className="bg-gray-50 rounded-xl p-5 space-y-4">
@@ -892,6 +1203,7 @@ const PlansManagement = () => {
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Plan Details</th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Type</th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Pricing</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Trial</th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Inclusions</th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
                       <th className="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
@@ -924,6 +1236,23 @@ const PlansManagement = () => {
                         <td className="px-6 py-5">
                           <div className="text-sm font-bold text-gray-900">${parseFloat(plan.base_price).toFixed(2)}</div>
                           <div className="text-xs text-gray-500 mt-0.5">Base / {plan.billing_period}</div>
+                        </td>
+                        <td className="px-6 py-5">
+                          {plan.has_trial && plan.trial_period_days > 0 ? (
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-sm">
+                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              </div>
+                              <div>
+                                <div className="text-sm font-bold text-violet-700">{plan.trial_period_days} days</div>
+                                <div className="text-xs text-gray-500">Free trial</div>
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400 italic">No trial</span>
+                          )}
                         </td>
                         <td className="px-6 py-5">
                           <div className="text-xs text-gray-600 space-y-1.5">

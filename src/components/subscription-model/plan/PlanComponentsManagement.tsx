@@ -18,6 +18,7 @@ interface FormData {
   name: string;
   component_type: string;
   description: string;
+  quantity: string;
   unit_label: string;
   cost_per_unit: string;
   price_per_unit: string;
@@ -45,6 +46,7 @@ const DEFAULT_FORM_DATA: FormData = {
   name: '',
   component_type: '',
   description: '',
+  quantity: '',
   unit_label: '',
   cost_per_unit: '',
   price_per_unit: '',
@@ -347,6 +349,7 @@ const PlanComponentsManagement = () => {
     name: data.name,
     component_type: data.component_type,
     description: data.description || null,
+    quantity: data.quantity ? parseFloat(data.quantity) : null,
     unit_label: data.unit_label,
     cost_per_unit: data.cost_per_unit ? parseFloat(data.cost_per_unit) : null,
     price_per_unit: data.price_per_unit ? parseFloat(data.price_per_unit) : null,
@@ -401,6 +404,7 @@ const PlanComponentsManagement = () => {
       name: component.name,
       component_type: component.component_type,
       description: component.description || '',
+      quantity: component.quantity?.toString() || '',
       unit_label: component.unit_label,
       cost_per_unit: component.cost_per_unit?.toString() || '',
       price_per_unit: component.price_per_unit?.toString() || '',
@@ -519,7 +523,7 @@ const PlanComponentsManagement = () => {
                     <tr className="bg-gray-50 border-b border-gray-100">
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Component</th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Unit</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Quantity / Unit</th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Pricing</th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Promotion</th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
@@ -551,9 +555,16 @@ const PlanComponentsManagement = () => {
                             )}
                           </td>
                           <td className="px-6 py-4">
-                            <span className="text-sm text-gray-600 font-mono bg-gray-100 px-2 py-0.5 rounded">
-                              {component.unit_label}
-                            </span>
+                            <div className="space-y-1">
+                              {component.quantity && (
+                                <div className="text-sm font-semibold text-gray-900">
+                                  {Number(component.quantity).toLocaleString()}
+                                </div>
+                              )}
+                              <span className="text-sm text-gray-600 font-mono bg-gray-100 px-2 py-0.5 rounded">
+                                {component.unit_label}
+                              </span>
+                            </div>
                           </td>
                           <td className="px-6 py-4">
                             <div className="space-y-1">
@@ -735,22 +746,41 @@ const PlanComponentsManagement = () => {
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Unit Label <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.unit_label}
-                      onChange={(e) => handleUnitLabelChange(e.target.value)}
-                      disabled={isProcessing}
-                      className={`w-full px-3.5 py-2.5 bg-gray-50 border rounded-xl focus:bg-white focus:ring-2 disabled:opacity-50 transition-all ${
-                        unitLabelError ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500' : 'border-gray-200 focus:ring-indigo-500/20 focus:border-indigo-500'
-                      }`}
-                      placeholder="e.g., tokens, gb"
-                      required
-                    />
-                    {unitLabelError && <p className="text-xs text-red-500 mt-1">{unitLabelError}</p>}
+                  {/* Quantity & Unit Label */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Total Units (Quantity)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.quantity}
+                        onChange={(e) => setFormData(prev => ({ ...prev, quantity: e.target.value }))}
+                        disabled={isProcessing}
+                        className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:opacity-50 transition-all"
+                        placeholder="e.g., 1000000"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Amount of resource (e.g., 1M tokens, 10 GB)</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Unit Label <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.unit_label}
+                        onChange={(e) => handleUnitLabelChange(e.target.value)}
+                        disabled={isProcessing}
+                        className={`w-full px-3.5 py-2.5 bg-gray-50 border rounded-xl focus:bg-white focus:ring-2 disabled:opacity-50 transition-all ${
+                          unitLabelError ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500' : 'border-gray-200 focus:ring-indigo-500/20 focus:border-indigo-500'
+                        }`}
+                        placeholder="e.g., tokens, gb"
+                        required
+                      />
+                      {unitLabelError && <p className="text-xs text-red-500 mt-1">{unitLabelError}</p>}
+                    </div>
                   </div>
 
                   {/* Pricing */}

@@ -102,6 +102,9 @@ export interface Plan {
   billing_period: 'monthly' | 'quarterly' | 'yearly';
   billing_mode: 'prepaid' | 'postpaid';
   grace_period_days: number;
+  // Trial period fields (for free plans)
+  has_trial: boolean;
+  trial_period_days: number;
   cost_per_unit: string | null;
   promotion_code: string | null;
   promotion_valid_from: string | null;
@@ -163,6 +166,9 @@ export interface CreatePlanRequest {
   billing_period: string;
   billing_mode: string;
   grace_period_days?: number;
+  // Trial period fields (for free plans)
+  has_trial?: boolean;
+  trial_period_days?: number;
   cost_per_unit?: number | string | null;
   promotion_code?: string | null;
   promotion_valid_from?: string | null;
