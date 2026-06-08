@@ -113,10 +113,11 @@ export const mlAnalyticsApi = createApi({
   tagTypes: ["MLMetrics"],
   endpoints: (builder) => ({
     // Get ML Metrics Summary for an agent
-    getMLMetricsSummary: builder.query<MLMetricsSummary, { agent_id: string }>({
-      query: ({ agent_id }) => ({
+    getMLMetricsSummary: builder.query<MLMetricsSummary, { agent_id: string } & MLDateRangeParams>({
+      query: ({ agent_id, ...params }) => ({
         url: `/api/metrics/${agent_id}/summary`,
         method: "GET",
+        params,
       }),
       providesTags: ["MLMetrics"],
     }),

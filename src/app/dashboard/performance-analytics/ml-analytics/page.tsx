@@ -10,8 +10,8 @@ import {
 import { useGetAgentsListQuery } from "@/features/performanceAnalytics/performanceAnalyticsApi";
 import { PageHeader, StatCard, ChartCard } from "@/components/performance-analytics/shared";
 import {
-  AreaChart,
-  Area,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -75,7 +75,7 @@ export default function MLAnalyticsPage() {
     isFetching: summaryFetching,
     refetch: refetchSummary,
   } = useGetMLMetricsSummaryQuery(
-    { agent_id: selectedAgentId },
+    { agent_id: selectedAgentId, ...dateParams },
     { skip: !selectedAgentId }
   );
 
@@ -493,13 +493,7 @@ export default function MLAnalyticsPage() {
                 className="lg:col-span-2"
               >
                 <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={timeseries?.daily?.map((d) => ({ ...d, date: formatDate(d.date) })) || []}>
-                    <defs>
-                      <linearGradient id="colorLatency" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={CHART_COLORS.latency} stopOpacity={0.3} />
-                        <stop offset="95%" stopColor={CHART_COLORS.latency} stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
+                  <LineChart data={timeseries?.daily?.map((d) => ({ ...d, date: formatDate(d.date) })) || []}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                     <XAxis dataKey="date" tick={{ fontSize: 12, fill: "#6B7280" }} />
                     <YAxis tick={{ fontSize: 12, fill: "#6B7280" }} tickFormatter={(v) => `${v}ms`} />
@@ -511,9 +505,9 @@ export default function MLAnalyticsPage() {
                       ]}
                     />
                     <Legend />
-                    <Area type="monotone" dataKey="avg_response_ms" name="Avg Response" stroke={CHART_COLORS.latency} strokeWidth={2} fill="url(#colorLatency)" />
-                    <Area type="monotone" dataKey="max_response_ms" name="Max Response" stroke="#EF4444" strokeWidth={1} fill="none" strokeDasharray="5 5" />
-                  </AreaChart>
+                    <Line type="monotone" dataKey="avg_response_ms" name="Avg Response" stroke={CHART_COLORS.latency} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                    <Line type="monotone" dataKey="max_response_ms" name="Max Response" stroke="#EF4444" strokeWidth={1} strokeDasharray="5 5" dot={false} />
+                  </LineChart>
                 </ResponsiveContainer>
               </ChartCard>
 
