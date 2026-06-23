@@ -86,6 +86,7 @@ export interface PlanAgentInclusion {
   agent_pricing: string | null;
   agent_pricing_name: string | null;
   included_instances: number;
+  per_instance_price: string;
   effective_price: string;
   is_featured: boolean;
   display_order: number;
@@ -204,6 +205,7 @@ export interface PlanAgentsResponse {
     id: string;
     agent_pricing: AgentPricing;
     included_instances: number;
+    per_instance_price: string;
     effective_price: string;
     is_featured: boolean;
     display_order: number;
@@ -446,6 +448,7 @@ export interface AddAgentToPlanRequest {
   agents: Array<{
     agent_pricing_id: string;
     included_instances?: number;
+    per_instance_price?: number;
     is_included?: boolean;
   }>;
 }
@@ -924,6 +927,7 @@ export const billingApi = createApi({
       data: {
         agent_pricing_id?: string;
         included_instances?: number;
+        per_instance_price?: number;
         is_featured?: boolean;
         display_order?: number;
       }

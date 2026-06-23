@@ -25,12 +25,12 @@ interface ApiError {
 
 interface FormData {
   agent_pricing_id: string;
-  included_instances: number;
+  per_instance_price: number;
   display_order: number;
 }
 
 interface EditFormData {
-  included_instances: number;
+  per_instance_price: number;
   is_featured: boolean;
   display_order: number;
 }
@@ -40,12 +40,12 @@ interface EditFormData {
 // ============================================
 const DEFAULT_FORM_DATA: FormData = {
   agent_pricing_id: '',
-  included_instances: 1,
+  per_instance_price: 0,
   display_order: 0,
 };
 
 const DEFAULT_EDIT_FORM_DATA: EditFormData = {
-  included_instances: 1,
+  per_instance_price: 0,
   is_featured: false,
   display_order: 0,
 };
@@ -141,8 +141,8 @@ const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div className="text-gray-500">Pricing Tier:</div>
                 <div className="font-medium text-gray-900">{inclusion.agent_pricing?.name || 'Default'}</div>
-                <div className="text-gray-500">Instances:</div>
-                <div className="font-medium text-gray-900">{inclusion.included_instances}</div>
+                <div className="text-gray-500">Per Instance Price:</div>
+                <div className="font-medium text-gray-900">${parseFloat(inclusion.per_instance_price || '0').toFixed(2)}</div>
                 <div className="text-gray-500">Effective Price:</div>
                 <div className="font-medium text-gray-900">${parseFloat(inclusion.effective_price || '0').toFixed(2)}</div>
               </div>
@@ -302,21 +302,22 @@ const AddAgentModal: React.FC<AddAgentModalProps> = ({
               </div>
             )}
 
-            {/* Instances */}
+            {/* Per Instance Price */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Included Instances <span className="text-red-500">*</span>
+                Per Instance Price ($) <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
                 min="0"
-                value={formData.included_instances}
-                onChange={(e) => setFormData({ ...formData, included_instances: parseInt(e.target.value) || 1 })}
+                step="0.01"
+                value={formData.per_instance_price}
+                onChange={(e) => setFormData({ ...formData, per_instance_price: parseFloat(e.target.value) || 0 })}
                 disabled={isLoading}
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:bg-gray-100"
                 required
               />
-              <p className="text-xs text-gray-500 mt-1">Number of agent instances included (0 = unlimited)</p>
+              <p className="text-xs text-gray-500 mt-1">Price charged per instance creation from this agent template</p>
             </div>
 
             {/* Display Order */}
@@ -392,7 +393,7 @@ const EditAgentModal: React.FC<EditAgentModalProps> = ({
   useEffect(() => {
     if (isOpen && inclusion) {
       setFormData({
-        included_instances: inclusion.included_instances,
+        per_instance_price: parseFloat(inclusion.per_instance_price || '0'),
         is_featured: inclusion.is_featured,
         display_order: inclusion.display_order,
       });
@@ -451,20 +452,22 @@ const EditAgentModal: React.FC<EditAgentModalProps> = ({
               </div>
             </div>
 
-            {/* Instances */}
+            {/* Per Instance Price */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Included Instances <span className="text-red-500">*</span>
+                Per Instance Price ($) <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
                 min="0"
-                value={formData.included_instances}
-                onChange={(e) => setFormData({ ...formData, included_instances: parseInt(e.target.value) || 1 })}
+                step="0.01"
+                value={formData.per_instance_price}
+                onChange={(e) => setFormData({ ...formData, per_instance_price: parseFloat(e.target.value) || 0 })}
                 disabled={isLoading}
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:bg-gray-100"
                 required
               />
+              <p className="text-xs text-gray-500 mt-1">Price charged per instance creation</p>
             </div>
 
             {/* Display Order */}
@@ -636,7 +639,7 @@ const PlanAgentInclusionManagement = () => {
         data: {
           agents: [{
             agent_pricing_id: formData.agent_pricing_id,
-            included_instances: formData.included_instances,
+            per_instance_price: formData.per_instance_price,
           }]
         },
       }).unwrap();
@@ -661,7 +664,7 @@ const PlanAgentInclusionManagement = () => {
         inclusionId: selectedInclusion.id,
         data: {
           agent_pricing_id: selectedInclusion.agent_pricing?.id || '',
-          included_instances: formData.included_instances,
+          per_instance_price: formData.per_instance_price,
           is_featured: formData.is_featured,
           display_order: formData.display_order,
         },
@@ -844,8 +847,8 @@ const PlanAgentInclusionManagement = () => {
                       <tr>
                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Agent</th>
                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Pricing Tier</th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Instances</th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Price</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Per Instance Price</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Base Price</th>
                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Billing</th>
                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
                         <th className="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
@@ -874,14 +877,14 @@ const PlanAgentInclusionManagement = () => {
                             )}
                           </td>
                           <td className="px-6 py-5">
-                            <span className="inline-flex px-2.5 py-1 bg-indigo-100 text-indigo-800 rounded-lg text-sm font-semibold">
-                              {inclusion.included_instances} {inclusion.included_instances === 1 ? 'instance' : 'instances'}
+                            <span className="inline-flex px-2.5 py-1 bg-green-100 text-green-800 rounded-lg text-sm font-semibold">
+                              {formatPrice(inclusion.per_instance_price)}
                             </span>
                           </td>
                           <td className="px-6 py-5">
-                            <div className="text-sm font-bold text-gray-900">{formatPrice(inclusion.effective_price)}</div>
+                            <div className="text-sm font-bold text-gray-900">{formatPrice(inclusion.agent_pricing?.price)}</div>
                             <div className="text-xs text-gray-500">
-                              {formatPrice(inclusion.agent_pricing?.price)} / {inclusion.agent_pricing?.unit}
+                              per {inclusion.agent_pricing?.unit}
                             </div>
                           </td>
                           <td className="px-6 py-5">
