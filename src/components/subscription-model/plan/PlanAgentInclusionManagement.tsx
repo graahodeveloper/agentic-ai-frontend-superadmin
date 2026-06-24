@@ -25,12 +25,12 @@ interface ApiError {
 
 interface FormData {
   agent_pricing_id: string;
-  per_instance_price: number;
+  included_instances: number;
   display_order: number;
 }
 
 interface EditFormData {
-  per_instance_price: number;
+  included_instances: number;
   is_featured: boolean;
   display_order: number;
 }
@@ -40,12 +40,12 @@ interface EditFormData {
 // ============================================
 const DEFAULT_FORM_DATA: FormData = {
   agent_pricing_id: '',
-  per_instance_price: 0,
+  included_instances: 1,
   display_order: 0,
 };
 
 const DEFAULT_EDIT_FORM_DATA: EditFormData = {
-  per_instance_price: 0,
+  included_instances: 1,
   is_featured: false,
   display_order: 0,
 };
@@ -141,8 +141,8 @@ const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div className="text-gray-500">Pricing Tier:</div>
                 <div className="font-medium text-gray-900">{inclusion.agent_pricing?.name || 'Default'}</div>
-                <div className="text-gray-500">Per Instance Price:</div>
-                <div className="font-medium text-gray-900">${parseFloat(inclusion.per_instance_price || '0').toFixed(2)}</div>
+                <div className="text-gray-500">Instances:</div>
+                <div className="font-medium text-gray-900">{inclusion.included_instances === 0 ? 'Unlimited' : inclusion.included_instances}</div>
                 <div className="text-gray-500">Effective Price:</div>
                 <div className="font-medium text-gray-900">${parseFloat(inclusion.effective_price || '0').toFixed(2)}</div>
               </div>
@@ -302,22 +302,56 @@ const AddAgentModal: React.FC<AddAgentModalProps> = ({
               </div>
             )}
 
-            {/* Per Instance Price */}
+            {/* Included Instances */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Per Instance Price ($) <span className="text-red-500">*</span>
+                Included Instances <span className="text-red-500">*</span>
               </label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={formData.per_instance_price}
-                onChange={(e) => setFormData({ ...formData, per_instance_price: parseFloat(e.target.value) || 0 })}
-                disabled={isLoading}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:bg-gray-100"
-                required
-              />
-              <p className="text-xs text-gray-500 mt-1">Price charged per instance creation from this agent template</p>
+
+              {/* Unlimited Toggle */}
+              <div className="flex items-center gap-3 mb-3 p-3 bg-indigo-50 rounded-xl border border-indigo-200">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, included_instances: formData.included_instances === 0 ? 1 : 0 })}
+                  disabled={isLoading}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 ${
+                    formData.included_instances === 0 ? 'bg-indigo-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    formData.included_instances === 0 ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </button>
+                <div>
+                  <p className="font-medium text-indigo-900">Unlimited Instances</p>
+                  <p className="text-xs text-indigo-700">Allow unlimited agent instances</p>
+                </div>
+              </div>
+
+              {formData.included_instances !== 0 && (
+                <input
+                  type="number"
+                  min="1"
+                  value={formData.included_instances}
+                  onChange={(e) => setFormData({ ...formData, included_instances: Math.max(1, parseInt(e.target.value) || 1) })}
+                  disabled={isLoading}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:bg-gray-100"
+                  required
+                />
+              )}
+              {formData.included_instances === 0 && (
+                <div className="w-full px-4 py-3 bg-indigo-100 border border-indigo-200 rounded-xl text-indigo-800 font-medium flex items-center gap-2">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Unlimited instances enabled
+                </div>
+              )}
+              <p className="text-xs text-gray-500 mt-1">
+                {formData.included_instances === 0
+                  ? 'Users can create as many instances as they need'
+                  : 'Number of agent instances included in this plan'}
+              </p>
             </div>
 
             {/* Display Order */}
@@ -393,7 +427,7 @@ const EditAgentModal: React.FC<EditAgentModalProps> = ({
   useEffect(() => {
     if (isOpen && inclusion) {
       setFormData({
-        per_instance_price: parseFloat(inclusion.per_instance_price || '0'),
+        included_instances: inclusion.included_instances,
         is_featured: inclusion.is_featured,
         display_order: inclusion.display_order,
       });
@@ -452,22 +486,56 @@ const EditAgentModal: React.FC<EditAgentModalProps> = ({
               </div>
             </div>
 
-            {/* Per Instance Price */}
+            {/* Included Instances */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Per Instance Price ($) <span className="text-red-500">*</span>
+                Included Instances <span className="text-red-500">*</span>
               </label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={formData.per_instance_price}
-                onChange={(e) => setFormData({ ...formData, per_instance_price: parseFloat(e.target.value) || 0 })}
-                disabled={isLoading}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:bg-gray-100"
-                required
-              />
-              <p className="text-xs text-gray-500 mt-1">Price charged per instance creation</p>
+
+              {/* Unlimited Toggle */}
+              <div className="flex items-center gap-3 mb-3 p-3 bg-indigo-50 rounded-xl border border-indigo-200">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, included_instances: formData.included_instances === 0 ? 1 : 0 })}
+                  disabled={isLoading}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 ${
+                    formData.included_instances === 0 ? 'bg-indigo-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    formData.included_instances === 0 ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </button>
+                <div>
+                  <p className="font-medium text-indigo-900">Unlimited Instances</p>
+                  <p className="text-xs text-indigo-700">Allow unlimited agent instances</p>
+                </div>
+              </div>
+
+              {formData.included_instances !== 0 && (
+                <input
+                  type="number"
+                  min="1"
+                  value={formData.included_instances}
+                  onChange={(e) => setFormData({ ...formData, included_instances: Math.max(1, parseInt(e.target.value) || 1) })}
+                  disabled={isLoading}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:bg-gray-100"
+                  required
+                />
+              )}
+              {formData.included_instances === 0 && (
+                <div className="w-full px-4 py-3 bg-indigo-100 border border-indigo-200 rounded-xl text-indigo-800 font-medium flex items-center gap-2">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Unlimited instances enabled
+                </div>
+              )}
+              <p className="text-xs text-gray-500 mt-1">
+                {formData.included_instances === 0
+                  ? 'Users can create as many instances as they need'
+                  : 'Number of agent instances included in this plan'}
+              </p>
             </div>
 
             {/* Display Order */}
@@ -639,7 +707,7 @@ const PlanAgentInclusionManagement = () => {
         data: {
           agents: [{
             agent_pricing_id: formData.agent_pricing_id,
-            per_instance_price: formData.per_instance_price,
+            included_instances: formData.included_instances,
           }]
         },
       }).unwrap();
@@ -664,7 +732,7 @@ const PlanAgentInclusionManagement = () => {
         inclusionId: selectedInclusion.id,
         data: {
           agent_pricing_id: selectedInclusion.agent_pricing?.id || '',
-          per_instance_price: formData.per_instance_price,
+          included_instances: formData.included_instances,
           is_featured: formData.is_featured,
           display_order: formData.display_order,
         },
@@ -847,8 +915,8 @@ const PlanAgentInclusionManagement = () => {
                       <tr>
                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Agent</th>
                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Pricing Tier</th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Per Instance Price</th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Base Price</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Instances</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Price</th>
                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Billing</th>
                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
                         <th className="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
@@ -877,14 +945,14 @@ const PlanAgentInclusionManagement = () => {
                             )}
                           </td>
                           <td className="px-6 py-5">
-                            <span className="inline-flex px-2.5 py-1 bg-green-100 text-green-800 rounded-lg text-sm font-semibold">
-                              {formatPrice(inclusion.per_instance_price)}
+                            <span className="inline-flex px-2.5 py-1 bg-indigo-100 text-indigo-800 rounded-lg text-sm font-semibold">
+                              {inclusion.included_instances === 0 ? 'Unlimited' : `${inclusion.included_instances} ${inclusion.included_instances === 1 ? 'instance' : 'instances'}`}
                             </span>
                           </td>
                           <td className="px-6 py-5">
-                            <div className="text-sm font-bold text-gray-900">{formatPrice(inclusion.agent_pricing?.price)}</div>
+                            <div className="text-sm font-bold text-gray-900">{formatPrice(inclusion.effective_price)}</div>
                             <div className="text-xs text-gray-500">
-                              per {inclusion.agent_pricing?.unit}
+                              {formatPrice(inclusion.agent_pricing?.price)} / {inclusion.agent_pricing?.unit}
                             </div>
                           </td>
                           <td className="px-6 py-5">
