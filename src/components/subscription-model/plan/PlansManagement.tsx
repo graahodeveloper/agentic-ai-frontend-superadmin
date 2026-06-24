@@ -241,6 +241,10 @@ const CreateEditPlanModal: React.FC<CreateEditPlanModalProps> = ({
     is_public: false,
     display_order: '',
     featured: false,
+    promotion_code: '',
+    discount_percentage: '',
+    promotion_valid_from: '',
+    promotion_valid_until: '',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -261,6 +265,10 @@ const CreateEditPlanModal: React.FC<CreateEditPlanModalProps> = ({
         is_public: plan.is_public,
         display_order: plan.display_order?.toString() || '',
         featured: plan.featured,
+        promotion_code: plan.promotion_code || '',
+        discount_percentage: plan.discount_percentage || '',
+        promotion_valid_from: plan.promotion_valid_from || '',
+        promotion_valid_until: plan.promotion_valid_until || '',
       });
     } else {
       setFormData({
@@ -277,6 +285,10 @@ const CreateEditPlanModal: React.FC<CreateEditPlanModalProps> = ({
         is_public: false,
         display_order: '',
         featured: false,
+        promotion_code: '',
+        discount_percentage: '',
+        promotion_valid_from: '',
+        promotion_valid_until: '',
       });
     }
     setErrors({});
@@ -339,6 +351,10 @@ const CreateEditPlanModal: React.FC<CreateEditPlanModalProps> = ({
         is_public: formData.is_public,
         display_order: formData.display_order ? parseInt(formData.display_order) : 0,
         featured: formData.featured,
+        promotion_code: formData.promotion_code || null,
+        discount_percentage: formData.discount_percentage ? parseFloat(formData.discount_percentage) : null,
+        promotion_valid_from: formData.promotion_valid_from || null,
+        promotion_valid_until: formData.promotion_valid_until || null,
       };
 
       if (isEditMode && plan) {
@@ -856,6 +872,66 @@ const CreateEditPlanModal: React.FC<CreateEditPlanModalProps> = ({
                 )}
               </div>
             )}
+
+            {/* Promotion Section */}
+            <div className="bg-purple-50/50 rounded-xl p-5 border border-purple-100">
+              <h3 className="text-sm font-semibold text-purple-900 mb-4">Promotion (Optional)</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Promotion Code</label>
+                  <input
+                    type="text"
+                    value={formData.promotion_code}
+                    onChange={(e) => handleInputChange('promotion_code', e.target.value.toUpperCase())}
+                    disabled={isLoading}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed uppercase tracking-wider"
+                    placeholder="e.g. SAVE20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Discount %</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={formData.discount_percentage}
+                    onChange={(e) => handleInputChange('discount_percentage', e.target.value)}
+                    disabled={isLoading}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Valid From</label>
+                  <input
+                    type="datetime-local"
+                    value={formData.promotion_valid_from}
+                    onChange={(e) => handleInputChange('promotion_valid_from', e.target.value)}
+                    disabled={isLoading}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Valid Until</label>
+                  <input
+                    type="datetime-local"
+                    value={formData.promotion_valid_until}
+                    onChange={(e) => handleInputChange('promotion_valid_until', e.target.value)}
+                    disabled={isLoading}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  />
+                </div>
+              </div>
+              {formData.promotion_code && (
+                <div className="mt-3 px-3 py-2 bg-purple-100 rounded-lg text-xs text-purple-700">
+                  Code <span className="font-bold">{formData.promotion_code}</span> gives{' '}
+                  <span className="font-bold">{formData.discount_percentage || 0}%</span> off
+                  {formData.promotion_valid_from && ` from ${new Date(formData.promotion_valid_from).toLocaleDateString()}`}
+                  {formData.promotion_valid_until && ` until ${new Date(formData.promotion_valid_until).toLocaleDateString()}`}.
+                </div>
+              )}
+            </div>
 
             {/* Status Toggles */}
             <div className="bg-gray-50 rounded-xl p-5 space-y-4">
