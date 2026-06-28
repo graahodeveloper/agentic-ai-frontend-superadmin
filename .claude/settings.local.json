@@ -5,7 +5,8 @@
       "Bash(grep -rl \"plan\\\\|subscri\\\\|promo\\\\|upgrade\" C:/Users/Asus/Desktop/graaho-ai/graaho-ai-agent-frontend/src --include=*.tsx --include=*.ts)",
       "Bash(npm run:*)",
       "Bash(npx next:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(git push:*)"
     ]
   }
 }
