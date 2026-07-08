@@ -6,7 +6,20 @@
       "Bash(npm run:*)",
       "Bash(npx next:*)",
       "Bash(npx tsc:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(source:*)",
+      "Bash(python manage.py makemigrations:*)",
+      "Bash(python manage.py migrate:*)",
+      "Bash(curl:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(find:*)",
+      "Bash(python manage.py check:*)",
+      "Bash(python3 -m json.tool:*)",
+      "Bash(docker-compose restart:*)",
+      "Bash(docker-compose logs:*)",
+      "Bash(docker-compose exec:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(grep:*)"
     ]
   }
 }

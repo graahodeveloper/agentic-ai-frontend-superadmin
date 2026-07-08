@@ -29,13 +29,13 @@ interface AgentComponentPricing {
   component_id: string;
   component_name: string;
   component_type: string;
-  component_type_display: string;
-  consumption_rate: number;
-  base_price_per_unit: number;
-  override_price_per_unit: number | null;
+  component_type_display?: string;
+  total_quantity: number | string | null;
+  base_price_per_unit: number | string;
+  override_price: number | string | null;
   effective_price_per_unit: number;
-  cost_per_execution: number;
   unit_label: string;
+  is_unlimited: boolean;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -119,7 +119,9 @@ const useGetAgentComponents = (agentId: string) => {
 
 interface FormData {
   component_id: string;
+  total_quantity: string;
   override_price: string;
+  is_unlimited: boolean;
 }
 
 // Loading Spinner Component
@@ -280,7 +282,7 @@ const AddComponentModal = ({
   agentName: string;
   isAdding: boolean;
   isLoadingComponents: boolean;
-  formatPrice: (price: string | number) => string;
+  formatPrice: (price: string | number | null | undefined) => string;
   formatCost: (cost: number) => string;
 }) => {
   if (!isOpen) return null;
@@ -343,28 +345,98 @@ const AddComponentModal = ({
             )}
           </div>
 
-          {/* Override Price */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Override Price <span className="text-gray-400 font-normal">(Optional)</span>
-            </label>
-            <div className="relative">
-              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">$</div>
-              <input
-                type="number"
-                step="0.000001"
-                min="0"
-                value={formData.override_price}
-                onChange={(e) => setFormData({ ...formData, override_price: e.target.value })}
-                className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                placeholder="Leave empty for default price"
-                disabled={isAdding}
-              />
+          {/* Total Quantity Input (only shown if not unlimited) */}
+          {!formData.is_unlimited && formData.component_id && (
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Total Quantity <span className="text-gray-400 font-normal">(Optional)</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={formData.total_quantity}
+                  onChange={(e) => setFormData({ ...formData, total_quantity: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                  placeholder="Total quantity to allocate"
+                  disabled={isAdding}
+                />
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
+                  {components.find(c => c.id === formData.component_id)?.unit_label || 'units'}
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Total quantity of this component allocated for this agent (added to user wallet)
+              </p>
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Custom price per unit (overrides component&apos;s default price)
-            </p>
+          )}
+
+          {/* Override Price & Unlimited Toggle */}
+          <div className="flex items-start gap-4">
+            {/* Override Price */}
+            <div className="flex-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Override Price <span className="text-gray-400 font-normal">(Optional)</span>
+              </label>
+              <div className="relative">
+                <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">$</div>
+                <input
+                  type="number"
+                  step="0.000001"
+                  min="0"
+                  value={formData.override_price}
+                  onChange={(e) => setFormData({ ...formData, override_price: e.target.value })}
+                  className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                  placeholder="Leave empty for default price"
+                  disabled={isAdding}
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Custom price per unit (overrides component&apos;s default price)
+              </p>
+            </div>
+
+            {/* Unlimited Toggle */}
+            <div className="pt-8">
+              <label className="flex items-center gap-3 cursor-pointer group">
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_unlimited}
+                    onChange={(e) => setFormData({ ...formData, is_unlimited: e.target.checked, total_quantity: e.target.checked ? '' : formData.total_quantity })}
+                    disabled={isAdding}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-emerald-500 peer-disabled:opacity-50 transition-colors" />
+                  <div className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow peer-checked:translate-x-5 transition-transform" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold text-gray-700 group-hover:text-gray-900">Unlimited</span>
+                  <span className="text-xs text-gray-500">No usage limits</span>
+                </div>
+              </label>
+            </div>
           </div>
+
+          {/* Unlimited Info Banner */}
+          {formData.is_unlimited && (
+            <div className="p-4 bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl border border-emerald-200">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-emerald-900">Unlimited Usage Enabled</h4>
+                  <p className="text-xs text-emerald-700 mt-1">
+                    Users will have unlimited consumption of this component for this agent. The user&apos;s wallet will be marked as unlimited for this resource.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Preview */}
           {formData.component_id && (
@@ -373,21 +445,21 @@ const AddComponentModal = ({
                 <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                 </svg>
-                <span className="text-sm font-semibold text-gray-900">Cost Preview</span>
+                <span className="text-sm font-semibold text-gray-900">Configuration Preview</span>
               </div>
               {(() => {
                 const selectedComp = components.find(c => c.id === formData.component_id);
                 if (!selectedComp) return null;
-                const consumptionRate = 1;
                 const effectivePrice = formData.override_price
                   ? parseFloat(formData.override_price)
                   : parseFloat(selectedComp.price_per_unit);
-                const costPerExecution = consumptionRate * effectivePrice;
                 return (
                   <div className="text-sm text-gray-600 space-y-2">
                     <div className="flex justify-between">
-                      <span>Consumption Rate:</span>
-                      <span className="font-medium">{consumptionRate} {selectedComp.unit_label}/execution</span>
+                      <span>Total Quantity:</span>
+                      <span className="font-medium">
+                        {formData.is_unlimited ? 'Unlimited' : `${formData.total_quantity ? Number(formData.total_quantity).toLocaleString() : '—'} ${selectedComp.unit_label}`}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span>Base Price:</span>
@@ -400,8 +472,8 @@ const AddComponentModal = ({
                       </div>
                     )}
                     <div className="pt-2 border-t border-blue-200 flex justify-between text-indigo-700">
-                      <span className="font-semibold">Cost per Execution:</span>
-                      <span className="font-bold">{formatCost(costPerExecution)}</span>
+                      <span className="font-semibold">Effective Price:</span>
+                      <span className="font-bold">{formatPrice(effectivePrice)}/{selectedComp.unit_label}</span>
                     </div>
                   </div>
                 );
@@ -464,136 +536,212 @@ const EditComponentModal = ({
   setFormData: React.Dispatch<React.SetStateAction<FormData>>;
   selectedComponent: AgentComponentPricing | null;
   isUpdating: boolean;
-  formatPrice: (price: string | number) => string;
+  formatPrice: (price: string | number | null | undefined) => string;
   formatCost: (cost: number) => string;
 }) => {
   if (!isOpen || !selectedComponent) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-hidden shadow-2xl">
-        <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[92vh] overflow-hidden shadow-2xl ring-1 ring-black/5">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-8 py-5 relative overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.15),transparent_60%)]" />
+          <div className="flex items-center justify-between relative">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-white/15 ring-1 ring-white/30 rounded-xl flex items-center justify-center shadow-inner">
                 <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
               </div>
               <div>
-                <h3 className="text-xl font-bold text-white">Edit Component</h3>
-                <p className="text-green-200 text-sm">{selectedComponent.component_name}</p>
+                <h3 className="text-xl font-bold text-white tracking-tight">Edit Component</h3>
+                <p className="text-green-100/90 text-sm mt-0.5">{selectedComponent.component_name}</p>
               </div>
             </div>
             <button
               onClick={onClose}
               disabled={isUpdating}
-              className="p-2 rounded-full hover:bg-white/20 transition-colors"
+              className="p-2 rounded-full hover:bg-white/15 transition-colors disabled:opacity-50"
             >
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
         </div>
 
-        <form onSubmit={onSubmit} className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-80px)]">
-          {/* Current Component Info */}
-          <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl">
-            <div className="flex items-center gap-2 mb-3">
-              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span className="text-sm font-semibold text-gray-900">Current Configuration</span>
-            </div>
-            <div className="text-sm text-gray-600 space-y-2">
-              <div className="flex justify-between">
-                <span>Component:</span>
-                <span className="font-medium text-gray-900">{selectedComponent.component_name}</span>
+        <form onSubmit={onSubmit} className="p-8 space-y-7 overflow-y-auto max-h-[calc(92vh-88px)]">
+          {/* Current Configuration & Live Preview side by side */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Current Component Info */}
+            <div className="p-5 bg-gray-50 rounded-xl border border-gray-200">
+              <div className="flex items-center gap-2 mb-4">
+                <svg className="w-4.5 h-4.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Current Configuration</span>
               </div>
-              <div className="flex justify-between">
-                <span>Type:</span>
-                <span className="font-medium">{selectedComponent.component_type_display}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Consumption Rate:</span>
-                <span className="font-medium">{selectedComponent.consumption_rate} {selectedComponent.unit_label}/execution</span>
-              </div>
-              <div className="flex justify-between text-indigo-600">
-                <span>Base Price:</span>
-                <span className="font-medium">{formatPrice(selectedComponent.base_price_per_unit)}/{selectedComponent.unit_label}</span>
-              </div>
-              {selectedComponent.override_price_per_unit && (
-                <div className="flex justify-between text-orange-600">
-                  <span>Current Override:</span>
-                  <span className="font-medium">{formatPrice(selectedComponent.override_price_per_unit)}/{selectedComponent.unit_label}</span>
+              <div className="text-sm text-gray-600 space-y-2.5">
+                <div className="flex justify-between">
+                  <span>Component</span>
+                  <span className="font-medium text-gray-900">{selectedComponent.component_name}</span>
                 </div>
-              )}
-              <div className="pt-2 border-t border-gray-200 flex justify-between text-green-600">
-                <span className="font-semibold">Current Cost:</span>
-                <span className="font-bold">{formatCost(selectedComponent.cost_per_execution)}/execution</span>
+                <div className="flex justify-between">
+                  <span>Type</span>
+                  <span className="font-medium text-gray-900">{selectedComponent.component_type_display}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Total Quantity</span>
+                  <span className="font-medium text-gray-900">
+                    {selectedComponent.is_unlimited ? 'Unlimited' : `${selectedComponent.total_quantity ? Number(selectedComponent.total_quantity).toLocaleString() : '—'} ${selectedComponent.unit_label}`}
+                  </span>
+                </div>
+                <div className="flex justify-between text-indigo-600">
+                  <span>Base Price</span>
+                  <span className="font-medium">{formatPrice(selectedComponent.base_price_per_unit)}/{selectedComponent.unit_label}</span>
+                </div>
+                {selectedComponent.override_price && (
+                  <div className="flex justify-between text-orange-600">
+                    <span>Current Override</span>
+                    <span className="font-medium">{formatPrice(selectedComponent.override_price)}/{selectedComponent.unit_label}</span>
+                  </div>
+                )}
+                <div className="pt-2.5 border-t border-gray-200 flex justify-between text-green-600">
+                  <span className="font-semibold">Effective Price</span>
+                  <span className="font-bold">{formatPrice(selectedComponent.effective_price_per_unit)}/{selectedComponent.unit_label}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Updated Pricing Preview */}
+            <div className="p-5 bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border border-green-200">
+              <div className="flex items-center gap-2 mb-4">
+                <svg className="w-4.5 h-4.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                <span className="text-xs font-semibold text-green-700 uppercase tracking-wide">Updated Preview</span>
+              </div>
+              <div className="text-sm text-gray-700 space-y-2.5">
+                <div className="flex justify-between">
+                  <span>Total Quantity</span>
+                  <span className="font-medium text-gray-900">
+                    {formData.is_unlimited ? 'Unlimited' : `${formData.total_quantity ? Number(formData.total_quantity).toLocaleString() : '—'} ${selectedComponent.unit_label}`}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Override Price</span>
+                  <span className="font-medium text-gray-900">
+                    {formData.override_price ? `${formatPrice(parseFloat(formData.override_price))}/${selectedComponent.unit_label}` : '—'}
+                  </span>
+                </div>
+                <div className="pt-2.5 border-t border-green-200 flex justify-between text-green-700">
+                  <span className="font-semibold">Effective Price</span>
+                  <span className="font-bold">
+                    {formatPrice(formData.override_price ? parseFloat(formData.override_price) : parseFloat(String(selectedComponent.base_price_per_unit)))}/{selectedComponent.unit_label}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Override Price */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Override Price <span className="text-gray-400 font-normal">(Optional)</span>
+          {/* Total Quantity & Override Price Inputs */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Total Quantity Input (only shown if not unlimited) */}
+            {!formData.is_unlimited ? (
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Total Quantity <span className="text-gray-400 font-normal">(Optional)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={formData.total_quantity}
+                    onChange={(e) => setFormData({ ...formData, total_quantity: e.target.value })}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all"
+                    placeholder="Total quantity to allocate"
+                    disabled={isUpdating}
+                  />
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
+                    {selectedComponent.unit_label}
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-1.5">
+                  Total quantity of this component allocated for this agent (added to user wallet)
+                </p>
+              </div>
+            ) : (
+              <div className="hidden md:block" />
+            )}
+
+            {/* Override Price */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Override Price <span className="text-gray-400 font-normal">(Optional)</span>
+              </label>
+              <div className="relative">
+                <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">$</div>
+                <input
+                  type="number"
+                  step="0.000001"
+                  min="0"
+                  value={formData.override_price}
+                  onChange={(e) => setFormData({ ...formData, override_price: e.target.value })}
+                  className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all"
+                  placeholder="Leave empty for default price"
+                  disabled={isUpdating}
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1.5">
+                Leave empty to remove override and use base price
+              </p>
+            </div>
+          </div>
+
+          {/* Unlimited Toggle */}
+          <div className="flex items-center justify-between p-4 border border-gray-200 rounded-xl">
+            <div className="flex flex-col">
+              <span className="text-sm font-semibold text-gray-700">Unlimited Usage</span>
+              <span className="text-xs text-gray-500 mt-0.5">Allow unrestricted consumption of this component</span>
+            </div>
+            <label className="flex items-center cursor-pointer">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={formData.is_unlimited}
+                  onChange={(e) => setFormData({ ...formData, is_unlimited: e.target.checked, total_quantity: e.target.checked ? '' : formData.total_quantity })}
+                  disabled={isUpdating}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-emerald-500 peer-disabled:opacity-50 transition-colors" />
+                <div className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow peer-checked:translate-x-5 transition-transform" />
+              </div>
             </label>
-            <div className="relative">
-              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">$</div>
-              <input
-                type="number"
-                step="0.000001"
-                min="0"
-                value={formData.override_price}
-                onChange={(e) => setFormData({ ...formData, override_price: e.target.value })}
-                className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all"
-                placeholder="Leave empty for default price"
-                disabled={isUpdating}
-              />
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Leave empty to remove override and use base price
-            </p>
           </div>
 
-          {/* Updated Cost Preview */}
-          <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
-            <div className="flex items-center gap-2 mb-3">
-              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-              </svg>
-              <span className="text-sm font-semibold text-gray-900">Updated Cost Preview</span>
-            </div>
-            <div className="text-sm text-gray-600 space-y-2">
-              <div className="flex justify-between">
-                <span>Consumption Rate:</span>
-                <span className="font-medium">{selectedComponent.consumption_rate} {selectedComponent.unit_label}/execution</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Effective Price:</span>
-                <span className="font-medium">
-                  {formatPrice(formData.override_price ? parseFloat(formData.override_price) : selectedComponent.base_price_per_unit)}/{selectedComponent.unit_label}
-                </span>
-              </div>
-              <div className="pt-2 border-t border-green-200 flex justify-between text-green-700">
-                <span className="font-semibold">New Cost per Execution:</span>
-                <span className="font-bold">
-                  {formatCost(
-                    selectedComponent.consumption_rate *
-                    (formData.override_price
-                      ? parseFloat(formData.override_price)
-                      : selectedComponent.base_price_per_unit)
-                  )}
-                </span>
+          {/* Unlimited Info Banner */}
+          {formData.is_unlimited && (
+            <div className="p-4 bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl border border-emerald-200">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-emerald-900">Unlimited Usage Enabled</h4>
+                  <p className="text-xs text-emerald-700 mt-1">
+                    Users will have unlimited consumption of this component for this agent. No usage tracking or limits will apply.
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+          <div className="flex items-center justify-end gap-3 pt-5 border-t border-gray-200">
             <button
               type="button"
               onClick={onClose}
@@ -641,7 +789,9 @@ const AgentComponentPricingManagement = () => {
   const [isRemoving, setIsRemoving] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     component_id: '',
+    total_quantity: '',
     override_price: '',
+    is_unlimited: false,
   });
 
   // Pagination state
@@ -690,7 +840,7 @@ const AgentComponentPricingManagement = () => {
       const matchesType = !typeFilter || comp.component_type === typeFilter;
       const matchesSearch = !searchQuery ||
         comp.component_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        comp.component_type_display.toLowerCase().includes(searchQuery.toLowerCase());
+        (comp.component_type_display || '').toLowerCase().includes(searchQuery.toLowerCase());
       return matchesType && matchesSearch;
     });
   }, [agentComponents, typeFilter, searchQuery]);
@@ -703,8 +853,18 @@ const AgentComponentPricingManagement = () => {
   const totalPages = Math.ceil(filteredComponents.length / pageSize);
 
   // Calculate totals
-  const totalCostPerExecution = useMemo(() => {
-    return agentComponents.reduce((sum, comp) => sum + comp.cost_per_execution, 0);
+  const totalQuantityAllocated = useMemo(() => {
+    return agentComponents.reduce((sum, comp) => {
+      if (comp.is_unlimited) return sum;
+      const qty = typeof comp.total_quantity === 'string'
+        ? parseFloat(comp.total_quantity) || 0
+        : comp.total_quantity || 0;
+      return sum + qty;
+    }, 0);
+  }, [agentComponents]);
+
+  const hasUnlimitedComponents = useMemo(() => {
+    return agentComponents.some(comp => comp.is_unlimited);
   }, [agentComponents]);
 
   // Handle agent change
@@ -755,8 +915,9 @@ const AgentComponentPricingManagement = () => {
             components: [
               {
                 component_id: formData.component_id,
-                consumption_rate: 1,
+                total_quantity: formData.is_unlimited ? null : (formData.total_quantity ? parseFloat(formData.total_quantity) : null),
                 override_price: formData.override_price ? parseFloat(formData.override_price) : null,
+                is_unlimited: formData.is_unlimited,
               }
             ]
           }),
@@ -804,8 +965,9 @@ const AgentComponentPricingManagement = () => {
           },
           body: JSON.stringify({
             component_id: selectedComponent.component_id,
-            consumption_rate: selectedComponent.consumption_rate,
+            total_quantity: formData.is_unlimited ? null : (formData.total_quantity ? parseFloat(formData.total_quantity) : null),
             override_price: formData.override_price ? parseFloat(formData.override_price) : null,
+            is_unlimited: formData.is_unlimited,
           }),
         }
       );
@@ -872,7 +1034,9 @@ const AgentComponentPricingManagement = () => {
     setSelectedComponent(component);
     setFormData({
       component_id: component.component_id,
-      override_price: component.override_price_per_unit ? component.override_price_per_unit.toString() : '',
+      total_quantity: component.total_quantity ? component.total_quantity.toString() : '',
+      override_price: component.override_price ? component.override_price.toString() : '',
+      is_unlimited: component.is_unlimited || false,
     });
     setIsEditModalOpen(true);
   }, []);
@@ -885,7 +1049,9 @@ const AgentComponentPricingManagement = () => {
   const resetForm = useCallback(() => {
     setFormData({
       component_id: '',
+      total_quantity: '',
       override_price: '',
+      is_unlimited: false,
     });
     setSelectedComponent(null);
   }, []);
@@ -897,8 +1063,10 @@ const AgentComponentPricingManagement = () => {
   }, [agentComponents, components]);
 
   // Helper functions
-  const formatPrice = useCallback((price: string | number) => {
+  const formatPrice = useCallback((price: string | number | null | undefined) => {
+    if (price === null || price === undefined) return '$0.0000';
     const num = typeof price === 'string' ? parseFloat(price) : price;
+    if (isNaN(num)) return '$0.0000';
     return `$${num.toFixed(4)}`;
   }, []);
 
@@ -1020,8 +1188,17 @@ const AgentComponentPricingManagement = () => {
                     <div className="text-sm text-gray-600">Components</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">{formatCost(totalCostPerExecution)}</div>
-                    <div className="text-sm text-gray-600">Cost/Execution</div>
+                    {hasUnlimitedComponents ? (
+                      <>
+                        <div className="text-2xl font-bold text-emerald-600">∞</div>
+                        <div className="text-sm text-gray-600">Has Unlimited</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-2xl font-bold text-green-600">{totalQuantityAllocated.toLocaleString()}</div>
+                        <div className="text-sm text-gray-600">Total Allocated</div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1138,10 +1315,10 @@ const AgentComponentPricingManagement = () => {
                     <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                       <tr>
                         <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Component</th>
-                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden md:table-cell">Consumption Rate</th>
+                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden md:table-cell">Total Quantity</th>
                         <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Base Price</th>
                         <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden lg:table-cell">Override</th>
-                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Cost/Execution</th>
+                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Effective Price</th>
                         <th className="px-4 sm:px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
                       </tr>
                     </thead>
@@ -1150,21 +1327,47 @@ const AgentComponentPricingManagement = () => {
                         <tr key={component.id} className="hover:bg-gray-50/50 transition-colors">
                           <td className="px-4 sm:px-6 py-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center flex-shrink-0">
-                                <span className="text-indigo-600 font-bold text-sm">
-                                  {component.component_type.charAt(0).toUpperCase()}
-                                </span>
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                                component.is_unlimited
+                                  ? 'bg-gradient-to-br from-emerald-100 to-green-100'
+                                  : 'bg-gradient-to-br from-indigo-100 to-purple-100'
+                              }`}>
+                                {component.is_unlimited ? (
+                                  <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                ) : (
+                                  <span className="text-indigo-600 font-bold text-sm">
+                                    {component.component_type.charAt(0).toUpperCase()}
+                                  </span>
+                                )}
                               </div>
                               <div className="min-w-0">
-                                <div className="text-sm font-semibold text-gray-900 truncate">{component.component_name}</div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-semibold text-gray-900 truncate">{component.component_name}</span>
+                                  {component.is_unlimited && (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                                      Unlimited
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="text-xs text-gray-500 mt-0.5">{component.component_type_display}</div>
                               </div>
                             </div>
                           </td>
                           <td className="px-4 sm:px-6 py-4 hidden md:table-cell">
-                            <span className="inline-flex px-2.5 py-1 bg-blue-100 text-blue-800 rounded-lg text-sm font-semibold">
-                              {component.consumption_rate} {component.unit_label}
-                            </span>
+                            {component.is_unlimited ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-sm font-semibold">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                Unlimited
+                              </span>
+                            ) : (
+                              <span className="inline-flex px-2.5 py-1 bg-blue-100 text-blue-800 rounded-lg text-sm font-semibold">
+                                {component.total_quantity ? Number(component.total_quantity).toLocaleString() : '—'} {component.unit_label}
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 sm:px-6 py-4">
                             <div className="text-sm text-gray-600">
@@ -1172,9 +1375,9 @@ const AgentComponentPricingManagement = () => {
                             </div>
                           </td>
                           <td className="px-4 sm:px-6 py-4 hidden lg:table-cell">
-                            {component.override_price_per_unit ? (
+                            {component.override_price ? (
                               <span className="inline-flex px-2.5 py-1 bg-orange-100 text-orange-800 rounded-lg text-sm font-medium">
-                                {formatPrice(component.override_price_per_unit)}
+                                {formatPrice(component.override_price)}
                               </span>
                             ) : (
                               <span className="text-sm text-gray-400">—</span>
@@ -1182,7 +1385,7 @@ const AgentComponentPricingManagement = () => {
                           </td>
                           <td className="px-4 sm:px-6 py-4">
                             <div className="text-sm font-bold text-green-600">
-                              {formatCost(component.cost_per_execution)}
+                              {formatPrice(component.effective_price_per_unit)}/{component.unit_label}
                             </div>
                           </td>
                           <td className="px-4 sm:px-6 py-4">
@@ -1226,8 +1429,17 @@ const AgentComponentPricingManagement = () => {
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-gray-700">Total Cost per Execution:</span>
-                      <span className="text-lg font-bold text-green-600 bg-green-50 px-3 py-1 rounded-lg">{formatCost(totalCostPerExecution)}</span>
+                      <span className="text-sm font-semibold text-gray-700">Total Allocated:</span>
+                      {hasUnlimitedComponents ? (
+                        <span className="text-lg font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg flex items-center gap-1">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Has Unlimited
+                        </span>
+                      ) : (
+                        <span className="text-lg font-bold text-green-600 bg-green-50 px-3 py-1 rounded-lg">{totalQuantityAllocated.toLocaleString()}</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1317,6 +1529,56 @@ const AgentComponentPricingManagement = () => {
                 )}
               </>
             )}
+          </div>
+        )}
+
+        {/* Free Tier Enabled Indicator - Show when agent has unlimited components */}
+        {selectedAgentId && !isLoadingAgentComponents && !agentComponentsError && agentComponents.some(c => c.is_unlimited) && (
+          <div className="mt-6 bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 rounded-2xl border border-emerald-200 p-6">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center text-white flex-shrink-0 shadow-lg shadow-emerald-500/25">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <h4 className="text-lg font-bold text-emerald-900">Free Tier Enabled</h4>
+                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-full border border-emerald-200">
+                    Active
+                  </span>
+                </div>
+                <p className="text-sm text-emerald-800 mb-3">
+                  This agent qualifies for the free tier because it has unlimited components configured.
+                  Users without a subscription can access this agent with 1 instance limit.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <span className="text-xs text-emerald-700 font-medium">Unlimited Components:</span>
+                  {agentComponents.filter(c => c.is_unlimited).map((comp) => (
+                    <span
+                      key={comp.id}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 bg-white rounded-lg text-xs text-emerald-700 border border-emerald-200 font-medium"
+                    >
+                      <svg className="w-3 h-3 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      {comp.component_name}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-4 p-3 bg-white/80 rounded-xl border border-emerald-100">
+                  <div className="flex items-center gap-2 text-sm text-emerald-800">
+                    <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>
+                      <strong>User Benefits:</strong> Users can create 1 instance of this agent without any subscription.
+                      If they try to create more, they&apos;ll be prompted to upgrade.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

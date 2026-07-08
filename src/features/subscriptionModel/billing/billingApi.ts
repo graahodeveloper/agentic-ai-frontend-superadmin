@@ -22,10 +22,14 @@ const getAdminId = (): string | null => {
 // TYPES (Matching your backend models)
 // ============================================
 
+// Storage unit types
+export type StorageUnit = 'bytes' | 'kb' | 'mb' | 'gb' | 'tb';
+
 export interface PlanComponent {
   id: string;
   name: string;
   component_type: string;  // User-defined free text component type
+  component_type_display?: string;
   description: string | null;
   quantity?: string | null;
   price?: string | null;
@@ -40,7 +44,15 @@ export interface PlanComponent {
   is_renewable: boolean;
   created_at: string;
   updated_at: string;
-  estimated_cost_for_client?: number | null; 
+  estimated_cost_for_client?: number | null;
+  total_cost?: string | null;  // Auto-calculated: cost_per_unit × quantity
+  // Storage unit fields
+  storage_unit?: StorageUnit | null;
+  pricing_unit?: StorageUnit | null;
+  base_quantity_bytes?: string | null;
+  storage_total_cost?: string | null;
+  quantity_in_pricing_unit?: string | null;
+  is_storage_component?: boolean;
 }
 
 export interface PlanComponentInclusion {
@@ -188,6 +200,7 @@ export interface CreatePlanComponentRequest {
   quantity?: number | string | null;
   price?: number | string | null;
   cost_per_unit?: number | string | null;
+  price_per_unit?: number | string | null;
   promotion_code?: string | null;
   promotion_valid_from?: string | null;
   promotion_valid_until?: string | null;
@@ -195,7 +208,10 @@ export interface CreatePlanComponentRequest {
   unit_label: string;
   is_active?: boolean;
   is_renewable?: boolean;
-  estimated_cost_for_client?: number | null; 
+  estimated_cost_for_client?: number | null;
+  // Storage unit fields
+  storage_unit?: StorageUnit | null;
+  pricing_unit?: StorageUnit | null;
 }
 
 export interface PlanAgentsResponse {
@@ -222,12 +238,12 @@ export interface AgentComponentConsumptionItem {
   component_name: string;
   component_type: string;
   component_type_display: string;
-  consumption_rate: number;
+  total_quantity: number;
   unit_label: string;
   base_price_per_unit: number;
   override_price_per_unit: number | null;
   effective_price_per_unit: number;
-  cost_per_execution: number;
+  is_unlimited: boolean;
   component_cost_per_unit: number | null;
   is_active: boolean;
   estimated_cost_for_client?: number | null;
@@ -236,13 +252,8 @@ export interface AgentComponentConsumptionItem {
 export interface AgentComponentConsumption {
   items: AgentComponentConsumptionItem[];
   count: number;
-  total_cost_per_execution: number;
-  cost_estimates: {
-    per_execution: number;
-    per_10_executions: number;
-    per_100_executions: number;
-    per_1000_executions: number;
-  };
+  total_quantity_allocated: number;
+  has_unlimited: boolean;
 }
 
 export interface PlanSummaryComponentItem {
@@ -368,11 +379,11 @@ export interface AgentComponentPricing {
   component_name: string;
   component_type: string;
   component_type_display: string;
-  consumption_rate: number;
+  total_quantity: number;
   base_price_per_unit: number;
   override_price_per_unit: number | null;
   effective_price_per_unit: number;
-  cost_per_execution: number;
+  is_unlimited: boolean;
   unit_label: string;
   is_active: boolean;
   created_at: string;
@@ -455,8 +466,9 @@ export interface AddAgentToPlanRequest {
 
 export interface AgentComponentRequest {
   component_id: string;
-  consumption_rate?: number;
+  total_quantity?: number;
   override_price_per_unit?: number | null;
+  is_unlimited?: boolean;
   is_active?: boolean;
 }
 
