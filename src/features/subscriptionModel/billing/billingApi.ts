@@ -99,7 +99,10 @@ export interface PlanAgentInclusion {
   agent_pricing_name: string | null;
   included_instances: number;
   per_instance_price: string;
+  override_price: string | null;
+  base_price: string;
   effective_price: string;
+  has_price_override: boolean;
   is_featured: boolean;
   display_order: number;
   created_at: string;
@@ -222,7 +225,10 @@ export interface PlanAgentsResponse {
     agent_pricing: AgentPricing;
     included_instances: number;
     per_instance_price: string;
+    override_price: string | null;
+    base_price: string;
     effective_price: string;
+    has_price_override: boolean;
     is_featured: boolean;
     display_order: number;
   }>;
@@ -460,6 +466,7 @@ export interface AddAgentToPlanRequest {
     agent_pricing_id: string;
     included_instances?: number;
     per_instance_price?: number;
+    override_price?: number | string | null;
     is_included?: boolean;
   }>;
 }
@@ -940,6 +947,7 @@ export const billingApi = createApi({
         agent_pricing_id?: string;
         included_instances?: number;
         per_instance_price?: number;
+        override_price?: number | string | null;
         is_featured?: boolean;
         display_order?: number;
       }

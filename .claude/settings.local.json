@@ -23,7 +23,13 @@
       "Bash(docker-compose exec:*)",
       "Bash(docker-compose up:*)",
       "Bash(grep:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(venv/bin/python:*)",
+      "Bash(docker-compose ps:*)",
+      "Bash(ADMIN=c35d1db9-f67b-4c60-8784-d96056eb60bf AP=f702b28c-eb7e-4a9e-a65a-09f53c5204d9 BASE=http://localhost:8000/api/v1 echo \"=== 1. Create test plan ===\" curl -s -X POST \"$BASE/plans/?admin_id=$ADMIN\" -H \"Content-Type: application/json\" -d '{\"\"\"\"name\"\"\"\":\"\"\"\"ZZ Override Lifecycle Test Plan\"\"\"\",\"\"\"\"plan_type\"\"\"\":\"\"\"\"custom\"\"\"\",\"\"\"\"base_price\"\"\"\":\"\"\"\"0.00\"\"\"\",\"\"\"\"billing_period\"\"\"\":\"\"\"\"monthly\"\"\"\",\"\"\"\"billing_mode\"\"\"\":\"\"\"\"prepaid\"\"\"\",\"\"\"\"is_active\"\"\"\":true,\"\"\"\"is_public\"\"\"\":false}')",
+      "Bash(ADMIN=c35d1db9-f67b-4c60-8784-d96056eb60bf BASE=http://localhost:8000/api/v1 curl:*)",
+      "Bash(ADMIN=c35d1db9-f67b-4c60-8784-d96056eb60bf:*)",
+      "Bash(BASE=http://localhost:8000/api/v1)"
     ]
   }
 }

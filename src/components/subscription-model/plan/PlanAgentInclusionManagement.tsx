@@ -29,6 +29,7 @@ interface ApiErrorResponse {
 
 interface EditFormData {
   included_instances: number;
+  override_price: string; // '' = no override (use agent base price)
   is_featured: boolean;
   display_order: number;
 }
@@ -61,6 +62,16 @@ const formatMoney = (price: string | number | null | undefined) => {
 
 const formatLabel = (value: string | null | undefined) =>
   (value || '').replace(/_/g, ' ');
+
+// Parses an optional override price input.
+// Returns: null (empty = no override) | number (valid) | 'invalid'
+const parseOverridePrice = (value: string): number | null | 'invalid' => {
+  const trimmed = value.trim();
+  if (trimmed === '') return null;
+  const num = parseFloat(trimmed);
+  if (isNaN(num) || num < 0) return 'invalid';
+  return Math.round(num * 100) / 100;
+};
 
 // ============================================
 // HELPER COMPONENTS
@@ -400,11 +411,13 @@ const PlanAgentInclusionManagement = () => {
   const [selectedPricingIds, setSelectedPricingIds] = useState<string[]>([]);
   // Per pricing id: number of instances as string; '0' means unlimited
   const [instances, setInstances] = useState<Record<string, string>>({});
+  // Per pricing id: optional plan-specific price override ('' = use base price)
+  const [overridePrices, setOverridePrices] = useState<Record<string, string>>({});
 
   // Edit flow
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedInclusion, setSelectedInclusion] = useState<PlanAgentItem | null>(null);
-  const [editForm, setEditForm] = useState<EditFormData>({ included_instances: 1, is_featured: false, display_order: 0 });
+  const [editForm, setEditForm] = useState<EditFormData>({ included_instances: 1, override_price: '', is_featured: false, display_order: 0 });
 
   // Table
   const [currentPage, setCurrentPage] = useState(1);
@@ -505,6 +518,7 @@ const PlanAgentInclusionManagement = () => {
     setAgentSearch('');
     setSelectedPricingIds([]);
     setInstances({});
+    setOverridePrices({});
   }, []);
 
   const openAssignFlow = useCallback((planId: string) => {
@@ -532,14 +546,27 @@ const PlanAgentInclusionManagement = () => {
   const handleAssignSubmit = async () => {
     if (!selectedPlanId || selectedPricingIds.length === 0) return;
 
+    // Validate override prices before submitting
+    for (const id of selectedPricingIds) {
+      if (parseOverridePrice(overridePrices[id] ?? '') === 'invalid') {
+        const agentName = agentPricingOptions.find(ap => ap.id === id)?.agent_name || 'an agent';
+        alert(`Invalid override price for ${agentName}. Use a positive number or leave it empty.`);
+        return;
+      }
+    }
+
     try {
       await addAgentToPlan({
         planId: selectedPlanId,
         data: {
-          agents: selectedPricingIds.map(id => ({
-            agent_pricing_id: id,
-            included_instances: Math.max(0, parseInt(instances[id]) || 0),
-          })),
+          agents: selectedPricingIds.map(id => {
+            const override = parseOverridePrice(overridePrices[id] ?? '');
+            return {
+              agent_pricing_id: id,
+              included_instances: Math.max(0, parseInt(instances[id]) || 0),
+              ...(typeof override === 'number' ? { override_price: override } : {}),
+            };
+          }),
         },
       }).unwrap();
 
@@ -558,6 +585,7 @@ const PlanAgentInclusionManagement = () => {
     setSelectedInclusion(inclusion);
     setEditForm({
       included_instances: inclusion.included_instances,
+      override_price: inclusion.override_price ?? '',
       is_featured: inclusion.is_featured,
       display_order: inclusion.display_order,
     });
@@ -574,6 +602,12 @@ const PlanAgentInclusionManagement = () => {
     e.preventDefault();
     if (!selectedPlanId || !selectedInclusion) return;
 
+    const override = parseOverridePrice(editForm.override_price);
+    if (override === 'invalid') {
+      alert('Invalid override price. Use a positive number or leave it empty to use the base price.');
+      return;
+    }
+
     try {
       await updateInclusion({
         planId: selectedPlanId,
@@ -581,6 +615,7 @@ const PlanAgentInclusionManagement = () => {
         data: {
           agent_pricing_id: selectedInclusion.agent_pricing?.id || '',
           included_instances: editForm.included_instances,
+          override_price: override, // number sets it, null clears it
           is_featured: editForm.is_featured,
           display_order: editForm.display_order,
         },
@@ -902,9 +937,28 @@ const PlanAgentInclusionManagement = () => {
                               )}
                             </td>
                             <td className="px-6 py-4">
-                              <div className="text-sm font-bold text-gray-900">{formatMoney(inclusion.effective_price)}</div>
+                              <div className="flex items-center gap-1.5">
+                                <span className={`text-sm font-bold ${inclusion.has_price_override ? 'text-amber-600' : 'text-gray-900'}`}>
+                                  {formatMoney(inclusion.effective_price)}
+                                </span>
+                                {inclusion.has_price_override && (
+                                  <span
+                                    className="inline-flex items-center px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded text-[10px] font-semibold border border-amber-200 uppercase tracking-wide"
+                                    title={`Plan-specific override. Base price: ${formatMoney(inclusion.base_price)}`}
+                                  >
+                                    Override
+                                  </span>
+                                )}
+                              </div>
                               <div className="text-xs text-gray-500">
-                                {formatMoney(inclusion.agent_pricing?.price)} / {formatLabel(inclusion.agent_pricing?.unit)}
+                                {inclusion.has_price_override ? (
+                                  <>
+                                    <span className="line-through text-gray-400">{formatMoney(inclusion.base_price)}</span>
+                                    {' '}base / {formatLabel(inclusion.agent_pricing?.unit)}
+                                  </>
+                                ) : (
+                                  <>{formatMoney(inclusion.agent_pricing?.price)} / {formatLabel(inclusion.agent_pricing?.unit)}</>
+                                )}
                               </div>
                             </td>
                             <td className="px-6 py-4">
@@ -1036,7 +1090,7 @@ const PlanAgentInclusionManagement = () => {
                       2
                     </span>
                     <span className={`text-sm font-semibold ${assignStep === 2 ? 'text-indigo-600' : 'text-gray-400'}`}>
-                      Set Instances
+                      Instances &amp; Pricing
                     </span>
                   </div>
                 </div>
@@ -1140,10 +1194,15 @@ const PlanAgentInclusionManagement = () => {
                     <p className="text-sm text-gray-500 mb-4">
                       Set how many instances of each agent customers get with this plan.
                       Turn on <span className="font-semibold text-gray-700">Unlimited</span> to let them create as many as they need.
+                      You can also set a <span className="font-semibold text-gray-700">plan-specific price</span> that overrides the agent&apos;s base price.
                     </p>
                     <div className="space-y-3">
                       {selectedPricings.map((pricing) => {
                         const isUnlimited = parseInt(instances[pricing.id] ?? '1') === 0;
+                        const overrideRaw = overridePrices[pricing.id] ?? '';
+                        const overrideParsed = parseOverridePrice(overrideRaw);
+                        const hasOverride = typeof overrideParsed === 'number';
+                        const overrideInvalid = overrideParsed === 'invalid';
                         return (
                           <div key={pricing.id} className="p-4 bg-gray-50/70 rounded-xl border border-gray-200">
                             <div className="flex flex-col sm:flex-row sm:items-center gap-4">
@@ -1203,8 +1262,58 @@ const PlanAgentInclusionManagement = () => {
                               </div>
                             </div>
 
+                            {/* Plan-specific price override */}
+                            <div className="mt-3 pt-3 border-t border-gray-200">
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex-shrink-0">
+                                  Price for this plan
+                                </label>
+                                <div className="flex items-center gap-2 flex-1">
+                                  <div className="relative w-32">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={overrideRaw}
+                                      onChange={(e) => setOverridePrices(prev => ({ ...prev, [pricing.id]: e.target.value }))}
+                                      disabled={isAdding}
+                                      placeholder={parseFloat(pricing.price || '0').toFixed(2)}
+                                      className={`w-full pl-7 pr-3 py-2 bg-white border rounded-xl text-gray-900 font-semibold text-sm focus:ring-2 disabled:opacity-50 transition-all ${
+                                        overrideInvalid
+                                          ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500'
+                                          : hasOverride
+                                            ? 'border-amber-300 focus:ring-amber-500/20 focus:border-amber-500'
+                                            : 'border-gray-200 focus:ring-indigo-500/20 focus:border-indigo-500'
+                                      }`}
+                                    />
+                                  </div>
+                                  {hasOverride ? (
+                                    <>
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-700 rounded-md text-xs font-semibold border border-amber-200">
+                                        Override
+                                      </span>
+                                      <span className="text-xs text-gray-400 line-through">{formatMoney(pricing.price)}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setOverridePrices(prev => ({ ...prev, [pricing.id]: '' }))}
+                                        disabled={isAdding}
+                                        className="text-xs font-medium text-gray-400 hover:text-gray-600 underline disabled:opacity-40"
+                                      >
+                                        Reset
+                                      </button>
+                                    </>
+                                  ) : overrideInvalid ? (
+                                    <span className="text-xs text-red-500 font-medium">Enter a positive number</span>
+                                  ) : (
+                                    <span className="text-xs text-gray-400">Base price {formatMoney(pricing.price)} / {formatLabel(pricing.unit)}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
                             {/* Result preview */}
-                            <div className="mt-3 pt-3 border-t border-gray-200 flex items-center gap-2 text-sm">
+                            <div className="mt-3 pt-3 border-t border-gray-200 flex flex-wrap items-center gap-2 text-sm">
                               <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                               </svg>
@@ -1215,6 +1324,11 @@ const PlanAgentInclusionManagement = () => {
                                   : `${Math.max(1, parseInt(instances[pricing.id]) || 1)} instance${(parseInt(instances[pricing.id]) || 1) > 1 ? 's' : ''}`}
                               </span>
                               <span className="text-xs text-gray-400">of {pricing.agent_name}</span>
+                              <span className="text-gray-300">•</span>
+                              <span className="text-gray-500">at</span>
+                              <span className={`font-bold ${hasOverride ? 'text-amber-600' : 'text-indigo-600'}`}>
+                                {formatMoney(hasOverride ? overrideParsed : pricing.price)} / {formatLabel(pricing.unit)}
+                              </span>
                             </div>
                           </div>
                         );
@@ -1319,7 +1433,7 @@ const PlanAgentInclusionManagement = () => {
                         <span className="text-gray-700">{selectedInclusion.agent_pricing?.name || 'Default'}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-500">Price</span>
+                        <span className="text-gray-500">Base Price</span>
                         <span className="text-gray-700">
                           {formatMoney(selectedInclusion.agent_pricing?.price)} / {formatLabel(selectedInclusion.agent_pricing?.unit)}
                         </span>
@@ -1363,6 +1477,58 @@ const PlanAgentInclusionManagement = () => {
                         </svg>
                         Unlimited instances enabled
                       </div>
+                    )}
+                  </div>
+
+                  {/* Plan-Specific Price Override */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Price Override for This Plan
+                      <span className="ml-1.5 text-xs font-normal text-gray-400">(optional)</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={editForm.override_price}
+                          onChange={(e) => setEditForm(prev => ({ ...prev, override_price: e.target.value }))}
+                          disabled={isUpdating}
+                          placeholder={`${parseFloat(selectedInclusion.agent_pricing?.price || '0').toFixed(2)} (base price)`}
+                          className={`w-full pl-8 pr-3.5 py-2.5 bg-gray-50 border rounded-xl focus:bg-white focus:ring-2 disabled:opacity-50 transition-all ${
+                            parseOverridePrice(editForm.override_price) === 'invalid'
+                              ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500'
+                              : typeof parseOverridePrice(editForm.override_price) === 'number'
+                                ? 'border-amber-300 focus:ring-amber-500/20 focus:border-amber-500'
+                                : 'border-gray-200 focus:ring-indigo-500/20 focus:border-indigo-500'
+                          }`}
+                        />
+                      </div>
+                      {editForm.override_price.trim() !== '' && (
+                        <button
+                          type="button"
+                          onClick={() => setEditForm(prev => ({ ...prev, override_price: '' }))}
+                          disabled={isUpdating}
+                          className="px-3 py-2.5 text-sm font-medium text-gray-500 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl transition-all disabled:opacity-40"
+                          title="Clear override and use base price"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    {parseOverridePrice(editForm.override_price) === 'invalid' ? (
+                      <p className="text-xs text-red-500 mt-1">Enter a positive number or leave empty to use the base price.</p>
+                    ) : typeof parseOverridePrice(editForm.override_price) === 'number' ? (
+                      <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Customers on this plan pay {formatMoney(parseOverridePrice(editForm.override_price) as number)} instead of {formatMoney(selectedInclusion.agent_pricing?.price)}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-gray-500 mt-1">Leave empty to use the agent&apos;s base price ({formatMoney(selectedInclusion.agent_pricing?.price)}).</p>
                     )}
                   </div>
 
