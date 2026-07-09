@@ -768,7 +768,7 @@ const PlanSummary = () => {
                                         {agent.component_consumption.items.slice(0, 3).map((comp: AgentComponentConsumptionItem) => (
                                           <div key={comp.component_id}>
                                             <span className="text-xs bg-white px-2 py-1 rounded border border-gray-200 inline-block">
-                                              {comp.component_name}: {comp.consumption_rate} {comp.unit_label}
+                                              {comp.component_name}: {comp.is_unlimited ? 'Unlimited' : `${comp.total_quantity} ${comp.unit_label}`}
                                             </span>
                                             <UnitPricing
                                               costPerUnit={comp.base_price_per_unit}
@@ -896,7 +896,7 @@ const PlanSummary = () => {
                                     <div className="text-xs text-gray-500 mt-0.5">{comp.component_type_display}</div>
                                   </div>
                                   <span className="text-sm font-semibold text-purple-600">
-                                    {formatPrice(comp.cost_per_execution)}/{comp.component_type_display}
+                                    {formatPrice(comp.effective_price_per_unit)}/{comp.unit_label}
                                   </span>
                                 </div>
 
