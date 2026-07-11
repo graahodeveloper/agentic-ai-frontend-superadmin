@@ -482,13 +482,20 @@ const useGetPlanComponentsInPlan = (planId: string) => {
 // ============================================
 // MAIN COMPONENT
 // ============================================
-const PlanComponentInclusionManagement = () => {
+interface PlanComponentInclusionManagementProps {
+  /** When provided, the component is locked to this plan (no plan picker view). */
+  planId?: string;
+  /** Renders without page chrome (min-height/padding) so it fits inside a modal. */
+  embedded?: boolean;
+}
+
+const PlanComponentInclusionManagement = ({ planId, embedded = false }: PlanComponentInclusionManagementProps) => {
   // Get plan from URL query params
   const searchParams = useSearchParams();
-  const planFromUrl = searchParams.get('plan');
+  const planFromUrl = planId || searchParams.get('plan');
 
   // ---- State ----
-  const [selectedPlanId, setSelectedPlanId] = useState<string>('');
+  const [selectedPlanId, setSelectedPlanId] = useState<string>(planId || '');
   const [planSearch, setPlanSearch] = useState('');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -706,8 +713,8 @@ const PlanComponentInclusionManagement = () => {
   // RENDER
   // ============================================
   return (
-    <div className="min-h-screen bg-gray-50/30">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className={embedded ? '' : 'min-h-screen bg-gray-50/30'}>
+      <div className={embedded ? '' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'}>
 
         {/* Success Toast */}
         {successMessage && (
@@ -832,15 +839,17 @@ const PlanComponentInclusionManagement = () => {
         {selectedPlanId && (
           <>
             {/* Back + header */}
-            <button
-              onClick={backToPlans}
-              className="inline-flex items-center gap-2 mb-4 px-3 py-2 text-sm font-medium text-gray-600 hover:text-indigo-600 bg-white hover:bg-indigo-50 border border-gray-200 hover:border-indigo-200 rounded-xl transition-all"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              All Plans
-            </button>
+            {!embedded && (
+              <button
+                onClick={backToPlans}
+                className="inline-flex items-center gap-2 mb-4 px-3 py-2 text-sm font-medium text-gray-600 hover:text-indigo-600 bg-white hover:bg-indigo-50 border border-gray-200 hover:border-indigo-200 rounded-xl transition-all"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                All Plans
+              </button>
+            )}
 
             {/* Plan banner */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">

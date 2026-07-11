@@ -24,8 +24,15 @@ interface Plan {
   featured: boolean;
 }
 
-const PlanSummary = () => {
-  const [selectedPlanId, setSelectedPlanId] = useState<string>('');
+interface PlanSummaryProps {
+  /** When provided, the summary is locked to this plan (no plan picker). */
+  planId?: string;
+  /** Renders without page chrome (min-height/padding) so it fits inside a modal. */
+  embedded?: boolean;
+}
+
+const PlanSummary = ({ planId, embedded = false }: PlanSummaryProps) => {
+  const [selectedPlanId, setSelectedPlanId] = useState<string>(planId || '');
   const [activeTab, setActiveTab] = useState<'overview' | 'components' | 'agents' | 'agent-details'>('overview');
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
 
@@ -127,9 +134,10 @@ const PlanSummary = () => {
   );
 
   return (
-    <div className="w-full min-h-screen p-4 sm:p-6 lg:p-8 bg-gray-50">
-      <div className="max-w-7xl mx-auto">
+    <div className={embedded ? 'w-full' : 'w-full min-h-screen p-4 sm:p-6 lg:p-8 bg-gray-50'}>
+      <div className={embedded ? '' : 'max-w-7xl mx-auto'}>
         {/* Header */}
+        {!embedded && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8 mb-6 sm:mb-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 sm:gap-6">
             <div>
@@ -169,6 +177,7 @@ const PlanSummary = () => {
             </div>
           </div>
         </div>
+        )}
 
         {/* Error State */}
         {errorMessage && (
@@ -960,7 +969,7 @@ const PlanSummary = () => {
         )}
 
         {/* Loading Plans State */}
-        {isLoadingPlans && (
+        {!embedded && isLoadingPlans && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12">
             <div className="flex flex-col items-center justify-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>

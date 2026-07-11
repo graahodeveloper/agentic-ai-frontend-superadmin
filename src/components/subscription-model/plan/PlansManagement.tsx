@@ -1,7 +1,6 @@
 // components/subscription-model/plan/PlansManagement.tsx
 "use client";
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   useGetPlansQuery,
   useDeletePlanMutation,
@@ -10,6 +9,9 @@ import {
   Plan,
   CreatePlanRequest,
 } from '@/features/subscriptionModel/billing/billingApi';
+import PlanComponentInclusionManagement from './PlanComponentInclusionManagement';
+import PlanAgentInclusionManagement from './PlanAgentInclusionManagement';
+import PlanSummary from './PlanSummary';
 
 // ============================================
 // TYPES
@@ -30,6 +32,39 @@ interface ApiError {
   message?: string;
 }
 
+type PlanActionType = 'components' | 'agents' | 'summary';
+
+interface PlanAction {
+  type: PlanActionType;
+  plan: Plan;
+}
+
+const PLAN_TYPE_STYLES: Record<string, { badge: string; gradient: string }> = {
+  free: { badge: 'bg-emerald-100 text-emerald-800', gradient: 'from-emerald-500 to-teal-500' },
+  starter: { badge: 'bg-blue-100 text-blue-800', gradient: 'from-blue-500 to-sky-500' },
+  professional: { badge: 'bg-purple-100 text-purple-800', gradient: 'from-purple-500 to-violet-500' },
+  enterprise: { badge: 'bg-indigo-100 text-indigo-800', gradient: 'from-indigo-500 to-blue-600' },
+  custom: { badge: 'bg-pink-100 text-pink-800', gradient: 'from-pink-500 to-rose-500' },
+};
+
+const ACTION_META: Record<PlanActionType, { title: string; subtitle: string; gradient: string }> = {
+  components: {
+    title: 'Link Components',
+    subtitle: 'Assign, edit and remove components for this plan',
+    gradient: 'from-indigo-600 to-indigo-700',
+  },
+  agents: {
+    title: 'Link Agents',
+    subtitle: 'Assign, price-override and remove agents for this plan',
+    gradient: 'from-purple-600 to-violet-700',
+  },
+  summary: {
+    title: 'Plan Summary',
+    subtitle: 'Complete pricing and inclusion breakdown',
+    gradient: 'from-emerald-600 to-teal-700',
+  },
+};
+
 // ============================================
 // LOADING COMPONENTS
 // ============================================
@@ -37,32 +72,41 @@ const LoadingSpinner = () => (
   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
 );
 
-const TableSkeleton = ({ rows = 5 }: { rows?: number }) => (
-  <div className="animate-pulse">
-    {Array.from({ length: rows }).map((_, i) => (
-      <div key={i} className="flex items-center px-6 py-5 border-b border-gray-100">
-        <div className="flex-1 space-y-3">
-          <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-          <div className="h-3 bg-gray-100 rounded w-1/2"></div>
-        </div>
-        <div className="w-24 h-6 bg-gray-200 rounded-full mx-4"></div>
-        <div className="w-20 h-8 bg-gray-200 rounded mx-4"></div>
-        <div className="w-16 h-6 bg-gray-200 rounded-full mx-4"></div>
-        <div className="w-20 h-6 bg-gray-200 rounded-full mx-4"></div>
-        <div className="flex gap-2">
-          <div className="w-8 h-8 bg-gray-200 rounded-lg"></div>
-          <div className="w-8 h-8 bg-gray-200 rounded-lg"></div>
+const CardGridSkeleton = ({ cards = 6 }: { cards?: number }) => (
+  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 animate-pulse">
+    {Array.from({ length: cards }).map((_, i) => (
+      <div key={i} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="h-1.5 bg-gray-200" />
+        <div className="p-5 space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 space-y-2">
+              <div className="h-4 bg-gray-200 rounded w-2/3" />
+              <div className="h-3 bg-gray-100 rounded w-1/2" />
+            </div>
+            <div className="flex gap-1">
+              <div className="w-8 h-8 bg-gray-200 rounded-lg" />
+              <div className="w-8 h-8 bg-gray-200 rounded-lg" />
+            </div>
+          </div>
+          <div className="h-8 bg-gray-200 rounded w-1/2" />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="h-16 bg-gray-100 rounded-xl" />
+            <div className="h-16 bg-gray-100 rounded-xl" />
+          </div>
+          <div className="h-10 bg-gray-100 rounded-xl" />
         </div>
       </div>
     ))}
   </div>
 );
 
-const LoadingOverlay = () => (
-  <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center z-10 rounded-2xl">
-    <div className="flex items-center gap-3 bg-white px-6 py-3 rounded-xl shadow-lg border border-indigo-100">
-      <div className="w-5 h-5 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
-      <span className="text-indigo-700 font-medium">Updating...</span>
+// Non-blocking refresh indicator: cards stay fully visible & interactive
+// while data refreshes in the background (no blur over the grid).
+const RefreshIndicator = () => (
+  <div className="pointer-events-none fixed top-6 right-6 z-40">
+    <div className="flex items-center gap-2.5 bg-white px-4 py-2.5 rounded-xl shadow-lg border border-indigo-100">
+      <div className="w-4 h-4 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+      <span className="text-sm text-indigo-700 font-medium">Refreshing…</span>
     </div>
   </div>
 );
@@ -1057,11 +1101,241 @@ const CreateEditPlanModal: React.FC<CreateEditPlanModalProps> = ({
 };
 
 // ============================================
+// PLAN CARD
+// ============================================
+interface PlanCardProps {
+  plan: Plan;
+  onEdit: (plan: Plan) => void;
+  onDelete: (plan: Plan) => void;
+  onAction: (type: PlanActionType, plan: Plan) => void;
+}
+
+const PlanCard: React.FC<PlanCardProps> = ({ plan, onEdit, onDelete, onAction }) => {
+  const style = PLAN_TYPE_STYLES[plan.plan_type] || PLAN_TYPE_STYLES.custom;
+  const componentsCount = plan.components_count ?? plan.included_components?.length ?? 0;
+  const agentsCount = plan.agents_count ?? plan.included_agents?.length ?? 0;
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg hover:border-indigo-200/70 transition-all duration-200 overflow-hidden flex flex-col">
+      {/* Accent strip */}
+      <div className={`h-1.5 bg-gradient-to-r ${style.gradient}`} />
+
+      <div className="p-5 flex-1 flex flex-col">
+        {/* Title + quick actions */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-base font-bold text-gray-900 truncate" title={plan.name}>{plan.name}</h3>
+              {plan.featured && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold bg-yellow-100 text-yellow-800 rounded-full uppercase tracking-wide">
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                  Featured
+                </span>
+              )}
+            </div>
+            <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+              <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${style.badge}`}>
+                {plan.plan_type.charAt(0).toUpperCase() + plan.plan_type.slice(1)}
+              </span>
+              <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                plan.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+              }`}>
+                {plan.is_active ? 'Active' : 'Inactive'}
+              </span>
+              {plan.is_public && (
+                <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                  Public
+                </span>
+              )}
+              <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                plan.billing_mode === 'prepaid' ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700'
+              }`}>
+                {plan.billing_mode.charAt(0).toUpperCase() + plan.billing_mode.slice(1)}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button
+              onClick={() => onEdit(plan)}
+              className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+              title="Edit plan"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
+            <button
+              onClick={() => onDelete(plan)}
+              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+              title="Delete plan"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Price + trial */}
+        <div className="mt-4 flex items-end justify-between gap-3">
+          <div className="flex items-end gap-1.5">
+            <span className="text-3xl font-extrabold text-gray-900 leading-none">
+              ${parseFloat(plan.base_price).toFixed(2)}
+            </span>
+            <span className="text-sm text-gray-500">/ {plan.billing_period}</span>
+          </div>
+          {plan.has_trial && plan.trial_period_days > 0 && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-violet-50 text-violet-700 rounded-lg text-xs font-semibold border border-violet-100">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {plan.trial_period_days}-day trial
+            </span>
+          )}
+        </div>
+
+        {/* Description */}
+        {plan.description ? (
+          <p className="mt-3 text-xs text-gray-500 line-clamp-2">{plan.description}</p>
+        ) : (
+          <p className="mt-3 text-xs text-gray-300 italic">No description</p>
+        )}
+
+        {/* Inclusion tiles (open link modals) */}
+        <div className="mt-4 mb-4 grid grid-cols-2 gap-3">
+          <button
+            onClick={() => onAction('components', plan)}
+            className="group text-left p-3 bg-indigo-50/60 hover:bg-indigo-100/80 border border-indigo-100 hover:border-indigo-200 rounded-xl transition-all"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xl font-bold text-indigo-700">{componentsCount}</span>
+              <svg className="w-4 h-4 text-indigo-400 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+            <div className="mt-0.5 text-xs font-semibold text-indigo-900/80">Components</div>
+            <div className="text-[10px] text-indigo-500 group-hover:underline">Link &amp; manage</div>
+          </button>
+          <button
+            onClick={() => onAction('agents', plan)}
+            className="group text-left p-3 bg-purple-50/60 hover:bg-purple-100/80 border border-purple-100 hover:border-purple-200 rounded-xl transition-all"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xl font-bold text-purple-700">{agentsCount}</span>
+              <svg className="w-4 h-4 text-purple-400 group-hover:text-purple-600 group-hover:translate-x-0.5 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+            <div className="mt-0.5 text-xs font-semibold text-purple-900/80">Agents</div>
+            <div className="text-[10px] text-purple-500 group-hover:underline">Link &amp; manage</div>
+          </button>
+        </div>
+
+        {/* Summary */}
+        <div className="mt-auto pt-4 border-t border-gray-100">
+          <button
+            onClick={() => onAction('summary', plan)}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-sm font-semibold transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Plan Summary
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// PLAN ACTION MODAL (embeds link/summary views)
+// ============================================
+interface PlanActionModalProps {
+  action: PlanAction;
+  onClose: () => void;
+}
+
+const PlanActionModal: React.FC<PlanActionModalProps> = ({ action, onClose }) => {
+  const meta = ACTION_META[action.type];
+
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={onClose} />
+
+      {/* Panel */}
+      <div className="absolute inset-0 flex items-center justify-center p-3 sm:p-6 pointer-events-none">
+        <div className="pointer-events-auto bg-gray-50 w-full max-w-6xl max-h-[92vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+          {/* Header */}
+          <div className={`flex items-center justify-between px-6 py-4 bg-gradient-to-r ${meta.gradient} flex-shrink-0`}>
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="w-11 h-11 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {action.type === 'components' && (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                  )}
+                  {action.type === 'agents' && (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                  )}
+                  {action.type === 'summary' && (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  )}
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-lg font-bold text-white truncate">
+                  {meta.title} <span className="font-medium text-white/70">·</span>{' '}
+                  <span className="text-white/90">{action.plan.name}</span>
+                </h3>
+                <p className="text-xs text-white/70 truncate">{meta.subtitle}</p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors text-white flex-shrink-0"
+              title="Close"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Body */}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+            {action.type === 'components' && (
+              <PlanComponentInclusionManagement planId={action.plan.id} embedded />
+            )}
+            {action.type === 'agents' && (
+              <PlanAgentInclusionManagement planId={action.plan.id} embedded />
+            )}
+            {action.type === 'summary' && (
+              <PlanSummary planId={action.plan.id} embedded />
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
 // MAIN COMPONENT
 // ============================================
 const PlansManagement = () => {
-  const router = useRouter();
-
   // State
   const [searchTerm, setSearchTerm] = useState('');
   const [planTypeFilter, setPlanTypeFilter] = useState<string>('all');
@@ -1072,6 +1346,7 @@ const PlansManagement = () => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [planToDelete, setPlanToDelete] = useState<Plan | null>(null);
+  const [planAction, setPlanAction] = useState<PlanAction | null>(null);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -1145,6 +1420,16 @@ const PlansManagement = () => {
     setIsEditMode(false);
   }, []);
 
+  const handleOpenAction = useCallback((type: PlanActionType, plan: Plan) => {
+    setPlanAction({ type, plan });
+  }, []);
+
+  const handleCloseAction = useCallback(() => {
+    setPlanAction(null);
+    // Refresh plans so component/agent counts stay in sync after linking
+    refetch();
+  }, [refetch]);
+
   const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page);
   }, []);
@@ -1152,18 +1437,6 @@ const PlansManagement = () => {
   const handlePageSizeChange = useCallback((newSize: number) => {
     setPageSize(newSize);
     setCurrentPage(1);
-  }, []);
-
-  // Memoized badge colors
-  const getBadgeColor = useCallback((planType: string) => {
-    const colors: Record<string, string> = {
-      free: 'bg-gray-100 text-gray-800',
-      starter: 'bg-blue-100 text-blue-800',
-      professional: 'bg-purple-100 text-purple-800',
-      enterprise: 'bg-indigo-100 text-indigo-800',
-      custom: 'bg-pink-100 text-pink-800',
-    };
-    return colors[planType] || 'bg-gray-100 text-gray-800';
   }, []);
 
   // Pagination info
@@ -1245,15 +1518,15 @@ const PlansManagement = () => {
           </div>
         </div>
 
-        {/* Plans Table */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden relative">
-          {/* Loading overlay for refetch */}
-          {isFetching && !isLoading && <LoadingOverlay />}
+        {/* Plans Grid */}
+        <div className="relative">
+          {/* Background refetch indicator (non-blocking, no blur) */}
+          {isFetching && !isLoading && <RefreshIndicator />}
 
           {isLoading ? (
-            <TableSkeleton rows={pageSize} />
+            <CardGridSkeleton cards={Math.min(pageSize, 6)} />
           ) : plans.length === 0 ? (
-            <div className="flex items-center justify-center py-20">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex items-center justify-center py-20">
               <div className="text-center">
                 <div className="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <svg className="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1272,149 +1545,20 @@ const PlansManagement = () => {
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Plan Details</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Type</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Pricing</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Trial</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Inclusions</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {plans.map((plan) => (
-                      <tr key={plan.id} className="hover:bg-indigo-50/30 transition-colors">
-                        <td className="px-6 py-5">
-                          <div className="flex items-center space-x-2">
-                            <div className="text-sm font-semibold text-gray-900">{plan.name}</div>
-                            {plan.featured && (
-                              <span className="px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full flex items-center gap-1">
-                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                </svg>
-                                Featured
-                              </span>
-                            )}
-                          </div>
-                          {plan.description && (
-                            <div className="text-xs text-gray-500 mt-1 line-clamp-2 max-w-md">{plan.description}</div>
-                          )}
-                        </td>
-                        <td className="px-6 py-5">
-                          <span className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold ${getBadgeColor(plan.plan_type)}`}>
-                            {plan.plan_type.charAt(0).toUpperCase() + plan.plan_type.slice(1)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-5">
-                          <div className="text-sm font-bold text-gray-900">${parseFloat(plan.base_price).toFixed(2)}</div>
-                          <div className="text-xs text-gray-500 mt-0.5">Base / {plan.billing_period}</div>
-                        </td>
-                        <td className="px-6 py-5">
-                          {plan.has_trial && plan.trial_period_days > 0 ? (
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-sm">
-                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                              </div>
-                              <div>
-                                <div className="text-sm font-bold text-violet-700">{plan.trial_period_days} days</div>
-                                <div className="text-xs text-gray-500">Free trial</div>
-                              </div>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-gray-400 italic">No trial</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-5">
-                          <div className="text-xs text-gray-600 space-y-1.5">
-                            <button
-                              onClick={() => router.push(`/dashboard/subscription/link-components?plan=${plan.id}`)}
-                              className="flex items-center gap-2 hover:text-indigo-600 transition-colors group w-full"
-                            >
-                              <div className="w-5 h-5 rounded bg-indigo-100 group-hover:bg-indigo-200 flex items-center justify-center transition-colors">
-                                <svg className="w-3 h-3 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                                </svg>
-                              </div>
-                              <span className="group-hover:underline">{plan.components_count ?? plan.included_components?.length ?? 0} Components</span>
-                              <svg className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => router.push(`/dashboard/subscription/link-agents?plan=${plan.id}`)}
-                              className="flex items-center gap-2 hover:text-purple-600 transition-colors group w-full"
-                            >
-                              <div className="w-5 h-5 rounded bg-purple-100 group-hover:bg-purple-200 flex items-center justify-center transition-colors">
-                                <svg className="w-3 h-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                </svg>
-                              </div>
-                              <span className="group-hover:underline">{plan.agents_count ?? plan.included_agents?.length ?? 0} Agents</span>
-                              <svg className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                              </svg>
-                            </button>
-                            <div className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
-                              plan.billing_mode === 'prepaid' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
-                            }`}>
-                              {plan.billing_mode.charAt(0).toUpperCase() + plan.billing_mode.slice(1)}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-5">
-                          <div className="space-y-2">
-                            <span className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold ${
-                              plan.is_active
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-red-100 text-red-800'
-                            }`}>
-                              {plan.is_active ? 'Active' : 'Inactive'}
-                            </span>
-                            {plan.is_public && (
-                              <div>
-                                <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded font-medium">
-                                  Public
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-5">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => handleOpenEditModal(plan)}
-                              className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                              title="Edit"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => handleOpenDeleteModal(plan)}
-                              className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                              title="Delete"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                {plans.map((plan) => (
+                  <PlanCard
+                    key={plan.id}
+                    plan={plan}
+                    onEdit={handleOpenEditModal}
+                    onDelete={handleOpenDeleteModal}
+                    onAction={handleOpenAction}
+                  />
+                ))}
               </div>
 
               {/* Pagination */}
-              <div className="bg-gray-50 border-t border-gray-200 px-6 py-4">
+              <div className="mt-6 bg-white rounded-2xl shadow-sm border border-gray-100 px-6 py-4">
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                   {/* Left side - Results info */}
                   <div className="text-sm text-gray-600">
@@ -1425,7 +1569,7 @@ const PlansManagement = () => {
 
                   {/* Center - Page size selector */}
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600">Rows per page:</span>
+                    <span className="text-sm text-gray-600">Cards per page:</span>
                     <select
                       value={pageSize}
                       onChange={(e) => handlePageSizeChange(Number(e.target.value))}
@@ -1536,6 +1680,15 @@ const PlansManagement = () => {
         plan={planToDelete}
         isDeleting={isDeleting}
       />
+
+      {/* Link Components / Link Agents / Plan Summary Modal */}
+      {planAction && (
+        <PlanActionModal
+          key={`${planAction.plan.id}-${planAction.type}`}
+          action={planAction}
+          onClose={handleCloseAction}
+        />
+      )}
     </div>
   );
 };

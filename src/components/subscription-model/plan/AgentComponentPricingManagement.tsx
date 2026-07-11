@@ -964,9 +964,14 @@ const EditComponentModal = ({
 // ============================================
 // MAIN COMPONENT
 // ============================================
-const AgentComponentPricingManagement = () => {
+interface AgentComponentPricingManagementProps {
+  agentId?: string;
+  embedded?: boolean;
+}
+
+const AgentComponentPricingManagement = ({ agentId, embedded = false }: AgentComponentPricingManagementProps) => {
   // ---- State ----
-  const [selectedAgentId, setSelectedAgentId] = useState<string>('');
+  const [selectedAgentId, setSelectedAgentId] = useState<string>(agentId || '');
   const [agentSearch, setAgentSearch] = useState('');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -1302,8 +1307,8 @@ const AgentComponentPricingManagement = () => {
   const agentGradient = selectedAgent ? getAgentGradient(selectedAgent.agent_type) : null;
 
   return (
-    <div className="w-full min-h-screen p-4 sm:p-6 lg:p-8 bg-gray-50/50">
-      <div className="max-w-7xl mx-auto">
+    <div className={embedded ? 'w-full' : 'w-full min-h-screen p-4 sm:p-6 lg:p-8 bg-gray-50/50'}>
+      <div className={embedded ? '' : 'max-w-7xl mx-auto'}>
         {/* Success Toast */}
         {successMessage && (
           <div className="fixed top-6 right-6 z-[60] flex items-center gap-3 px-5 py-3.5 bg-white border border-emerald-200 rounded-2xl shadow-xl shadow-emerald-500/10">
@@ -1420,15 +1425,17 @@ const AgentComponentPricingManagement = () => {
         {selectedAgentId && (
           <>
             {/* Back button */}
-            <button
-              onClick={backToAgents}
-              className="inline-flex items-center gap-2 px-3 py-2 mb-4 text-sm font-medium text-gray-600 hover:text-indigo-600 hover:bg-white rounded-xl transition-all"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              All Agents
-            </button>
+            {!embedded && (
+              <button
+                onClick={backToAgents}
+                className="inline-flex items-center gap-2 px-3 py-2 mb-4 text-sm font-medium text-gray-600 hover:text-indigo-600 hover:bg-white rounded-xl transition-all"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                All Agents
+              </button>
+            )}
 
             {/* Agent Banner */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">

@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -29,10 +29,6 @@ const NAV_ROUTES = {
     plans: `${BASE}/subscription/plans`,
     components: `${BASE}/subscription/components`,
     agentPricing: `${BASE}/subscription/agent-pricing`,
-    linkComponents: `${BASE}/subscription/link-components`,
-    linkAgents: `${BASE}/subscription/link-agents`,
-    planSummary: `${BASE}/subscription/plan-summary`,
-    agentComponentPricing: `${BASE}/subscription/agent-component-pricing`,
   },
   cmsSettings: {
     loginPage: `${BASE}/cms-settings/login-page`,
@@ -68,11 +64,6 @@ export default function DashboardLayout({
   const [isCreateTemplateDrawerOpen, setIsCreateTemplateDrawerOpen] = useState(false);
   const [editTemplate, setEditTemplate] = useState<AgentTemplate | null>(null);
 
-  const subscriptionRef = useRef<HTMLDivElement>(null);
-  const cmsSettingsRef = useRef<HTMLDivElement>(null);
-  const settingsRef = useRef<HTMLDivElement>(null);
-  const performanceAnalyticsRef = useRef<HTMLDivElement>(null);
-
   // ── Auth guard ────────────────────────────────────────────────────────────
   useEffect(() => {
     try {
@@ -102,32 +93,13 @@ export default function DashboardLayout({
     }
   }, [router]);
 
-  // ── Close dropdowns on outside click ─────────────────────────────────────
+  // ── Keep the active section's submenu expanded based on current URL ───────
+  // The active group stays open (and highlighted); inactive groups collapse.
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (subscriptionRef.current && !subscriptionRef.current.contains(e.target as Node)) {
-        setSubscriptionOpen(false);
-      }
-      if (cmsSettingsRef.current && !cmsSettingsRef.current.contains(e.target as Node)) {
-        setCmsSettingsOpen(false);
-      }
-      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
-        setSettingsOpen(false);
-      }
-      if (performanceAnalyticsRef.current && !performanceAnalyticsRef.current.contains(e.target as Node)) {
-        setPerformanceAnalyticsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  // ── Auto-expand the correct submenu based on current URL ──────────────────
-  useEffect(() => {
-    if (pathname.startsWith(`${BASE}/subscription`)) setSubscriptionOpen(true);
-    if (pathname.startsWith(`${BASE}/cms-settings`)) setCmsSettingsOpen(true);
-    if (pathname.startsWith(`${BASE}/settings`)) setSettingsOpen(true);
-    if (pathname.startsWith(`${BASE}/performance-analytics`)) setPerformanceAnalyticsOpen(true);
+    setSubscriptionOpen(pathname.startsWith(`${BASE}/subscription`));
+    setCmsSettingsOpen(pathname.startsWith(`${BASE}/cms-settings`));
+    setSettingsOpen(pathname.startsWith(`${BASE}/settings`));
+    setPerformanceAnalyticsOpen(pathname.startsWith(`${BASE}/performance-analytics`));
   }, [pathname]);
 
   const handleLogout = () => {
@@ -234,7 +206,7 @@ export default function DashboardLayout({
             </Link>
 
             {/* Performance Analytics */}
-            <div ref={performanceAnalyticsRef}>
+            <div>
               <button
                 onClick={() => setPerformanceAnalyticsOpen((o) => !o)}
                 className={groupBtnCls(`${BASE}/performance-analytics`)}
@@ -283,7 +255,7 @@ export default function DashboardLayout({
             </div>
 
             {/* Subscription Model */}
-            <div ref={subscriptionRef}>
+            <div>
               <button
                 onClick={() => setSubscriptionOpen((o) => !o)}
                 className={groupBtnCls(`${BASE}/subscription`)}
@@ -306,13 +278,9 @@ export default function DashboardLayout({
                 <div className="py-1 space-y-0.5">
                   {(
                     [
-                      { href: NAV_ROUTES.subscription.plans,                label: 'Plans',                   icon: '📋' },
-                      { href: NAV_ROUTES.subscription.components,           label: 'Components',              icon: '🧩' },
-                      { href: NAV_ROUTES.subscription.agentPricing,         label: 'Agent Pricing',           icon: '💰' },
-                      { href: NAV_ROUTES.subscription.linkComponents,       label: 'Link Components',         icon: '🔗' },
-                      { href: NAV_ROUTES.subscription.linkAgents,           label: 'Link Agents',             icon: '🤝' },
-                      { href: NAV_ROUTES.subscription.agentComponentPricing,label: 'Agent Component Pricing', icon: '💎' },
-                      { href: NAV_ROUTES.subscription.planSummary,          label: 'Plan Summary',            icon: '📊' },
+                      { href: NAV_ROUTES.subscription.components,   label: 'Components',    icon: '🧩' },
+                      { href: NAV_ROUTES.subscription.agentPricing, label: 'Agent Pricing', icon: '💰' },
+                      { href: NAV_ROUTES.subscription.plans,        label: 'Plans',         icon: '📋' },
                     ] as const
                   ).map(({ href, label, icon }) => (
                     <Link
@@ -329,7 +297,7 @@ export default function DashboardLayout({
             </div>
 
             {/* CMS Settings */}
-            <div ref={cmsSettingsRef}>
+            <div>
               <button
                 onClick={() => setCmsSettingsOpen((o) => !o)}
                 className={groupBtnCls(`${BASE}/cms-settings`)}
@@ -369,7 +337,7 @@ export default function DashboardLayout({
             </div>
 
             {/* Settings */}
-            <div ref={settingsRef}>
+            <div>
               <button
                 onClick={() => setSettingsOpen((o) => !o)}
                 className={groupBtnCls(`${BASE}/settings`)}
