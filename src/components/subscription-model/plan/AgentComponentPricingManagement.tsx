@@ -457,35 +457,207 @@ const DeleteConfirmModal = ({
 };
 
 // ============================================
-// ADD COMPONENT MODAL
+// ADD COMPONENT MODAL (single-step: select + configure inline)
 // ============================================
+export interface AddComponentItem {
+  component_id: string;
+  total_quantity: number | null;
+  override_price: number | null;
+  is_unlimited: boolean;
+}
+
+const SelectableAddComponentCard = ({
+  component,
+  selected,
+  onToggle,
+  quantityValue,
+  onQuantityChange,
+  overrideValue,
+  onOverrideChange,
+  isUnlimited,
+  onUnlimitedToggle,
+  disabled,
+}: {
+  component: PlanComponent;
+  selected: boolean;
+  onToggle: () => void;
+  quantityValue: string;
+  onQuantityChange: (value: string) => void;
+  overrideValue: string;
+  onOverrideChange: (value: string) => void;
+  isUnlimited: boolean;
+  onUnlimitedToggle: () => void;
+  disabled?: boolean;
+}) => {
+  const basePrice = parseFloat(component.price_per_unit);
+  const effectivePrice = overrideValue ? parseFloat(overrideValue) : basePrice;
+
+  return (
+    <div
+      className={`rounded-xl border transition-all ${
+        selected
+          ? 'border-indigo-500 bg-indigo-50/40 ring-2 ring-indigo-500/20'
+          : 'border-gray-200 bg-white hover:border-indigo-200 hover:bg-indigo-50/40'
+      } ${disabled ? 'opacity-50' : ''}`}
+    >
+      {/* Selector row */}
+      <button
+        type="button"
+        onClick={onToggle}
+        disabled={disabled}
+        className="w-full flex items-center gap-3 p-3 text-left disabled:cursor-not-allowed"
+      >
+        <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
+          selected ? 'bg-indigo-600 text-white' : 'bg-gradient-to-br from-indigo-100 to-purple-100 text-indigo-600'
+        }`}>
+          <span className="font-bold text-sm">{component.component_type.charAt(0).toUpperCase()}</span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-gray-900 truncate">{component.name}</span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-600">
+              {component.component_type}
+            </span>
+          </div>
+          <div className="text-xs text-gray-500 mt-0.5">
+            {formatPrice(basePrice)}/{component.unit_label}
+          </div>
+        </div>
+        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+          selected ? 'border-indigo-600 bg-indigo-600' : 'border-gray-300'
+        }`}>
+          {selected && (
+            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+        </div>
+      </button>
+
+      {/* Inline configuration (visible when selected) */}
+      {selected && (
+        <div className="px-3 pb-3 pt-1 border-t border-indigo-100 space-y-3">
+          {/* Unlimited toggle */}
+          <div className="flex items-center gap-2.5 pt-2">
+            <button
+              type="button"
+              onClick={onUnlimitedToggle}
+              disabled={disabled}
+              className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
+                isUnlimited ? 'bg-indigo-600' : 'bg-gray-300'
+              }`}
+            >
+              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                isUnlimited ? 'translate-x-[18px]' : 'translate-x-1'
+              }`} />
+            </button>
+            <span className="text-xs font-medium text-indigo-900">Unlimited usage</span>
+            {isUnlimited && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700">
+                ∞ Unlimited
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Total Quantity */}
+            {!isUnlimited && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Total Quantity <span className="text-gray-400 font-normal">(Optional)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={quantityValue}
+                    onChange={(e) => onQuantityChange(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    disabled={disabled}
+                    placeholder="e.g. 1000"
+                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:opacity-50"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
+                    {component.unit_label}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Override Price */}
+            <div className={isUnlimited ? 'sm:col-span-2' : ''}>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Override Price <span className="text-gray-400 font-normal">(Optional)</span>
+              </label>
+              <div className="relative">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">$</div>
+                <input
+                  type="number"
+                  step="0.000001"
+                  min="0"
+                  value={overrideValue}
+                  onChange={(e) => onOverrideChange(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  disabled={disabled}
+                  placeholder="Default price"
+                  className="w-full pl-7 pr-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:opacity-50"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Effective price preview */}
+          <div className="flex items-center justify-between px-3 py-2 bg-white rounded-lg border border-indigo-100 text-xs">
+            <span className="text-gray-500">
+              {isUnlimited
+                ? 'Users get unrestricted consumption'
+                : quantityValue
+                  ? `${Number(quantityValue).toLocaleString()} ${component.unit_label} allocated`
+                  : 'No quantity allocated'}
+            </span>
+            <span className={`font-bold ${overrideValue ? 'text-orange-600' : 'text-indigo-700'}`}>
+              {formatPrice(isNaN(effectivePrice) ? basePrice : effectivePrice)}/{component.unit_label}
+              {overrideValue && <span className="ml-1 font-semibold text-[10px] uppercase">(override)</span>}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const AddComponentModal = ({
   isOpen,
   onClose,
   onSubmit,
-  formData,
-  setFormData,
   availableComponents,
-  components,
   agentName,
   isAdding,
   isLoadingComponents,
 }: {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (e: React.FormEvent) => void;
-  formData: FormData;
-  setFormData: React.Dispatch<React.SetStateAction<FormData>>;
+  onSubmit: (items: AddComponentItem[]) => void;
   availableComponents: PlanComponent[];
-  components: PlanComponent[];
   agentName: string;
   isAdding: boolean;
   isLoadingComponents: boolean;
 }) => {
   const [componentSearch, setComponentSearch] = useState('');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [quantities, setQuantities] = useState<Record<string, string>>({});
+  const [overridePrices, setOverridePrices] = useState<Record<string, string>>({});
+  const [unlimitedFlags, setUnlimitedFlags] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    if (!isOpen) setComponentSearch('');
+    if (!isOpen) {
+      setComponentSearch('');
+      setSelectedIds([]);
+      setQuantities({});
+      setOverridePrices({});
+      setUnlimitedFlags({});
+    }
   }, [isOpen]);
 
   const searchedComponents = useMemo(() => {
@@ -497,16 +669,46 @@ const AddComponentModal = ({
     );
   }, [availableComponents, componentSearch]);
 
+  const allFilteredSelected = useMemo(
+    () => searchedComponents.length > 0 && searchedComponents.every(c => selectedIds.includes(c.id)),
+    [searchedComponents, selectedIds]
+  );
+
+  const toggleComponent = useCallback((id: string) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    const filteredIds = searchedComponents.map(c => c.id);
+    if (allFilteredSelected) {
+      const idSet = new Set(filteredIds);
+      setSelectedIds(prev => prev.filter(id => !idSet.has(id)));
+    } else {
+      setSelectedIds(prev => Array.from(new Set([...prev, ...filteredIds])));
+    }
+  }, [searchedComponents, allFilteredSelected]);
+
   if (!isOpen) return null;
 
-  const selectedComp = components.find(c => c.id === formData.component_id);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedIds.length === 0) return;
+    onSubmit(selectedIds.map(id => ({
+      component_id: id,
+      total_quantity: unlimitedFlags[id] ? null : (quantities[id] ? parseFloat(quantities[id]) : null),
+      override_price: overridePrices[id] ? parseFloat(overridePrices[id]) : null,
+      is_unlimited: !!unlimitedFlags[id],
+    })));
+  };
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm" onClick={isAdding ? undefined : onClose} />
 
       <div className="flex min-h-full items-center justify-center p-4">
-        <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
+        <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
             <div className="flex items-center gap-3">
@@ -516,9 +718,9 @@ const AddComponentModal = ({
                 </svg>
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Add Component</h2>
+                <h2 className="text-lg font-semibold text-gray-900">Add Components</h2>
                 <p className="text-sm text-gray-500">
-                  Agent: <span className="font-medium text-indigo-600">{agentName}</span>
+                  Agent: <span className="font-medium text-indigo-600">{agentName}</span> · Select components and configure each right on its card
                 </p>
               </div>
             </div>
@@ -533,222 +735,125 @@ const AddComponentModal = ({
             </button>
           </div>
 
-          <form onSubmit={onSubmit} className="flex flex-col flex-1 min-h-0">
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-              {/* Component Selection (card list) */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Select Component <span className="text-red-500">*</span>
-                </label>
-
-                {availableComponents.length === 0 ? (
-                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
-                    <svg className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                    <p className="text-sm text-amber-700">
-                      All available components are already configured for this agent.
-                    </p>
-                  </div>
-                ) : isLoadingComponents ? (
-                  <div className="space-y-2">
-                    {Array.from({ length: 3 }).map((_, i) => (
-                      <div key={i} className="h-14 bg-gray-100 rounded-xl animate-pulse" />
-                    ))}
-                  </div>
-                ) : (
-                  <>
-                    {/* Search within components */}
-                    {availableComponents.length > 5 && (
-                      <div className="relative mb-2">
-                        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
-                        <input
-                          type="text"
-                          placeholder="Search components..."
-                          value={componentSearch}
-                          onChange={(e) => setComponentSearch(e.target.value)}
-                          disabled={isAdding}
-                          className="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                        />
-                      </div>
-                    )}
-
-                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                      {searchedComponents.length === 0 ? (
-                        <div className="py-6 text-center text-sm text-gray-500">
-                          No components match &quot;{componentSearch}&quot;
-                        </div>
-                      ) : (
-                        searchedComponents.map((comp) => {
-                          const isSelected = formData.component_id === comp.id;
-                          return (
-                            <button
-                              key={comp.id}
-                              type="button"
-                              onClick={() => setFormData({ ...formData, component_id: isSelected ? '' : comp.id })}
-                              disabled={isAdding}
-                              className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all disabled:opacity-50 ${
-                                isSelected
-                                  ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-500/20'
-                                  : 'border-gray-200 bg-white hover:border-indigo-200 hover:bg-indigo-50/40'
-                              }`}
-                            >
-                              <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                                isSelected ? 'bg-indigo-600 text-white' : 'bg-gradient-to-br from-indigo-100 to-purple-100 text-indigo-600'
-                              }`}>
-                                <span className="font-bold text-sm">{comp.component_type.charAt(0).toUpperCase()}</span>
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-semibold text-gray-900 truncate">{comp.name}</span>
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-600">
-                                    {comp.component_type}
-                                  </span>
-                                </div>
-                                <div className="text-xs text-gray-500 mt-0.5">
-                                  {formatPrice(parseFloat(comp.price_per_unit))}/{comp.unit_label}
-                                </div>
-                              </div>
-                              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                                isSelected ? 'border-indigo-600 bg-indigo-600' : 'border-gray-300'
-                              }`}>
-                                {isSelected && (
-                                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                  </svg>
-                                )}
-                              </div>
-                            </button>
-                          );
-                        })
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Unlimited Toggle */}
-              <div className="flex items-center gap-3 p-3 bg-indigo-50 rounded-xl border border-indigo-100">
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, is_unlimited: !formData.is_unlimited, total_quantity: !formData.is_unlimited ? '' : formData.total_quantity })}
-                  disabled={isAdding}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
-                    formData.is_unlimited ? 'bg-indigo-600' : 'bg-gray-300'
-                  }`}
-                >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    formData.is_unlimited ? 'translate-x-6' : 'translate-x-1'
-                  }`} />
-                </button>
-                <div>
-                  <p className="text-sm font-medium text-indigo-900">Unlimited Usage</p>
-                  <p className="text-xs text-indigo-700">Users get unrestricted consumption of this component</p>
-                </div>
-              </div>
-
-              {/* Total Quantity (hidden when unlimited) */}
-              {!formData.is_unlimited && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Total Quantity <span className="text-gray-400 font-normal">(Optional)</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      step="1"
-                      min="0"
-                      value={formData.total_quantity}
-                      onChange={(e) => setFormData({ ...formData, total_quantity: e.target.value })}
-                      className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                      placeholder="Total quantity to allocate"
-                      disabled={isAdding}
-                    />
-                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
-                      {selectedComp?.unit_label || 'units'}
-                    </div>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Total quantity of this component allocated for this agent (added to user wallet)
+          <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              {availableComponents.length === 0 ? (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+                  <svg className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <p className="text-sm text-amber-700">
+                    All available components are already configured for this agent.
                   </p>
                 </div>
-              )}
-
-              {/* Override Price */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Override Price <span className="text-gray-400 font-normal">(Optional)</span>
-                </label>
-                <div className="relative">
-                  <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 font-medium">$</div>
-                  <input
-                    type="number"
-                    step="0.000001"
-                    min="0"
-                    value={formData.override_price}
-                    onChange={(e) => setFormData({ ...formData, override_price: e.target.value })}
-                    className="w-full pl-8 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                    placeholder="Leave empty for default price"
-                    disabled={isAdding}
-                  />
+              ) : isLoadingComponents ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="h-14 bg-gray-100 rounded-xl animate-pulse" />
+                  ))}
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Custom price per unit (overrides component&apos;s default price)
-                </p>
-              </div>
-
-              {/* Preview */}
-              {selectedComp && (
-                <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                  <div className="text-sm font-medium text-gray-700 mb-3">Configuration Preview</div>
-                  <div className="text-sm text-gray-600 space-y-2">
-                    <div className="flex justify-between">
-                      <span>Total Quantity</span>
-                      <span className="font-medium text-gray-900">
-                        {formData.is_unlimited ? 'Unlimited' : `${formData.total_quantity ? Number(formData.total_quantity).toLocaleString() : '—'} ${selectedComp.unit_label}`}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Base Price</span>
-                      <span className="font-medium text-gray-900">{formatPrice(parseFloat(selectedComp.price_per_unit))}/{selectedComp.unit_label}</span>
-                    </div>
-                    {formData.override_price && (
-                      <div className="flex justify-between text-orange-600">
-                        <span>Override Price</span>
-                        <span className="font-medium">{formatPrice(parseFloat(formData.override_price))}/{selectedComp.unit_label}</span>
-                      </div>
-                    )}
-                    <div className="pt-2 border-t border-gray-200 flex justify-between text-indigo-700">
-                      <span className="font-semibold">Effective Price</span>
-                      <span className="font-bold">
-                        {formatPrice(formData.override_price ? parseFloat(formData.override_price) : parseFloat(selectedComp.price_per_unit))}/{selectedComp.unit_label}
-                      </span>
-                    </div>
+              ) : (
+                <>
+                  {/* Search */}
+                  <div className="relative mb-3">
+                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <input
+                      type="text"
+                      placeholder="Search components..."
+                      value={componentSearch}
+                      onChange={(e) => setComponentSearch(e.target.value)}
+                      disabled={isAdding}
+                      className="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                    />
                   </div>
-                </div>
+
+                  {/* Bulk select row */}
+                  {searchedComponents.length > 0 && (
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={allFilteredSelected}
+                          onChange={toggleSelectAll}
+                          disabled={isAdding}
+                          className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                        />
+                        <span className="text-sm font-medium text-gray-700">
+                          Select all ({searchedComponents.length})
+                        </span>
+                      </label>
+                      {selectedIds.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedIds([])}
+                          disabled={isAdding}
+                          className="text-sm font-medium text-gray-500 hover:text-red-600 transition-colors disabled:opacity-50"
+                        >
+                          Clear selection
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Component list */}
+                  <div className="space-y-3">
+                    {searchedComponents.length === 0 ? (
+                      <div className="py-6 text-center text-sm text-gray-500">
+                        No components match &quot;{componentSearch}&quot;
+                      </div>
+                    ) : (
+                      searchedComponents.map((comp) => (
+                        <SelectableAddComponentCard
+                          key={comp.id}
+                          component={comp}
+                          selected={selectedIds.includes(comp.id)}
+                          onToggle={() => toggleComponent(comp.id)}
+                          quantityValue={quantities[comp.id] ?? ''}
+                          onQuantityChange={(v) => setQuantities(prev => ({ ...prev, [comp.id]: v }))}
+                          overrideValue={overridePrices[comp.id] ?? ''}
+                          onOverrideChange={(v) => setOverridePrices(prev => ({ ...prev, [comp.id]: v }))}
+                          isUnlimited={!!unlimitedFlags[comp.id]}
+                          onUnlimitedToggle={() => setUnlimitedFlags(prev => ({ ...prev, [comp.id]: !prev[comp.id] }))}
+                          disabled={isAdding}
+                        />
+                      ))
+                    )}
+                  </div>
+                </>
               )}
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={isAdding}
-                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-xl font-medium hover:bg-gray-50 disabled:opacity-50 transition-all"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isAdding || !formData.component_id || availableComponents.length === 0}
-                className="inline-flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl font-medium transition-all shadow-lg shadow-indigo-500/25 disabled:shadow-none"
-              >
-                {isAdding && <LoadingSpinner size="sm" />}
-                {isAdding ? 'Adding...' : 'Add Component'}
-              </button>
+            <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl">
+              <span className="text-sm text-gray-500">
+                {selectedIds.length > 0
+                  ? `${selectedIds.length} component${selectedIds.length === 1 ? '' : 's'} selected`
+                  : 'No components selected'}
+              </span>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={isAdding}
+                  className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-xl font-medium hover:bg-gray-50 disabled:opacity-50 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isAdding || selectedIds.length === 0 || availableComponents.length === 0}
+                  className="inline-flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl font-medium transition-all shadow-lg shadow-indigo-500/25 disabled:shadow-none"
+                >
+                  {isAdding && <LoadingSpinner size="sm" />}
+                  {isAdding
+                    ? 'Adding...'
+                    : selectedIds.length > 0
+                      ? `Add ${selectedIds.length} Component${selectedIds.length === 1 ? '' : 's'}`
+                      : 'Add Components'}
+                </button>
+              </div>
             </div>
           </form>
         </div>
@@ -1143,9 +1248,8 @@ const AgentComponentPricingManagement = ({ agentId, embedded = false }: AgentCom
     setIsAddModalOpen(true);
   }, [openAgent]);
 
-  const handleAddSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedAgentId) return;
+  const handleAddSubmit = async (items: AddComponentItem[]) => {
+    if (!selectedAgentId || items.length === 0) return;
 
     setIsAdding(true);
 
@@ -1165,31 +1269,26 @@ const AgentComponentPricingManagement = ({ agentId, embedded = false }: AgentCom
             'Authorization': `Bearer ${localStorage.getItem('superAdminToken')}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            components: [
-              {
-                component_id: formData.component_id,
-                total_quantity: formData.is_unlimited ? null : (formData.total_quantity ? parseFloat(formData.total_quantity) : null),
-                override_price: formData.override_price ? parseFloat(formData.override_price) : null,
-                is_unlimited: formData.is_unlimited,
-              }
-            ]
-          }),
+          body: JSON.stringify({ components: items }),
         }
       );
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || errorData.message || 'Failed to add component');
+        throw new Error(errorData.error || errorData.message || 'Failed to add components');
       }
 
       setIsAddModalOpen(false);
       resetForm();
       refetchAgentComponents();
-      setSuccessMessage('Component added successfully!');
+      setSuccessMessage(
+        items.length === 1
+          ? 'Component added successfully!'
+          : `${items.length} components added successfully!`
+      );
     } catch (error: unknown) {
-      console.error('Failed to add component to agent:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to add component';
+      console.error('Failed to add components to agent:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to add components';
       alert(errorMessage);
     } finally {
       setIsAdding(false);
@@ -1803,10 +1902,7 @@ const AgentComponentPricingManagement = ({ agentId, embedded = false }: AgentCom
           resetForm();
         }}
         onSubmit={handleAddSubmit}
-        formData={formData}
-        setFormData={setFormData}
         availableComponents={availableComponents}
-        components={components}
         agentName={selectedAgent?.name || agentComponentsData?.agent_name || ''}
         isAdding={isAdding}
         isLoadingComponents={isLoadingComponents}

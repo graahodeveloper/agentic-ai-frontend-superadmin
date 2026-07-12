@@ -343,67 +343,127 @@ const PlanCard = ({
 };
 
 // ============================================
-// SELECTABLE COMPONENT CARD (assign flow, step 1)
+// SELECTABLE COMPONENT CARD (select + inline quantity)
 // ============================================
 const SelectableComponentCard = ({
   component,
   selected,
   onToggle,
+  multiplierValue,
+  onMultiplierChange,
+  disabled,
 }: {
   component: PlanComponent;
   selected: boolean;
   onToggle: () => void;
-}) => (
-  <button
-    type="button"
-    onClick={onToggle}
-    className={`relative w-full text-left p-4 rounded-xl border-2 transition-all duration-150 ${
-      selected
-        ? 'border-indigo-500 bg-indigo-50/60 shadow-md shadow-indigo-500/10'
-        : 'border-gray-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/30'
-    }`}
-  >
-    {/* Check indicator */}
-    <span className={`absolute top-3 right-3 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
-      selected ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-gray-300'
-    }`}>
-      {selected && (
-        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-        </svg>
-      )}
-    </span>
+  multiplierValue: string;
+  onMultiplierChange: (value: string) => void;
+  disabled?: boolean;
+}) => {
+  const multiplier = parseFloat(multiplierValue) || 1;
+  const baseQty = component.quantity ? parseFloat(component.quantity) : null;
 
-    <div className="flex items-start gap-3 pr-7">
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-        selected ? 'bg-indigo-600' : 'bg-gradient-to-br from-indigo-100 to-purple-100'
-      }`}>
-        <span className={`font-bold text-sm ${selected ? 'text-white' : 'text-indigo-600'}`}>
-          {component.name.charAt(0).toUpperCase()}
-        </span>
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="font-semibold text-gray-900 truncate">{component.name}</div>
-        <div className="text-xs text-gray-500 mt-0.5">{formatComponentType(component.component_type)}</div>
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <span className="inline-flex items-center px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-md text-xs font-semibold border border-emerald-100">
-            {formatUnitPrice(component.price_per_unit)} / {component.unit_label}
-          </span>
-          {component.quantity && (
-            <span className="inline-flex items-center px-2 py-0.5 bg-gray-50 text-gray-600 rounded-md text-xs font-medium border border-gray-100">
-              Base: {component.quantity} {component.unit_label}
-            </span>
+  return (
+    <div
+      className={`rounded-xl border-2 transition-all duration-150 ${
+        selected
+          ? 'border-indigo-500 bg-indigo-50/40 shadow-md shadow-indigo-500/10'
+          : 'border-gray-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/30'
+      }`}
+    >
+      {/* Clickable selector row */}
+      <button
+        type="button"
+        onClick={onToggle}
+        disabled={disabled}
+        className="relative w-full text-left p-4 disabled:opacity-60"
+      >
+        {/* Check indicator */}
+        <span className={`absolute top-3 right-3 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+          selected ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-gray-300'
+        }`}>
+          {selected && (
+            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+            </svg>
           )}
-          {component.is_promotion_valid && (
-            <span className="inline-flex items-center px-2 py-0.5 bg-purple-50 text-purple-700 rounded-md text-xs font-medium border border-purple-100">
-              {component.discount_percentage}% off
+        </span>
+
+        <div className="flex items-start gap-3 pr-7">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+            selected ? 'bg-indigo-600' : 'bg-gradient-to-br from-indigo-100 to-purple-100'
+          }`}>
+            <span className={`font-bold text-sm ${selected ? 'text-white' : 'text-indigo-600'}`}>
+              {component.name.charAt(0).toUpperCase()}
             </span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="font-semibold text-gray-900 truncate">{component.name}</div>
+            <div className="text-xs text-gray-500 mt-0.5">{formatComponentType(component.component_type)}</div>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="inline-flex items-center px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-md text-xs font-semibold border border-emerald-100">
+                {formatUnitPrice(component.price_per_unit)} / {component.unit_label}
+              </span>
+              {component.quantity && (
+                <span className="inline-flex items-center px-2 py-0.5 bg-gray-50 text-gray-600 rounded-md text-xs font-medium border border-gray-100">
+                  Base: {component.quantity} {component.unit_label}
+                </span>
+              )}
+              {component.is_promotion_valid && (
+                <span className="inline-flex items-center px-2 py-0.5 bg-purple-50 text-purple-700 rounded-md text-xs font-medium border border-purple-100">
+                  {component.discount_percentage}% off
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </button>
+
+      {/* Inline quantity (shown when selected) */}
+      {selected && (
+        <div className="px-4 pb-4 space-y-3">
+          {/* Multiplier */}
+          <div className="pt-3 border-t border-indigo-100 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex-shrink-0 sm:w-28">
+              Multiplier
+            </label>
+            <div className="flex items-center gap-2 flex-1 flex-wrap">
+              <div className="relative w-32">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-medium">×</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={multiplierValue}
+                  onChange={(e) => onMultiplierChange(e.target.value)}
+                  disabled={disabled}
+                  className="w-full pl-8 pr-3 py-2 bg-white border border-gray-200 rounded-xl text-gray-900 font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:opacity-50 transition-all"
+                />
+              </div>
+              <span className="text-xs text-gray-400">
+                Scales the component&apos;s base quantity (×2 = double)
+              </span>
+            </div>
+          </div>
+
+          {/* Result preview */}
+          {baseQty !== null && !isNaN(baseQty) && (
+            <div className="pt-2 border-t border-indigo-100 flex flex-wrap items-center gap-2 text-xs">
+              <svg className="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+              <span className="text-gray-500">Customer gets:</span>
+              <span className="font-bold text-indigo-600">
+                {(baseQty * multiplier).toLocaleString()} {component.unit_label}
+              </span>
+              <span className="text-gray-400">({baseQty.toLocaleString()} × {multiplier})</span>
+            </div>
           )}
         </div>
-      </div>
+      )}
     </div>
-  </button>
-);
+  );
+};
 
 // ============================================
 // CUSTOM HOOK
@@ -499,9 +559,8 @@ const PlanComponentInclusionManagement = ({ planId, embedded = false }: PlanComp
   const [planSearch, setPlanSearch] = useState('');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Assign flow (2-step wizard)
+  // Assign flow (single step: select + configure inline)
   const [isAssignOpen, setIsAssignOpen] = useState(false);
-  const [assignStep, setAssignStep] = useState<1 | 2>(1);
   const [componentSearch, setComponentSearch] = useState('');
   const [selectedComponentIds, setSelectedComponentIds] = useState<string[]>([]);
   const [multipliers, setMultipliers] = useState<Record<string, string>>({});
@@ -578,9 +637,9 @@ const PlanComponentInclusionManagement = ({ planId, embedded = false }: PlanComp
     );
   }, [availableComponents, componentSearch]);
 
-  const selectedComponents = useMemo(
-    () => allComponents.filter(c => selectedComponentIds.includes(c.id)),
-    [allComponents, selectedComponentIds]
+  const allFilteredSelected = useMemo(
+    () => filteredAvailableComponents.length > 0 && filteredAvailableComponents.every(c => selectedComponentIds.includes(c.id)),
+    [filteredAvailableComponents, selectedComponentIds]
   );
 
   // ---- Success toast auto-dismiss ----
@@ -603,7 +662,6 @@ const PlanComponentInclusionManagement = ({ planId, embedded = false }: PlanComp
   }, []);
 
   const resetAssignFlow = useCallback(() => {
-    setAssignStep(1);
     setComponentSearch('');
     setSelectedComponentIds([]);
     setMultipliers({});
@@ -630,6 +688,24 @@ const PlanComponentInclusionManagement = ({ planId, embedded = false }: PlanComp
     );
     setMultipliers(prev => (prev[componentId] ? prev : { ...prev, [componentId]: '1' }));
   }, []);
+
+  // Bulk select/deselect all currently visible (filtered) components
+  const toggleSelectAll = useCallback(() => {
+    const filteredIds = filteredAvailableComponents.map(c => c.id);
+    if (allFilteredSelected) {
+      const idSet = new Set(filteredIds);
+      setSelectedComponentIds(prev => prev.filter(id => !idSet.has(id)));
+    } else {
+      setSelectedComponentIds(prev => Array.from(new Set([...prev, ...filteredIds])));
+      setMultipliers(prev => {
+        const next = { ...prev };
+        filteredIds.forEach(id => {
+          if (!next[id]) next[id] = '1';
+        });
+        return next;
+      });
+    }
+  }, [filteredAvailableComponents, allFilteredSelected]);
 
   const handleAssignSubmit = async () => {
     if (!selectedPlanId || selectedComponentIds.length === 0) return;
@@ -1097,7 +1173,7 @@ const PlanComponentInclusionManagement = ({ planId, embedded = false }: PlanComp
       </div>
 
       {/* ============================================ */}
-      {/* ASSIGN COMPONENTS WIZARD (2 steps)           */}
+      {/* ASSIGN COMPONENTS (select + configure inline) */}
       {/* ============================================ */}
       {isAssignOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -1118,6 +1194,8 @@ const PlanComponentInclusionManagement = ({ planId, embedded = false }: PlanComp
                       <h2 className="text-lg font-semibold text-gray-900">Assign Components</h2>
                       <p className="text-sm text-gray-500">
                         Plan: <span className="font-medium text-indigo-600">{selectedPlan?.name}</span>
+                        <span className="mx-1.5 text-gray-300">•</span>
+                        Select components and set quantity right on each card
                       </p>
                     </div>
                   </div>
@@ -1131,54 +1209,57 @@ const PlanComponentInclusionManagement = ({ planId, embedded = false }: PlanComp
                     </svg>
                   </button>
                 </div>
-
-                {/* Stepper */}
-                <div className="mt-4 flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                      assignStep === 1 ? 'bg-indigo-600 text-white' : 'bg-emerald-500 text-white'
-                    }`}>
-                      {assignStep === 1 ? '1' : (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </span>
-                    <span className={`text-sm font-semibold ${assignStep === 1 ? 'text-indigo-600' : 'text-emerald-600'}`}>
-                      Choose Components
-                    </span>
-                  </div>
-                  <div className={`flex-1 h-0.5 rounded transition-all ${assignStep === 2 ? 'bg-indigo-400' : 'bg-gray-200'}`} />
-                  <div className="flex items-center gap-2">
-                    <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                      assignStep === 2 ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500'
-                    }`}>
-                      2
-                    </span>
-                    <span className={`text-sm font-semibold ${assignStep === 2 ? 'text-indigo-600' : 'text-gray-400'}`}>
-                      Set Quantity
-                    </span>
-                  </div>
-                </div>
               </div>
 
-              {/* ---------- STEP 1: choose from cards ---------- */}
-              {assignStep === 1 && (
-                <>
-                  <div className="px-6 pt-4">
-                    <div className="relative">
-                      <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                      <input
-                        type="text"
-                        value={componentSearch}
-                        onChange={(e) => setComponentSearch(e.target.value)}
-                        placeholder="Search components by name or type..."
-                        className="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-700 placeholder-gray-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                      />
-                    </div>
+              {/* ---------- Search + bulk select ---------- */}
+              <div className="px-6 pt-4 space-y-3">
+                <div className="relative">
+                  <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={componentSearch}
+                    onChange={(e) => setComponentSearch(e.target.value)}
+                    placeholder="Search components by name or type..."
+                    className="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-700 placeholder-gray-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                  />
+                </div>
+
+                {!(isLoadingComponents || isLoadingInclusions) && filteredAvailableComponents.length > 0 && (
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={toggleSelectAll}
+                      disabled={isAdding}
+                      className="inline-flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-indigo-600 disabled:opacity-50 transition-all"
+                    >
+                      <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+                        allFilteredSelected ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-gray-300'
+                      }`}>
+                        {allFilteredSelected && (
+                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </span>
+                      {allFilteredSelected
+                        ? 'Deselect all'
+                        : `Select all (${filteredAvailableComponents.length})`}
+                    </button>
+                    {selectedComponentIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedComponentIds([])}
+                        disabled={isAdding}
+                        className="text-xs font-medium text-gray-400 hover:text-red-500 underline disabled:opacity-50 transition-all"
+                      >
+                        Clear selection
+                      </button>
+                    )}
                   </div>
+                )}
+              </div>
 
                   <div className="flex-1 overflow-y-auto px-6 py-4 min-h-[280px]">
                     {(isLoadingComponents || isLoadingInclusions) ? (
@@ -1209,168 +1290,54 @@ const PlanComponentInclusionManagement = ({ planId, embedded = false }: PlanComp
                         </button>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-3">
                         {filteredAvailableComponents.map((comp) => (
                           <SelectableComponentCard
                             key={comp.id}
                             component={comp}
                             selected={selectedComponentIds.includes(comp.id)}
                             onToggle={() => toggleComponent(comp.id)}
+                            multiplierValue={multipliers[comp.id] ?? '1'}
+                            onMultiplierChange={(v) => setMultipliers(prev => ({ ...prev, [comp.id]: v }))}
+                            disabled={isAdding}
                           />
                         ))}
                       </div>
                     )}
                   </div>
 
-                  {/* Step 1 footer */}
-                  <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl">
-                    <span className="text-sm text-gray-500">
-                      {selectedComponentIds.length === 0
-                        ? 'Tap the cards to select'
-                        : <><span className="font-bold text-indigo-600">{selectedComponentIds.length}</span> selected</>}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={closeAssignFlow}
-                        className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-xl font-medium hover:bg-gray-50 transition-all"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setAssignStep(2)}
-                        disabled={selectedComponentIds.length === 0}
-                        className="inline-flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-xl font-medium transition-all shadow-lg shadow-indigo-500/25 disabled:shadow-none"
-                      >
-                        Continue
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
+              {/* Footer */}
+              <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl">
+                <span className="text-sm text-gray-500">
+                  {selectedComponentIds.length === 0
+                    ? 'Tap the cards to select'
+                    : <><span className="font-bold text-indigo-600">{selectedComponentIds.length}</span> selected</>}
+                </span>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={closeAssignFlow}
+                    disabled={isAdding}
+                    className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-xl font-medium hover:bg-gray-50 disabled:opacity-50 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAssignSubmit}
+                    disabled={isAdding || selectedComponentIds.length === 0}
+                    className="inline-flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl font-medium transition-all shadow-lg shadow-indigo-500/25 disabled:shadow-none"
+                  >
+                    {isAdding && <LoadingSpinner size="sm" />}
+                    {isAdding
+                      ? 'Assigning...'
+                      : selectedComponentIds.length === 0
+                        ? 'Assign Components'
+                        : `Assign ${selectedComponentIds.length} Component${selectedComponentIds.length > 1 ? 's' : ''}`}
+                  </button>
+                </div>
+              </div>
 
-              {/* ---------- STEP 2: set quantity per component ---------- */}
-              {assignStep === 2 && (
-                <>
-                  <div className="flex-1 overflow-y-auto px-6 py-4 min-h-[280px]">
-                    <p className="text-sm text-gray-500 mb-4">
-                      Set how much of each component this plan includes. The multiplier scales the component&apos;s base quantity
-                      (e.g. <span className="font-semibold text-gray-700">×2</span> = double the amount).
-                    </p>
-                    <div className="space-y-3">
-                      {selectedComponents.map((comp) => {
-                        const multiplier = parseFloat(multipliers[comp.id]) || 1;
-                        const baseQty = comp.quantity ? parseFloat(comp.quantity) : null;
-                        return (
-                          <div key={comp.id} className="p-4 bg-gray-50/70 rounded-xl border border-gray-200">
-                            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                              {/* Component info */}
-                              <div className="flex items-center gap-3 flex-1 min-w-0">
-                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center flex-shrink-0">
-                                  <span className="text-indigo-600 font-bold text-sm">{comp.name.charAt(0).toUpperCase()}</span>
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="font-semibold text-gray-900 truncate">{comp.name}</div>
-                                  <div className="text-xs text-gray-500">
-                                    {formatComponentType(comp.component_type)} • {formatUnitPrice(comp.price_per_unit)}/{comp.unit_label}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Multiplier input */}
-                              <div className="flex items-center gap-3 flex-shrink-0">
-                                <div className="relative w-32">
-                                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-medium">×</span>
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0.01"
-                                    value={multipliers[comp.id] ?? '1'}
-                                    onChange={(e) => setMultipliers(prev => ({ ...prev, [comp.id]: e.target.value }))}
-                                    disabled={isAdding}
-                                    className="w-full pl-8 pr-3 py-2 bg-white border border-gray-200 rounded-xl text-gray-900 font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:opacity-50 transition-all"
-                                  />
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => toggleComponent(comp.id)}
-                                  disabled={isAdding}
-                                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all disabled:opacity-40"
-                                  title="Remove from selection"
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                  </svg>
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Result preview */}
-                            {baseQty !== null && !isNaN(baseQty) && (
-                              <div className="mt-3 pt-3 border-t border-gray-200 flex items-center gap-2 text-sm">
-                                <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                                </svg>
-                                <span className="text-gray-500">Customer gets:</span>
-                                <span className="font-bold text-indigo-600">
-                                  {(baseQty * multiplier).toLocaleString()} {comp.unit_label}
-                                </span>
-                                <span className="text-xs text-gray-400">({baseQty.toLocaleString()} × {multiplier})</span>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {selectedComponents.length === 0 && (
-                      <div className="text-center py-10">
-                        <p className="text-gray-500">Nothing selected. Go back and choose components.</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Step 2 footer */}
-                  <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl">
-                    <button
-                      type="button"
-                      onClick={() => setAssignStep(1)}
-                      disabled={isAdding}
-                      className="inline-flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-xl font-medium hover:bg-gray-50 disabled:opacity-50 transition-all"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                      </svg>
-                      Back
-                    </button>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={closeAssignFlow}
-                        disabled={isAdding}
-                        className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-xl font-medium hover:bg-gray-50 disabled:opacity-50 transition-all"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleAssignSubmit}
-                        disabled={isAdding || selectedComponentIds.length === 0}
-                        className="inline-flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl font-medium transition-all shadow-lg shadow-indigo-500/25 disabled:shadow-none"
-                      >
-                        {isAdding && <LoadingSpinner size="sm" />}
-                        {isAdding
-                          ? 'Assigning...'
-                          : `Assign ${selectedComponentIds.length} Component${selectedComponentIds.length > 1 ? 's' : ''}`}
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
             </div>
           </div>
         </div>

@@ -303,70 +303,7 @@ const PlanCard = ({
 };
 
 // ============================================
-// SELECTABLE AGENT CARD (assign flow, step 1)
-// ============================================
-const SelectableAgentCard = ({
-  pricing,
-  selected,
-  onToggle,
-}: {
-  pricing: AgentPricing;
-  selected: boolean;
-  onToggle: () => void;
-}) => (
-  <button
-    type="button"
-    onClick={onToggle}
-    className={`relative w-full text-left p-4 rounded-xl border-2 transition-all duration-150 ${
-      selected
-        ? 'border-indigo-500 bg-indigo-50/60 shadow-md shadow-indigo-500/10'
-        : 'border-gray-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/30'
-    }`}
-  >
-    {/* Check indicator */}
-    <span className={`absolute top-3 right-3 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
-      selected ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-gray-300'
-    }`}>
-      {selected && (
-        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-        </svg>
-      )}
-    </span>
-
-    <div className="flex items-start gap-3 pr-7">
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-        selected ? 'bg-indigo-600' : 'bg-gradient-to-br from-indigo-100 to-purple-100'
-      }`}>
-        <svg className={`w-5 h-5 ${selected ? 'text-white' : 'text-indigo-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-        </svg>
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="font-semibold text-gray-900 truncate">{pricing.agent_name}</div>
-        <div className="text-xs text-gray-500 mt-0.5 truncate">
-          {pricing.agent_category}{pricing.name ? ` • ${pricing.name}` : ''}
-        </div>
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <span className="inline-flex items-center px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-md text-xs font-semibold border border-emerald-100">
-            {formatMoney(pricing.price)} / {formatLabel(pricing.unit)}
-          </span>
-          <span className="inline-flex items-center px-2 py-0.5 bg-gray-50 text-gray-600 rounded-md text-xs font-medium border border-gray-100 capitalize">
-            {formatLabel(pricing.billing_method)}
-          </span>
-          {pricing.discount_percentage && parseFloat(pricing.discount_percentage) > 0 && (
-            <span className="inline-flex items-center px-2 py-0.5 bg-purple-50 text-purple-700 rounded-md text-xs font-medium border border-purple-100">
-              {pricing.discount_percentage}% off
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  </button>
-);
-
-// ============================================
-// UNLIMITED / INSTANCES SWITCH (assign flow, step 2)
+// UNLIMITED / INSTANCES SWITCH
 // ============================================
 const UnlimitedToggle = ({
   isUnlimited,
@@ -392,6 +329,192 @@ const UnlimitedToggle = ({
 );
 
 // ============================================
+// SELECTABLE AGENT CARD (select + inline Instances & Pricing)
+// ============================================
+const SelectableAgentCard = ({
+  pricing,
+  selected,
+  onToggle,
+  instanceValue,
+  onInstanceChange,
+  overrideValue,
+  onOverrideChange,
+  disabled,
+}: {
+  pricing: AgentPricing;
+  selected: boolean;
+  onToggle: () => void;
+  instanceValue: string;
+  onInstanceChange: (value: string) => void;
+  overrideValue: string;
+  onOverrideChange: (value: string) => void;
+  disabled?: boolean;
+}) => {
+  const isUnlimited = parseInt(instanceValue || '1') === 0;
+  const overrideParsed = parseOverridePrice(overrideValue);
+  const hasOverride = typeof overrideParsed === 'number';
+  const overrideInvalid = overrideParsed === 'invalid';
+
+  return (
+    <div
+      className={`rounded-xl border-2 transition-all duration-150 ${
+        selected
+          ? 'border-indigo-500 bg-indigo-50/40 shadow-md shadow-indigo-500/10'
+          : 'border-gray-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/30'
+      }`}
+    >
+      {/* Clickable selector row */}
+      <button
+        type="button"
+        onClick={onToggle}
+        disabled={disabled}
+        className="relative w-full text-left p-4 disabled:opacity-60"
+      >
+        {/* Check indicator */}
+        <span className={`absolute top-3 right-3 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+          selected ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-gray-300'
+        }`}>
+          {selected && (
+            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+        </span>
+
+        <div className="flex items-start gap-3 pr-7">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+            selected ? 'bg-indigo-600' : 'bg-gradient-to-br from-indigo-100 to-purple-100'
+          }`}>
+            <svg className={`w-5 h-5 ${selected ? 'text-white' : 'text-indigo-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="font-semibold text-gray-900 truncate">{pricing.agent_name}</div>
+            <div className="text-xs text-gray-500 mt-0.5 truncate">
+              {pricing.agent_category}{pricing.name ? ` • ${pricing.name}` : ''}
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="inline-flex items-center px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-md text-xs font-semibold border border-emerald-100">
+                {formatMoney(pricing.price)} / {formatLabel(pricing.unit)}
+              </span>
+              <span className="inline-flex items-center px-2 py-0.5 bg-gray-50 text-gray-600 rounded-md text-xs font-medium border border-gray-100 capitalize">
+                {formatLabel(pricing.billing_method)}
+              </span>
+              {pricing.discount_percentage && parseFloat(pricing.discount_percentage) > 0 && (
+                <span className="inline-flex items-center px-2 py-0.5 bg-purple-50 text-purple-700 rounded-md text-xs font-medium border border-purple-100">
+                  {pricing.discount_percentage}% off
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </button>
+
+      {/* Inline Instances & Pricing (shown when selected) */}
+      {selected && (
+        <div className="px-4 pb-4 space-y-3">
+          {/* Instances */}
+          <div className="pt-3 border-t border-indigo-100 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex-shrink-0 sm:w-28">
+              Instances
+            </label>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <UnlimitedToggle
+                  isUnlimited={isUnlimited}
+                  onToggle={() => onInstanceChange(isUnlimited ? '1' : '0')}
+                  disabled={disabled}
+                />
+                <span className={`text-xs font-semibold ${isUnlimited ? 'text-indigo-600' : 'text-gray-400'}`}>
+                  Unlimited
+                </span>
+              </div>
+              {!isUnlimited && (
+                <input
+                  type="number"
+                  min="1"
+                  value={instanceValue}
+                  onChange={(e) => onInstanceChange(e.target.value)}
+                  disabled={disabled}
+                  className="w-24 px-3 py-2 bg-white border border-gray-200 rounded-xl text-gray-900 font-semibold text-center focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:opacity-50 transition-all"
+                />
+              )}
+            </div>
+          </div>
+
+          {/* Plan-specific price override */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex-shrink-0 sm:w-28">
+              Plan price
+            </label>
+            <div className="flex items-center gap-2 flex-1 flex-wrap">
+              <div className="relative w-32">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={overrideValue}
+                  onChange={(e) => onOverrideChange(e.target.value)}
+                  disabled={disabled}
+                  placeholder={parseFloat(pricing.price || '0').toFixed(2)}
+                  className={`w-full pl-7 pr-3 py-2 bg-white border rounded-xl text-gray-900 font-semibold text-sm focus:ring-2 disabled:opacity-50 transition-all ${
+                    overrideInvalid
+                      ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500'
+                      : hasOverride
+                        ? 'border-amber-300 focus:ring-amber-500/20 focus:border-amber-500'
+                        : 'border-gray-200 focus:ring-indigo-500/20 focus:border-indigo-500'
+                  }`}
+                />
+              </div>
+              {hasOverride ? (
+                <>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-700 rounded-md text-xs font-semibold border border-amber-200">
+                    Override
+                  </span>
+                  <span className="text-xs text-gray-400 line-through">{formatMoney(pricing.price)}</span>
+                  <button
+                    type="button"
+                    onClick={() => onOverrideChange('')}
+                    disabled={disabled}
+                    className="text-xs font-medium text-gray-400 hover:text-gray-600 underline disabled:opacity-40"
+                  >
+                    Reset
+                  </button>
+                </>
+              ) : overrideInvalid ? (
+                <span className="text-xs text-red-500 font-medium">Enter a positive number</span>
+              ) : (
+                <span className="text-xs text-gray-400">Base price {formatMoney(pricing.price)} / {formatLabel(pricing.unit)}</span>
+              )}
+            </div>
+          </div>
+
+          {/* Result preview */}
+          <div className="pt-2 border-t border-indigo-100 flex flex-wrap items-center gap-2 text-xs">
+            <svg className="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+            <span className="text-gray-500">Customer gets:</span>
+            <span className="font-bold text-indigo-600">
+              {isUnlimited
+                ? 'Unlimited instances'
+                : `${Math.max(1, parseInt(instanceValue) || 1)} instance${(parseInt(instanceValue) || 1) > 1 ? 's' : ''}`}
+            </span>
+            <span className="text-gray-300">•</span>
+            <span className="text-gray-500">at</span>
+            <span className={`font-bold ${hasOverride ? 'text-amber-600' : 'text-indigo-600'}`}>
+              {formatMoney(hasOverride ? overrideParsed : pricing.price)} / {formatLabel(pricing.unit)}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ============================================
 // MAIN COMPONENT
 // ============================================
 interface PlanAgentInclusionManagementProps {
@@ -411,9 +534,8 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
   const [planSearch, setPlanSearch] = useState('');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Assign flow (2-step wizard)
+  // Assign flow (single step: select + configure inline)
   const [isAssignOpen, setIsAssignOpen] = useState(false);
-  const [assignStep, setAssignStep] = useState<1 | 2>(1);
   const [agentSearch, setAgentSearch] = useState('');
   const [selectedPricingIds, setSelectedPricingIds] = useState<string[]>([]);
   // Per pricing id: number of instances as string; '0' means unlimited
@@ -486,9 +608,9 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
     );
   }, [availableAgentPricing, agentSearch]);
 
-  const selectedPricings = useMemo(
-    () => agentPricingOptions.filter(ap => selectedPricingIds.includes(ap.id)),
-    [agentPricingOptions, selectedPricingIds]
+  const allFilteredSelected = useMemo(
+    () => filteredAvailableAgents.length > 0 && filteredAvailableAgents.every(ap => selectedPricingIds.includes(ap.id)),
+    [filteredAvailableAgents, selectedPricingIds]
   );
 
   // Auto-select plan from URL when plans are loaded
@@ -521,7 +643,6 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
   }, []);
 
   const resetAssignFlow = useCallback(() => {
-    setAssignStep(1);
     setAgentSearch('');
     setSelectedPricingIds([]);
     setInstances({});
@@ -549,6 +670,24 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
     );
     setInstances(prev => (prev[pricingId] !== undefined ? prev : { ...prev, [pricingId]: '1' }));
   }, []);
+
+  // Bulk select/deselect all currently visible (filtered) agents
+  const toggleSelectAll = useCallback(() => {
+    const filteredIds = filteredAvailableAgents.map(ap => ap.id);
+    if (allFilteredSelected) {
+      const idSet = new Set(filteredIds);
+      setSelectedPricingIds(prev => prev.filter(id => !idSet.has(id)));
+    } else {
+      setSelectedPricingIds(prev => Array.from(new Set([...prev, ...filteredIds])));
+      setInstances(prev => {
+        const next = { ...prev };
+        filteredIds.forEach(id => {
+          if (next[id] === undefined) next[id] = '1';
+        });
+        return next;
+      });
+    }
+  }, [filteredAvailableAgents, allFilteredSelected]);
 
   const handleAssignSubmit = async () => {
     if (!selectedPlanId || selectedPricingIds.length === 0) return;
@@ -1040,7 +1179,7 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
       </div>
 
       {/* ============================================ */}
-      {/* ASSIGN AGENTS WIZARD (2 steps)               */}
+      {/* ASSIGN AGENTS (select + configure inline)    */}
       {/* ============================================ */}
       {isAssignOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -1061,6 +1200,8 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
                       <h2 className="text-lg font-semibold text-gray-900">Assign Agents</h2>
                       <p className="text-sm text-gray-500">
                         Plan: <span className="font-medium text-indigo-600">{selectedPlan?.name}</span>
+                        <span className="mx-1.5 text-gray-300">•</span>
+                        Select agents and set instances &amp; pricing right on each card
                       </p>
                     </div>
                   </div>
@@ -1075,53 +1216,57 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
                   </button>
                 </div>
 
-                {/* Stepper */}
-                <div className="mt-4 flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                      assignStep === 1 ? 'bg-indigo-600 text-white' : 'bg-emerald-500 text-white'
-                    }`}>
-                      {assignStep === 1 ? '1' : (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </span>
-                    <span className={`text-sm font-semibold ${assignStep === 1 ? 'text-indigo-600' : 'text-emerald-600'}`}>
-                      Choose Agents
-                    </span>
-                  </div>
-                  <div className={`flex-1 h-0.5 rounded transition-all ${assignStep === 2 ? 'bg-indigo-400' : 'bg-gray-200'}`} />
-                  <div className="flex items-center gap-2">
-                    <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                      assignStep === 2 ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500'
-                    }`}>
-                      2
-                    </span>
-                    <span className={`text-sm font-semibold ${assignStep === 2 ? 'text-indigo-600' : 'text-gray-400'}`}>
-                      Instances &amp; Pricing
-                    </span>
-                  </div>
-                </div>
               </div>
 
-              {/* ---------- STEP 1: choose from cards ---------- */}
-              {assignStep === 1 && (
-                <>
-                  <div className="px-6 pt-4">
-                    <div className="relative">
-                      <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                      <input
-                        type="text"
-                        value={agentSearch}
-                        onChange={(e) => setAgentSearch(e.target.value)}
-                        placeholder="Search agents by name or category..."
-                        className="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-700 placeholder-gray-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                      />
-                    </div>
+              {/* ---------- Search + bulk select ---------- */}
+              <div className="px-6 pt-4 space-y-3">
+                <div className="relative">
+                  <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={agentSearch}
+                    onChange={(e) => setAgentSearch(e.target.value)}
+                    placeholder="Search agents by name or category..."
+                    className="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-700 placeholder-gray-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                  />
+                </div>
+
+                {!isLoadingWizardData && filteredAvailableAgents.length > 0 && (
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={toggleSelectAll}
+                      disabled={isAdding}
+                      className="inline-flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-indigo-600 disabled:opacity-50 transition-all"
+                    >
+                      <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+                        allFilteredSelected ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-gray-300'
+                      }`}>
+                        {allFilteredSelected && (
+                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </span>
+                      {allFilteredSelected
+                        ? 'Deselect all'
+                        : `Select all (${filteredAvailableAgents.length})`}
+                    </button>
+                    {selectedPricingIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPricingIds([])}
+                        disabled={isAdding}
+                        className="text-xs font-medium text-gray-400 hover:text-red-500 underline disabled:opacity-50 transition-all"
+                      >
+                        Clear selection
+                      </button>
+                    )}
                   </div>
+                )}
+              </div>
 
                   <div className="flex-1 overflow-y-auto px-6 py-4 min-h-[280px]">
                     {isLoadingWizardData ? (
@@ -1152,242 +1297,56 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
                         </button>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-3">
                         {filteredAvailableAgents.map((pricing) => (
                           <SelectableAgentCard
                             key={pricing.id}
                             pricing={pricing}
                             selected={selectedPricingIds.includes(pricing.id)}
                             onToggle={() => toggleAgent(pricing.id)}
+                            instanceValue={instances[pricing.id] ?? '1'}
+                            onInstanceChange={(v) => setInstances(prev => ({ ...prev, [pricing.id]: v }))}
+                            overrideValue={overridePrices[pricing.id] ?? ''}
+                            onOverrideChange={(v) => setOverridePrices(prev => ({ ...prev, [pricing.id]: v }))}
+                            disabled={isAdding}
                           />
                         ))}
                       </div>
                     )}
                   </div>
 
-                  {/* Step 1 footer */}
-                  <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl">
-                    <span className="text-sm text-gray-500">
-                      {selectedPricingIds.length === 0
-                        ? 'Tap the cards to select'
-                        : <><span className="font-bold text-indigo-600">{selectedPricingIds.length}</span> selected</>}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={closeAssignFlow}
-                        className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-xl font-medium hover:bg-gray-50 transition-all"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setAssignStep(2)}
-                        disabled={selectedPricingIds.length === 0}
-                        className="inline-flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-xl font-medium transition-all shadow-lg shadow-indigo-500/25 disabled:shadow-none"
-                      >
-                        Continue
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
+              {/* Footer */}
+              <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl">
+                <span className="text-sm text-gray-500">
+                  {selectedPricingIds.length === 0
+                    ? 'Tap the cards to select'
+                    : <><span className="font-bold text-indigo-600">{selectedPricingIds.length}</span> selected</>}
+                </span>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={closeAssignFlow}
+                    disabled={isAdding}
+                    className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-xl font-medium hover:bg-gray-50 disabled:opacity-50 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAssignSubmit}
+                    disabled={isAdding || selectedPricingIds.length === 0}
+                    className="inline-flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl font-medium transition-all shadow-lg shadow-indigo-500/25 disabled:shadow-none"
+                  >
+                    {isAdding && <LoadingSpinner size="sm" />}
+                    {isAdding
+                      ? 'Assigning...'
+                      : selectedPricingIds.length === 0
+                        ? 'Assign Agents'
+                        : `Assign ${selectedPricingIds.length} Agent${selectedPricingIds.length > 1 ? 's' : ''}`}
+                  </button>
+                </div>
+              </div>
 
-              {/* ---------- STEP 2: set instances per agent ---------- */}
-              {assignStep === 2 && (
-                <>
-                  <div className="flex-1 overflow-y-auto px-6 py-4 min-h-[280px]">
-                    <p className="text-sm text-gray-500 mb-4">
-                      Set how many instances of each agent customers get with this plan.
-                      Turn on <span className="font-semibold text-gray-700">Unlimited</span> to let them create as many as they need.
-                      You can also set a <span className="font-semibold text-gray-700">plan-specific price</span> that overrides the agent&apos;s base price.
-                    </p>
-                    <div className="space-y-3">
-                      {selectedPricings.map((pricing) => {
-                        const isUnlimited = parseInt(instances[pricing.id] ?? '1') === 0;
-                        const overrideRaw = overridePrices[pricing.id] ?? '';
-                        const overrideParsed = parseOverridePrice(overrideRaw);
-                        const hasOverride = typeof overrideParsed === 'number';
-                        const overrideInvalid = overrideParsed === 'invalid';
-                        return (
-                          <div key={pricing.id} className="p-4 bg-gray-50/70 rounded-xl border border-gray-200">
-                            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                              {/* Agent info */}
-                              <div className="flex items-center gap-3 flex-1 min-w-0">
-                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center flex-shrink-0">
-                                  <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                  </svg>
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="font-semibold text-gray-900 truncate">{pricing.agent_name}</div>
-                                  <div className="text-xs text-gray-500">
-                                    {pricing.agent_category} • {formatMoney(pricing.price)} / {formatLabel(pricing.unit)}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Instances controls */}
-                              <div className="flex items-center gap-3 flex-shrink-0">
-                                <div className="flex items-center gap-2">
-                                  <UnlimitedToggle
-                                    isUnlimited={isUnlimited}
-                                    onToggle={() =>
-                                      setInstances(prev => ({
-                                        ...prev,
-                                        [pricing.id]: isUnlimited ? '1' : '0',
-                                      }))
-                                    }
-                                    disabled={isAdding}
-                                  />
-                                  <span className={`text-xs font-semibold ${isUnlimited ? 'text-indigo-600' : 'text-gray-400'}`}>
-                                    Unlimited
-                                  </span>
-                                </div>
-                                {!isUnlimited && (
-                                  <input
-                                    type="number"
-                                    min="1"
-                                    value={instances[pricing.id] ?? '1'}
-                                    onChange={(e) => setInstances(prev => ({ ...prev, [pricing.id]: e.target.value }))}
-                                    disabled={isAdding}
-                                    className="w-24 px-3 py-2 bg-white border border-gray-200 rounded-xl text-gray-900 font-semibold text-center focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:opacity-50 transition-all"
-                                  />
-                                )}
-                                <button
-                                  type="button"
-                                  onClick={() => toggleAgent(pricing.id)}
-                                  disabled={isAdding}
-                                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all disabled:opacity-40"
-                                  title="Remove from selection"
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                  </svg>
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Plan-specific price override */}
-                            <div className="mt-3 pt-3 border-t border-gray-200">
-                              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex-shrink-0">
-                                  Price for this plan
-                                </label>
-                                <div className="flex items-center gap-2 flex-1">
-                                  <div className="relative w-32">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
-                                      value={overrideRaw}
-                                      onChange={(e) => setOverridePrices(prev => ({ ...prev, [pricing.id]: e.target.value }))}
-                                      disabled={isAdding}
-                                      placeholder={parseFloat(pricing.price || '0').toFixed(2)}
-                                      className={`w-full pl-7 pr-3 py-2 bg-white border rounded-xl text-gray-900 font-semibold text-sm focus:ring-2 disabled:opacity-50 transition-all ${
-                                        overrideInvalid
-                                          ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500'
-                                          : hasOverride
-                                            ? 'border-amber-300 focus:ring-amber-500/20 focus:border-amber-500'
-                                            : 'border-gray-200 focus:ring-indigo-500/20 focus:border-indigo-500'
-                                      }`}
-                                    />
-                                  </div>
-                                  {hasOverride ? (
-                                    <>
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-700 rounded-md text-xs font-semibold border border-amber-200">
-                                        Override
-                                      </span>
-                                      <span className="text-xs text-gray-400 line-through">{formatMoney(pricing.price)}</span>
-                                      <button
-                                        type="button"
-                                        onClick={() => setOverridePrices(prev => ({ ...prev, [pricing.id]: '' }))}
-                                        disabled={isAdding}
-                                        className="text-xs font-medium text-gray-400 hover:text-gray-600 underline disabled:opacity-40"
-                                      >
-                                        Reset
-                                      </button>
-                                    </>
-                                  ) : overrideInvalid ? (
-                                    <span className="text-xs text-red-500 font-medium">Enter a positive number</span>
-                                  ) : (
-                                    <span className="text-xs text-gray-400">Base price {formatMoney(pricing.price)} / {formatLabel(pricing.unit)}</span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Result preview */}
-                            <div className="mt-3 pt-3 border-t border-gray-200 flex flex-wrap items-center gap-2 text-sm">
-                              <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                              </svg>
-                              <span className="text-gray-500">Customer gets:</span>
-                              <span className="font-bold text-indigo-600">
-                                {isUnlimited
-                                  ? 'Unlimited instances'
-                                  : `${Math.max(1, parseInt(instances[pricing.id]) || 1)} instance${(parseInt(instances[pricing.id]) || 1) > 1 ? 's' : ''}`}
-                              </span>
-                              <span className="text-xs text-gray-400">of {pricing.agent_name}</span>
-                              <span className="text-gray-300">•</span>
-                              <span className="text-gray-500">at</span>
-                              <span className={`font-bold ${hasOverride ? 'text-amber-600' : 'text-indigo-600'}`}>
-                                {formatMoney(hasOverride ? overrideParsed : pricing.price)} / {formatLabel(pricing.unit)}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {selectedPricings.length === 0 && (
-                      <div className="text-center py-10">
-                        <p className="text-gray-500">Nothing selected. Go back and choose agents.</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Step 2 footer */}
-                  <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl">
-                    <button
-                      type="button"
-                      onClick={() => setAssignStep(1)}
-                      disabled={isAdding}
-                      className="inline-flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-xl font-medium hover:bg-gray-50 disabled:opacity-50 transition-all"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                      </svg>
-                      Back
-                    </button>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={closeAssignFlow}
-                        disabled={isAdding}
-                        className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-xl font-medium hover:bg-gray-50 disabled:opacity-50 transition-all"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleAssignSubmit}
-                        disabled={isAdding || selectedPricingIds.length === 0}
-                        className="inline-flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl font-medium transition-all shadow-lg shadow-indigo-500/25 disabled:shadow-none"
-                      >
-                        {isAdding && <LoadingSpinner size="sm" />}
-                        {isAdding
-                          ? 'Assigning...'
-                          : `Assign ${selectedPricingIds.length} Agent${selectedPricingIds.length > 1 ? 's' : ''}`}
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
             </div>
           </div>
         </div>

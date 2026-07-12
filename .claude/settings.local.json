@@ -30,7 +30,8 @@
       "Bash(ADMIN=c35d1db9-f67b-4c60-8784-d96056eb60bf BASE=http://localhost:8000/api/v1 curl:*)",
       "Bash(ADMIN=c35d1db9-f67b-4c60-8784-d96056eb60bf:*)",
       "Bash(BASE=http://localhost:8000/api/v1)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(echo:*)"
     ]
   }
 }
