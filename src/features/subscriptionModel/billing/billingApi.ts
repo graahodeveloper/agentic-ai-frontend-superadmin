@@ -130,6 +130,10 @@ export interface Plan {
   is_public: boolean;
   display_order: number;
   featured: boolean;
+  // Agent selection limits for subscription
+  // When user subscribes, they can choose between min and max agents from the assigned agents
+  min_agents_required: number;  // 0 = no minimum
+  max_agents_allowed: number;   // 0 = unlimited (all agents)
   // Full data (from PlanDetailSerializer)
   included_components?: PlanComponentInclusion[];
   included_agents?: PlanAgentInclusion[];
@@ -194,6 +198,9 @@ export interface CreatePlanRequest {
   is_public?: boolean;
   display_order?: number;
   featured?: boolean;
+  // Agent selection limits
+  min_agents_required?: number;
+  max_agents_allowed?: number;
 }
 
 export interface CreatePlanComponentRequest {

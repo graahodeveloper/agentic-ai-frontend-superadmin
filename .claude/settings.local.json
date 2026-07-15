@@ -31,7 +31,27 @@
       "Bash(ADMIN=c35d1db9-f67b-4c60-8784-d96056eb60bf:*)",
       "Bash(BASE=http://localhost:8000/api/v1)",
       "Bash(wc:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "WebSearch",
+      "Bash(BASE=https://api-dev.koronik.ai/api/v1)",
+      "Bash(for U in \"https://prod-api.koronik.ai/api/v1\" \"https://api.ibbplc-koronik.com/api/v1\")",
+      "Bash(do echo \"=== $U\")",
+      "Bash(done)",
+      "Bash(for id in 17f25f10-e7f6-4499-b7ab-c7e15c4dd7d5 2debb22e-7a0e-43d0-aa8e-9d91fc0efc18 2c9e739c-08ab-4099-9eb8-5905630790cc fc697cb9-c93b-46cd-b98c-bcf5eb9d3cd1 2457de5a-2cc8-47ca-bff1-3ffb60fdd2d9 7baa1d5f-8eab-48ae-82f8-738a92dc61bc e45b0714-427d-4e6e-b145-63beea8774bf)",
+      "Bash(do curl -s --max-time 15 \"http://localhost:8000/api/v1/plans/$id/public-summary/\")",
+      "Bash(docker cp:*)",
+      "Bash(do curl -s \"http://localhost:8000/api/v1/plans/$id/public-summary/\")",
+      "Bash(cat:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(USER_SUB_ID=f498e458-0081-703f-1ba8-75c8312b6ce5:*)",
+      "Bash(# Get plan IDs with agent inclusions\ncd /Users/golamkibriaanik/Desktop/graaho-ai/graaho-ai-agent-backend && docker-compose exec -T web python manage.py dbshell <<'SQL'\nSELECT p.id, p.name, \n       (SELECT COUNT(*) FROM plan_component_inclusions WHERE plan_id = p.id) as component_count,\n       (SELECT COUNT(*) FROM plan_agent_inclusions WHERE plan_id = p.id) as agent_count\nFROM plans p \nWHERE p.is_active = true \nORDER BY agent_count DESC, component_count DESC\nLIMIT 5;\nSQL\n)",
+      "Bash(# Find a user with Professional plan subscription (which has unlimited components)\ncd /Users/golamkibriaanik/Desktop/graaho-ai/graaho-ai-agent-backend && docker-compose exec -T web python manage.py dbshell <<'SQL'\nSELECT u.sub_id, u.email, cs.status, p.name as plan_name\nFROM client_subscriptions cs\nJOIN users u ON cs.user_id = u.id\nJOIN plans p ON cs.plan_id = p.id\nWHERE p.name = 'Professional' AND cs.status = 'active'\nLIMIT 3;\nSQL\n)",
+      "Bash(# Check if any wallets have is_unlimited = true\ncd /Users/golamkibriaanik/Desktop/graaho-ai/graaho-ai-agent-backend && docker-compose exec -T web python manage.py dbshell <<'SQL'\nSELECT w.resource_type, w.is_unlimited, w.total_allocated, u.email\nFROM resource_wallets w\nJOIN users u ON w.user_id = u.id\nWHERE w.is_active = true\nORDER BY w.is_unlimited DESC, w.resource_type\nLIMIT 10;\nSQL\n)",
+      "Bash(# Get sub_id for user with unlimited wallet\ncd /Users/golamkibriaanik/Desktop/graaho-ai/graaho-ai-agent-backend && docker-compose exec -T web python manage.py dbshell <<'SQL'\nSELECT sub_id FROM users WHERE email = 'golam.anik192+test-workspace-dev-userr-gasdghjx@gmail.com';\nSQL\n)",
+      "Bash(# Find the user with Enterprise plan from screenshots\ncd /Users/golamkibriaanik/Desktop/graaho-ai/graaho-ai-agent-backend && docker-compose exec -T web python manage.py dbshell <<'SQL'\nSELECT u.sub_id, u.email, p.name as plan_name, cs.id as subscription_id\nFROM client_subscriptions cs\nJOIN users u ON cs.user_id = u.id\nJOIN plans p ON cs.plan_id = p.id\nWHERE p.name = 'Enterprise' AND cs.status = 'active'\nLIMIT 3;\nSQL\n)",
+      "Bash(# Check current wallet state for this user\ncd /Users/golamkibriaanik/Desktop/graaho-ai/graaho-ai-agent-backend && docker-compose exec -T web python manage.py dbshell <<'SQL'\nSELECT w.resource_type, w.total_allocated, w.total_used, w.is_unlimited, w.source\nFROM resource_wallets w\nJOIN users u ON w.user_id = u.id\nWHERE u.sub_id = 'e498f488-7081-7035-2ba1-c545672d36b2'\nAND w.is_active = true;\nSQL\n)",
+      "Bash(# Check agent component pricing for agents in Enterprise plan\ncd /Users/golamkibriaanik/Desktop/graaho-ai/graaho-ai-agent-backend && docker-compose exec -T web python manage.py dbshell <<'SQL'\nSELECT a.name as agent_name, pc.name as component_name, pc.component_type, \n       acp.total_quantity, acp.is_unlimited\nFROM agent_component_pricing acp\nJOIN agent_templates a ON acp.agent_id = a.id\nJOIN plan_components pc ON acp.component_id = pc.id\nWHERE a.id IN (\n    'ba3a8510-9b68-4ff3-9121-1b6076f39890',\n    '116dc669-efa5-4044-9c98-1ff91f2f7b1f',\n    'eec7565a-66b9-410e-9173-d068c7014d96',\n    'c690a026-9f24-42e5-92e4-b411d7cc4e03'\n) AND acp.is_active = true\nORDER BY a.name;\nSQL\n)"
     ]
   }
 }

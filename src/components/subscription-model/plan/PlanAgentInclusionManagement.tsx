@@ -9,6 +9,7 @@ import {
   useAddAgentToPlanMutation,
   useUpdatePlanAgentInclusionMutation,
   useRemoveAgentFromPlanMutation,
+  useUpdatePlanMutation,
   Plan,
   AgentPricing,
   PlanAgentsResponse,
@@ -554,7 +555,7 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
   const [removingId, setRemovingId] = useState<string | null>(null);
 
   // ---- API Hooks ----
-  const { data: plansResponse, isLoading: isLoadingPlans } = useGetPlansQuery({});
+  const { data: plansResponse, isLoading: isLoadingPlans, refetch: refetchPlans } = useGetPlansQuery({});
   const plans = useMemo<Plan[]>(() => plansResponse?.results || [], [plansResponse]);
 
   const { data: agentPricingData, isLoading: isLoadingAgentPricing } = useGetAgentPricingQuery({ is_active: true });
@@ -567,6 +568,13 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
   const [addAgentToPlan, { isLoading: isAdding }] = useAddAgentToPlanMutation();
   const [updateInclusion, { isLoading: isUpdating }] = useUpdatePlanAgentInclusionMutation();
   const [removeAgent] = useRemoveAgentFromPlanMutation();
+  const [updatePlan, { isLoading: isUpdatingPlan }] = useUpdatePlanMutation();
+
+  // Agent selection limits state
+  const [isLimitsModalOpen, setIsLimitsModalOpen] = useState(false);
+  const [minAgents, setMinAgents] = useState<string>('0');
+  const [maxAgents, setMaxAgents] = useState<string>('0');
+  const [limitsError, setLimitsError] = useState<string | null>(null);
 
   // ---- Derived state ----
   const inclusions = useMemo<PlanAgentItem[]>(() => planAgentsData?.agents || [], [planAgentsData]);
@@ -630,6 +638,15 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
     return () => clearTimeout(t);
   }, [successMessage]);
 
+  // ---- Sync agent limits state when modal opens ----
+  useEffect(() => {
+    if (isLimitsModalOpen && selectedPlan) {
+      setMinAgents(String(selectedPlan.min_agents_required ?? 0));
+      setMaxAgents(String(selectedPlan.max_agents_allowed ?? 0));
+      setLimitsError(null);
+    }
+  }, [isLimitsModalOpen, selectedPlan]);
+
   // ---- Handlers ----
   const openPlan = useCallback((planId: string) => {
     setSelectedPlanId(planId);
@@ -661,6 +678,73 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
     setIsAssignOpen(false);
     resetAssignFlow();
   }, [isAdding, resetAssignFlow]);
+
+  // ---- Agent Selection Limits Handlers ----
+  const openLimitsModal = useCallback(() => {
+    setIsLimitsModalOpen(true);
+  }, []);
+
+  const closeLimitsModal = useCallback(() => {
+    if (isUpdatingPlan) return;
+    setIsLimitsModalOpen(false);
+    setLimitsError(null);
+  }, [isUpdatingPlan]);
+
+  const handleSaveLimits = async () => {
+    if (!selectedPlanId) return;
+
+    const minVal = parseInt(minAgents, 10) || 0;
+    const maxVal = parseInt(maxAgents, 10) || 0;
+
+    // Validation
+    if (minVal < 0) {
+      setLimitsError('Minimum agents cannot be negative.');
+      return;
+    }
+    if (maxVal < 0) {
+      setLimitsError('Maximum agents cannot be negative.');
+      return;
+    }
+    if (minVal > 0 && maxVal > 0 && maxVal < minVal) {
+      setLimitsError('Maximum must be greater than or equal to minimum.');
+      return;
+    }
+    // Validate against assigned agents count (only if there are assigned agents)
+    // Note: max can be <= inclusions.length (user selects subset) or 0 (all agents)
+    // min cannot exceed assigned agents count
+    if (inclusions.length > 0) {
+      if (minVal > inclusions.length) {
+        setLimitsError(`Minimum (${minVal}) cannot exceed assigned agents count (${inclusions.length}).`);
+        return;
+      }
+      // max=0 means unlimited (all agents), so only validate when max > 0
+      if (maxVal > 0 && maxVal > inclusions.length) {
+        setLimitsError(`Maximum (${maxVal}) cannot exceed assigned agents count (${inclusions.length}).`);
+        return;
+      }
+    }
+
+    try {
+      await updatePlan({
+        id: selectedPlanId,
+        data: {
+          min_agents_required: minVal,
+          max_agents_allowed: maxVal,
+        },
+      }).unwrap();
+
+      // Refetch plans to get updated values
+      await refetchPlans();
+
+      setSuccessMessage('Agent selection limits updated successfully!');
+      setIsLimitsModalOpen(false);
+      setLimitsError(null);
+    } catch (err: unknown) {
+      const apiError = err as ApiErrorResponse;
+      const msg = apiError?.data?.detail || apiError?.data?.message || 'Failed to update limits.';
+      setLimitsError(msg);
+    }
+  };
 
   const toggleAgent = useCallback((pricingId: string) => {
     setSelectedPricingIds(prev =>
@@ -977,11 +1061,34 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
                     )}
                   </div>
 
-                  <div className="flex items-center gap-4 flex-shrink-0">
+                  <div className="flex items-center gap-3 flex-shrink-0 flex-wrap">
                     <div className="text-center px-5 py-3 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl border border-indigo-100">
                       <div className="text-3xl font-bold text-indigo-600">{isLoadingInclusions ? '—' : inclusions.length}</div>
                       <div className="text-xs font-medium text-gray-500 mt-0.5">Assigned Agents</div>
                     </div>
+
+                    {/* Agent Selection Limits Card */}
+                    <div
+                      onClick={openLimitsModal}
+                      className="text-center px-5 py-3 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border border-amber-100 cursor-pointer hover:border-amber-300 hover:shadow-md transition-all group"
+                    >
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span className="text-xl font-bold text-amber-600">
+                          {selectedPlan?.min_agents_required || 0}
+                        </span>
+                        <span className="text-gray-400">-</span>
+                        <span className="text-xl font-bold text-amber-600">
+                          {selectedPlan?.max_agents_allowed === 0 ? 'All' : selectedPlan?.max_agents_allowed || 0}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs font-medium text-gray-500 mt-0.5">
+                        <span>Selection Limits</span>
+                        <svg className="w-3 h-3 text-gray-400 group-hover:text-amber-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </div>
+                    </div>
+
                     <button
                       onClick={() => { resetAssignFlow(); setIsAssignOpen(true); }}
                       disabled={isLoadingWizardData}
@@ -1555,6 +1662,158 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================ */}
+      {/* AGENT SELECTION LIMITS MODAL                */}
+      {/* ============================================ */}
+      {isLimitsModalOpen && selectedPlan && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/20 rounded-xl">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-white">Agent Selection Limits</h2>
+                    <p className="text-sm text-white/80">{selectedPlan.name}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={closeLimitsModal}
+                  disabled={isUpdatingPlan}
+                  className="p-1.5 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-5">
+              {/* Info Box */}
+              <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
+                <div className="flex gap-3">
+                  <svg className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="text-sm text-amber-800">
+                    <p className="font-medium mb-1">How Selection Limits Work</p>
+                    <p className="text-amber-700">
+                      When a user subscribes to this plan, they can choose between the minimum and maximum number of agents from the {inclusions.length} assigned agents.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Current Status */}
+              <div className="flex items-center justify-between text-sm bg-gray-50 rounded-xl px-4 py-3">
+                <span className="text-gray-600">Assigned Agents in Plan:</span>
+                <span className="font-bold text-indigo-600">{inclusions.length}</span>
+              </div>
+
+              {/* Min Agents Input */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Minimum Agents Required
+                  <span className="ml-1 text-xs font-normal text-gray-400">(0 = no minimum)</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max={inclusions.length || 100}
+                  value={minAgents}
+                  onChange={(e) => {
+                    setMinAgents(e.target.value);
+                    setLimitsError(null);
+                  }}
+                  disabled={isUpdatingPlan}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 disabled:opacity-50 transition-all text-lg font-semibold"
+                  placeholder="0"
+                />
+                <p className="text-xs text-gray-500 mt-1">User must select at least this many agents to subscribe.</p>
+              </div>
+
+              {/* Max Agents Input */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Maximum Agents Allowed
+                  <span className="ml-1 text-xs font-normal text-gray-400">(0 = all agents)</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max={inclusions.length || 100}
+                  value={maxAgents}
+                  onChange={(e) => {
+                    setMaxAgents(e.target.value);
+                    setLimitsError(null);
+                  }}
+                  disabled={isUpdatingPlan}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 disabled:opacity-50 transition-all text-lg font-semibold"
+                  placeholder="0"
+                />
+                <p className="text-xs text-gray-500 mt-1">User can select up to this many agents. 0 means they get all {inclusions.length} agents.</p>
+              </div>
+
+              {/* Preview */}
+              <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200">
+                <p className="text-sm font-medium text-gray-700 mb-2">Preview</p>
+                <p className="text-sm text-gray-600">
+                  {parseInt(minAgents) === 0 && parseInt(maxAgents) === 0 ? (
+                    <span className="text-emerald-600 font-medium">Users will automatically get all {inclusions.length} agents with this plan.</span>
+                  ) : parseInt(minAgents) === 0 && parseInt(maxAgents) > 0 ? (
+                    <span>Users can select <span className="font-bold text-amber-600">up to {maxAgents}</span> agents from the {inclusions.length} available.</span>
+                  ) : parseInt(maxAgents) === 0 ? (
+                    <span>Users must select <span className="font-bold text-amber-600">at least {minAgents}</span> agents (can select all {inclusions.length}).</span>
+                  ) : parseInt(minAgents) === parseInt(maxAgents) ? (
+                    <span>Users must select <span className="font-bold text-amber-600">exactly {minAgents}</span> agents from the {inclusions.length} available.</span>
+                  ) : (
+                    <span>Users must select between <span className="font-bold text-amber-600">{minAgents}</span> and <span className="font-bold text-amber-600">{maxAgents}</span> agents from the {inclusions.length} available.</span>
+                  )}
+                </p>
+              </div>
+
+              {/* Error Message */}
+              {limitsError && (
+                <div className="bg-red-50 border border-red-100 rounded-xl p-3 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-sm text-red-600">{limitsError}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeLimitsModal}
+                disabled={isUpdatingPlan}
+                className="px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-xl font-medium hover:bg-gray-50 disabled:opacity-50 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveLimits}
+                disabled={isUpdatingPlan}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-400 text-white rounded-xl font-medium transition-all shadow-lg shadow-amber-500/25 disabled:shadow-none"
+              >
+                {isUpdatingPlan && <LoadingSpinner size="sm" />}
+                {isUpdatingPlan ? 'Saving...' : 'Save Limits'}
+              </button>
             </div>
           </div>
         </div>
