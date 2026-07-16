@@ -10,9 +10,12 @@ import {
   useUpdatePlanAgentInclusionMutation,
   useRemoveAgentFromPlanMutation,
   useUpdatePlanMutation,
+  useAddAgentFeatureMutation,
+  useDeleteAgentFeatureMutation,
   Plan,
   AgentPricing,
   PlanAgentsResponse,
+  PlanAgentFeature,
 } from '@/features/subscriptionModel/billing/billingApi';
 
 // ============================================
@@ -33,6 +36,7 @@ interface EditFormData {
   override_price: string; // '' = no override (use agent base price)
   is_featured: boolean;
   display_order: number;
+  feature_description: string;
 }
 
 // ============================================
@@ -340,6 +344,9 @@ const SelectableAgentCard = ({
   onInstanceChange,
   overrideValue,
   onOverrideChange,
+  features,
+  onAddFeature,
+  onRemoveFeature,
   disabled,
 }: {
   pricing: AgentPricing;
@@ -349,8 +356,12 @@ const SelectableAgentCard = ({
   onInstanceChange: (value: string) => void;
   overrideValue: string;
   onOverrideChange: (value: string) => void;
+  features: string[];
+  onAddFeature: (feature: string) => void;
+  onRemoveFeature: (index: number) => void;
   disabled?: boolean;
 }) => {
+  const [featureInput, setFeatureInput] = useState('');
   const isUnlimited = parseInt(instanceValue || '1') === 0;
   const overrideParsed = parseOverridePrice(overrideValue);
   const hasOverride = typeof overrideParsed === 'number';
@@ -492,6 +503,82 @@ const SelectableAgentCard = ({
             </div>
           </div>
 
+          {/* Features section */}
+          <div className="pt-3 border-t border-indigo-100">
+            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex items-center gap-2 mb-2">
+              <svg className="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Features (shown in pricing card)
+            </label>
+
+            {/* Existing features list */}
+            {features.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {features.map((feature, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-medium border border-indigo-100 group"
+                  >
+                    <svg className="w-3 h-3 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="max-w-[180px] truncate">{feature}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRemoveFeature(idx);
+                      }}
+                      disabled={disabled}
+                      className="ml-0.5 p-0.5 rounded-full hover:bg-indigo-200 transition-colors disabled:opacity-50"
+                    >
+                      <svg className="w-3 h-3 text-indigo-400 hover:text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Add feature input */}
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={featureInput}
+                onChange={(e) => setFeatureInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && featureInput.trim()) {
+                    e.preventDefault();
+                    onAddFeature(featureInput.trim());
+                    setFeatureInput('');
+                  }
+                }}
+                placeholder="e.g., Up to 150 API calls"
+                disabled={disabled}
+                className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:opacity-50 transition-all"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (featureInput.trim()) {
+                    onAddFeature(featureInput.trim());
+                    setFeatureInput('');
+                  }
+                }}
+                disabled={disabled || !featureInput.trim()}
+                className="px-3 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 mt-1.5">Press Enter or click Add to add each feature</p>
+          </div>
+
           {/* Result preview */}
           <div className="pt-2 border-t border-indigo-100 flex flex-wrap items-center gap-2 text-xs">
             <svg className="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -508,6 +595,12 @@ const SelectableAgentCard = ({
             <span className={`font-bold ${hasOverride ? 'text-amber-600' : 'text-indigo-600'}`}>
               {formatMoney(hasOverride ? overrideParsed : pricing.price)} / {formatLabel(pricing.unit)}
             </span>
+            {features.length > 0 && (
+              <>
+                <span className="text-gray-300">•</span>
+                <span className="font-medium text-indigo-600">{features.length} feature{features.length > 1 ? 's' : ''}</span>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -543,11 +636,13 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
   const [instances, setInstances] = useState<Record<string, string>>({});
   // Per pricing id: optional plan-specific price override ('' = use base price)
   const [overridePrices, setOverridePrices] = useState<Record<string, string>>({});
+  // Per pricing id: list of feature strings to be added during assignment
+  const [pendingFeatures, setPendingFeatures] = useState<Record<string, string[]>>({});
 
   // Edit flow
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedInclusion, setSelectedInclusion] = useState<PlanAgentItem | null>(null);
-  const [editForm, setEditForm] = useState<EditFormData>({ included_instances: 1, override_price: '', is_featured: false, display_order: 0 });
+  const [editForm, setEditForm] = useState<EditFormData>({ included_instances: 1, override_price: '', is_featured: false, display_order: 0, feature_description: '' });
 
   // Table
   const [currentPage, setCurrentPage] = useState(1);
@@ -569,6 +664,12 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
   const [updateInclusion, { isLoading: isUpdating }] = useUpdatePlanAgentInclusionMutation();
   const [removeAgent] = useRemoveAgentFromPlanMutation();
   const [updatePlan, { isLoading: isUpdatingPlan }] = useUpdatePlanMutation();
+  const [addFeature, { isLoading: isAddingFeature }] = useAddAgentFeatureMutation();
+  const [deleteFeature, { isLoading: isDeletingFeature }] = useDeleteAgentFeatureMutation();
+
+  // Feature management state
+  const [newFeatureText, setNewFeatureText] = useState('');
+  const [deletingFeatureId, setDeletingFeatureId] = useState<string | null>(null);
 
   // Agent selection limits state
   const [isLimitsModalOpen, setIsLimitsModalOpen] = useState(false);
@@ -664,6 +765,7 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
     setSelectedPricingIds([]);
     setInstances({});
     setOverridePrices({});
+    setPendingFeatures({});
   }, []);
 
   const openAssignFlow = useCallback((planId: string) => {
@@ -791,10 +893,12 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
         data: {
           agents: selectedPricingIds.map(id => {
             const override = parseOverridePrice(overridePrices[id] ?? '');
+            const features = pendingFeatures[id] || [];
             return {
               agent_pricing_id: id,
               included_instances: Math.max(0, parseInt(instances[id]) || 0),
               ...(typeof override === 'number' ? { override_price: override } : {}),
+              ...(features.length > 0 ? { features } : {}),
             };
           }),
         },
@@ -818,6 +922,7 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
       override_price: inclusion.override_price ?? '',
       is_featured: inclusion.is_featured,
       display_order: inclusion.display_order,
+      feature_description: (inclusion as unknown as { feature_description?: string | null }).feature_description ?? '',
     });
     setIsEditModalOpen(true);
   }, []);
@@ -826,6 +931,7 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
     if (isUpdating) return;
     setIsEditModalOpen(false);
     setSelectedInclusion(null);
+    setNewFeatureText('');
   }, [isUpdating]);
 
   const handleEditSubmit = async (e: React.FormEvent) => {
@@ -848,6 +954,7 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
           override_price: override, // number sets it, null clears it
           is_featured: editForm.is_featured,
           display_order: editForm.display_order,
+          feature_description: editForm.feature_description || null,
         },
       }).unwrap();
 
@@ -879,6 +986,43 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
       alert(apiError?.data?.detail || 'Failed to remove agent from plan');
     } finally {
       setRemovingId(null);
+    }
+  };
+
+  // Feature management handlers
+  const handleAddFeature = async () => {
+    if (!selectedPlanId || !selectedInclusion || !newFeatureText.trim()) return;
+
+    try {
+      await addFeature({
+        planId: selectedPlanId,
+        inclusionId: selectedInclusion.id,
+        data: { feature_text: newFeatureText.trim() },
+      }).unwrap();
+      setNewFeatureText('');
+      refetch();
+    } catch (error: unknown) {
+      const apiError = error as ApiErrorResponse;
+      alert(apiError?.data?.detail || apiError?.data?.message || 'Failed to add feature');
+    }
+  };
+
+  const handleDeleteFeature = async (featureId: string) => {
+    if (!selectedPlanId || !selectedInclusion) return;
+
+    setDeletingFeatureId(featureId);
+    try {
+      await deleteFeature({
+        planId: selectedPlanId,
+        inclusionId: selectedInclusion.id,
+        featureId,
+      }).unwrap();
+      refetch();
+    } catch (error: unknown) {
+      const apiError = error as ApiErrorResponse;
+      alert(apiError?.data?.detail || apiError?.data?.message || 'Failed to delete feature');
+    } finally {
+      setDeletingFeatureId(null);
     }
   };
 
@@ -1150,6 +1294,7 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
                           <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Pricing Tier</th>
                           <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Instances</th>
                           <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Price</th>
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Features</th>
                           <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Billing</th>
                           <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                           <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
@@ -1215,6 +1360,30 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
                                   <>{formatMoney(inclusion.agent_pricing?.price)} / {formatLabel(inclusion.agent_pricing?.unit)}</>
                                 )}
                               </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              {(() => {
+                                const features = ((inclusion as unknown as { features?: PlanAgentFeature[] }).features || []).filter(f => f.is_active);
+                                if (features.length === 0) {
+                                  return <span className="text-xs text-gray-400">No features</span>;
+                                }
+                                return (
+                                  <div className="space-y-1">
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded text-xs font-medium border border-emerald-100">
+                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                      </svg>
+                                      {features.length} feature{features.length !== 1 ? 's' : ''}
+                                    </span>
+                                    {features.length > 0 && (
+                                      <div className="text-xs text-gray-500 line-clamp-1 max-w-[150px]" title={features.map(f => f.feature_text).join('\n')}>
+                                        {features[0].feature_text}
+                                        {features.length > 1 && '...'}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </td>
                             <td className="px-6 py-4">
                               <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-purple-50 text-purple-700 border border-purple-100 capitalize">
@@ -1415,6 +1584,15 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
                             onInstanceChange={(v) => setInstances(prev => ({ ...prev, [pricing.id]: v }))}
                             overrideValue={overridePrices[pricing.id] ?? ''}
                             onOverrideChange={(v) => setOverridePrices(prev => ({ ...prev, [pricing.id]: v }))}
+                            features={pendingFeatures[pricing.id] ?? []}
+                            onAddFeature={(f) => setPendingFeatures(prev => ({
+                              ...prev,
+                              [pricing.id]: [...(prev[pricing.id] ?? []), f]
+                            }))}
+                            onRemoveFeature={(idx) => setPendingFeatures(prev => ({
+                              ...prev,
+                              [pricing.id]: (prev[pricing.id] ?? []).filter((_, i) => i !== idx)
+                            }))}
                             disabled={isAdding}
                           />
                         ))}
@@ -1639,6 +1817,94 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
                         <p className="text-xs text-gray-500">Highlight this agent in the plan</p>
                       </div>
                     </label>
+                  </div>
+
+                  {/* Feature List Management */}
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Feature List
+                      <span className="ml-1.5 text-xs font-normal text-gray-400">
+                        ({(selectedInclusion as unknown as { features?: PlanAgentFeature[] }).features?.filter(f => f.is_active).length || 0} features)
+                      </span>
+                    </label>
+
+                    {/* Existing Features */}
+                    <div className="space-y-2 mb-3">
+                      {((selectedInclusion as unknown as { features?: PlanAgentFeature[] }).features || [])
+                        .filter(f => f.is_active)
+                        .map((feature) => (
+                          <div
+                            key={feature.id}
+                            className="flex items-center gap-2 p-2.5 bg-gray-50 border border-gray-200 rounded-xl group hover:border-gray-300 transition-all"
+                          >
+                            <div className="flex-shrink-0 w-5 h-5 bg-indigo-100 rounded-full flex items-center justify-center">
+                              <svg className="w-3 h-3 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            </div>
+                            <span className="flex-1 text-sm text-gray-700">{feature.feature_text}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteFeature(feature.id)}
+                              disabled={deletingFeatureId === feature.id || isDeletingFeature}
+                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50"
+                              title="Remove feature"
+                            >
+                              {deletingFeatureId === feature.id ? (
+                                <LoadingSpinner size="sm" />
+                              ) : (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              )}
+                            </button>
+                          </div>
+                        ))}
+
+                      {((selectedInclusion as unknown as { features?: PlanAgentFeature[] }).features || []).filter(f => f.is_active).length === 0 && (
+                        <div className="p-4 bg-gray-50 border border-dashed border-gray-200 rounded-xl text-center">
+                          <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                          </svg>
+                          <p className="text-sm text-gray-500">No features added yet</p>
+                          <p className="text-xs text-gray-400 mt-0.5">Add features that will be shown on the pricing page</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Add New Feature */}
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newFeatureText}
+                        onChange={(e) => setNewFeatureText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddFeature();
+                          }
+                        }}
+                        disabled={isAddingFeature}
+                        placeholder="e.g., Up to 150 API calls, Priority support..."
+                        className="flex-1 px-3.5 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:opacity-50 transition-all text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddFeature}
+                        disabled={!newFeatureText.trim() || isAddingFeature}
+                        className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                      >
+                        {isAddingFeature ? (
+                          <LoadingSpinner size="sm" className="text-white" />
+                        ) : (
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                        )}
+                        Add
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">Press Enter or click Add to add a feature. Features will appear on the user-facing pricing page.</p>
                   </div>
                 </div>
 

@@ -52,6 +52,10 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
     featured: false,
   });
 
+  // Feature list as array (for interactive UI)
+  const [features, setFeatures] = useState<string[]>([]);
+  const [featureInput, setFeatureInput] = useState('');
+
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -75,6 +79,9 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
         display_order: plan.display_order?.toString() || '',
         featured: plan.featured,
       });
+      // Convert feature_list string to array
+      const featureListStr = plan.feature_list || '';
+      setFeatures(featureListStr.split('\n').filter(f => f.trim() !== ''));
     } else {
       setFormData({
         name: '',
@@ -94,7 +101,9 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
         display_order: '',
         featured: false,
       });
+      setFeatures([]);
     }
+    setFeatureInput('');
     setErrors({});
   }, [isEditMode, plan, isOpen]);
 
@@ -144,6 +153,9 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
     }
 
     try {
+      // Convert features array to newline-separated string for API
+      const featureListStr = features.length > 0 ? features.join('\n') : null;
+
       const planData: CreatePlanRequest = {
         name: formData.name,
         description: formData.description || undefined,
@@ -162,6 +174,7 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
         is_public: formData.is_public,
         display_order: formData.display_order ? parseInt(formData.display_order) : 0,
         featured: formData.featured,
+        feature_list: featureListStr,
       };
 
       if (isEditMode && plan) {
@@ -267,6 +280,86 @@ const CreateEditPlanDrawer: React.FC<CreateEditPlanDrawerProps> = ({
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#4318ff]/20 focus:border-[#4318ff] transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   placeholder="Brief description of this plan..."
                 />
+              </div>
+
+              {/* Feature List - Interactive UI */}
+              <div className="bg-white rounded-xl border border-gray-200 p-5">
+                <label className="block text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                  <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                  </svg>
+                  Feature List
+                  {features.length > 0 && (
+                    <span className="ml-auto text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                      {features.length} feature{features.length > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </label>
+
+                {/* Existing features */}
+                {features.length > 0 && (
+                  <div className="space-y-2 mb-4">
+                    {features.map((feature, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg border border-indigo-100 group"
+                      >
+                        <svg className="w-4 h-4 text-indigo-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="flex-1 text-sm text-gray-700">{feature}</span>
+                        <button
+                          type="button"
+                          onClick={() => setFeatures(prev => prev.filter((_, i) => i !== idx))}
+                          disabled={isLoading}
+                          className="p-1 rounded-full hover:bg-red-100 text-gray-400 hover:text-red-500 transition-all disabled:opacity-50"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add feature input */}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={featureInput}
+                    onChange={(e) => setFeatureInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && featureInput.trim()) {
+                        e.preventDefault();
+                        setFeatures(prev => [...prev, featureInput.trim()]);
+                        setFeatureInput('');
+                      }
+                    }}
+                    placeholder="e.g., Up to 100 API calls per month"
+                    disabled={isLoading}
+                    className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm placeholder:text-gray-400 focus:ring-2 focus:ring-[#4318ff]/20 focus:border-[#4318ff] disabled:bg-gray-100 disabled:cursor-not-allowed transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (featureInput.trim()) {
+                        setFeatures(prev => [...prev, featureInput.trim()]);
+                        setFeatureInput('');
+                      }
+                    }}
+                    disabled={isLoading || !featureInput.trim()}
+                    className="px-4 py-2.5 bg-gradient-to-r from-[#4318ff] to-[#7c75ff] text-white text-sm font-semibold rounded-xl hover:from-[#3610d9] hover:to-[#6b63e6] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-gray-500">
+                  Press Enter or click Add to add each feature. These will be displayed on the pricing page.
+                </p>
               </div>
 
               {/* Plan Type & Display Order */}

@@ -90,6 +90,16 @@ export interface AgentPricing {
   updated_at: string;
 }
 
+// Individual feature for an agent in a plan
+export interface PlanAgentFeature {
+  id: string;
+  feature_text: string;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PlanAgentInclusion {
   id: string;
   plan: string;
@@ -105,6 +115,10 @@ export interface PlanAgentInclusion {
   has_price_override: boolean;
   is_featured: boolean;
   display_order: number;
+  // Feature list for this agent in this plan (legacy single text field)
+  feature_description: string | null;
+  // Individual features list
+  features: PlanAgentFeature[];
   created_at: string;
   updated_at: string;
 }
@@ -130,6 +144,8 @@ export interface Plan {
   is_public: boolean;
   display_order: number;
   featured: boolean;
+  // Feature list for user-facing display (bullet points, one per line)
+  feature_list: string | null;
   // Agent selection limits for subscription
   // When user subscribes, they can choose between min and max agents from the assigned agents
   min_agents_required: number;  // 0 = no minimum
@@ -198,6 +214,8 @@ export interface CreatePlanRequest {
   is_public?: boolean;
   display_order?: number;
   featured?: boolean;
+  // Feature list for user-facing display (bullet points, one per line)
+  feature_list?: string | null;
   // Agent selection limits
   min_agents_required?: number;
   max_agents_allowed?: number;
@@ -475,6 +493,7 @@ export interface AddAgentToPlanRequest {
     per_instance_price?: number;
     override_price?: number | string | null;
     is_included?: boolean;
+    feature_description?: string | null;
   }>;
 }
 
@@ -494,12 +513,13 @@ export const billingApi = createApi({
   reducerPath: 'billingApi',
   baseQuery: baseQueryWithReauth,
   tagTypes: [
-    'Plan', 
-    'PlanComponent', 
-    'AgentPricing', 
-    'Stats', 
-    'PlanComponentInclusion', 
-    'PlanAgentInclusion', 
+    'Plan',
+    'PlanComponent',
+    'AgentPricing',
+    'Stats',
+    'PlanComponentInclusion',
+    'PlanAgentInclusion',
+    'PlanAgentFeature',
     'PlanSummary',
     'AgentComponentPricing'
   ],
@@ -957,6 +977,7 @@ export const billingApi = createApi({
         override_price?: number | string | null;
         is_featured?: boolean;
         display_order?: number;
+        feature_description?: string | null;
       }
     }>({
       query: ({ planId, inclusionId, data }) => {
@@ -987,6 +1008,86 @@ export const billingApi = createApi({
         { type: 'Plan', id: planId },
         { type: 'PlanAgentInclusion', id: 'LIST' },
         { type: 'PlanSummary', id: planId },
+      ],
+    }),
+
+    // ============================================
+    // PLAN AGENT FEATURES
+    // ============================================
+    getAgentFeatures: builder.query<PlanAgentFeature[], { planId: string; inclusionId: string }>({
+      query: ({ planId, inclusionId }) => {
+        const adminId = getAdminId();
+        return `/plans/${planId}/agents/${inclusionId}/features/?admin_id=${adminId}`;
+      },
+      providesTags: (result, error, { inclusionId }) => [
+        { type: 'PlanAgentFeature', id: inclusionId },
+        { type: 'PlanAgentFeature', id: 'LIST' },
+      ],
+    }),
+
+    addAgentFeature: builder.mutation<PlanAgentFeature, {
+      planId: string;
+      inclusionId: string;
+      data: { feature_text: string; display_order?: number };
+    }>({
+      query: ({ planId, inclusionId, data }) => {
+        const adminId = getAdminId();
+        return {
+          url: `/plans/${planId}/agents/${inclusionId}/features/?admin_id=${adminId}`,
+          method: 'POST',
+          body: data,
+        };
+      },
+      invalidatesTags: (result, error, { planId, inclusionId }) => [
+        { type: 'PlanAgentFeature', id: inclusionId },
+        { type: 'PlanAgentFeature', id: 'LIST' },
+        { type: 'PlanAgentInclusion', id: inclusionId },
+        { type: 'PlanAgentInclusion', id: 'LIST' },
+        { type: 'Plan', id: planId },
+      ],
+    }),
+
+    updateAgentFeature: builder.mutation<PlanAgentFeature, {
+      planId: string;
+      inclusionId: string;
+      featureId: string;
+      data: { feature_text?: string; display_order?: number; is_active?: boolean };
+    }>({
+      query: ({ planId, inclusionId, featureId, data }) => {
+        const adminId = getAdminId();
+        return {
+          url: `/plans/${planId}/agents/${inclusionId}/features/${featureId}/?admin_id=${adminId}`,
+          method: 'PUT',
+          body: data,
+        };
+      },
+      invalidatesTags: (result, error, { planId, inclusionId, featureId }) => [
+        { type: 'PlanAgentFeature', id: inclusionId },
+        { type: 'PlanAgentFeature', id: featureId },
+        { type: 'PlanAgentInclusion', id: inclusionId },
+        { type: 'PlanAgentInclusion', id: 'LIST' },
+        { type: 'Plan', id: planId },
+      ],
+    }),
+
+    deleteAgentFeature: builder.mutation<void, {
+      planId: string;
+      inclusionId: string;
+      featureId: string;
+    }>({
+      query: ({ planId, inclusionId, featureId }) => {
+        const adminId = getAdminId();
+        return {
+          url: `/plans/${planId}/agents/${inclusionId}/features/${featureId}/?admin_id=${adminId}`,
+          method: 'DELETE',
+        };
+      },
+      invalidatesTags: (result, error, { planId, inclusionId }) => [
+        { type: 'PlanAgentFeature', id: inclusionId },
+        { type: 'PlanAgentFeature', id: 'LIST' },
+        { type: 'PlanAgentInclusion', id: inclusionId },
+        { type: 'PlanAgentInclusion', id: 'LIST' },
+        { type: 'Plan', id: planId },
       ],
     }),
 
@@ -1094,6 +1195,12 @@ export const {
   useAddAgentToPlanMutation,
   useUpdatePlanAgentInclusionMutation,
   useRemoveAgentFromPlanMutation,
+
+  // Agent Features
+  useGetAgentFeaturesQuery,
+  useAddAgentFeatureMutation,
+  useUpdateAgentFeatureMutation,
+  useDeleteAgentFeatureMutation,
 
   useGetAgentComponentsQuery,
   useAddComponentToAgentMutation,

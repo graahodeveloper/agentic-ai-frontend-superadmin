@@ -29,6 +29,7 @@ const NAV_ROUTES = {
     plans: `${BASE}/subscription/plans`,
     components: `${BASE}/subscription/components`,
     agentPricing: `${BASE}/subscription/agent-pricing`,
+    planPreview: `${BASE}/subscription/plan-preview`,
   },
   cmsSettings: {
     loginPage: `${BASE}/cms-settings/login-page`,
@@ -281,6 +282,7 @@ export default function DashboardLayout({
                       { href: NAV_ROUTES.subscription.components,   label: 'Components',    icon: '🧩' },
                       { href: NAV_ROUTES.subscription.agentPricing, label: 'Agent Pricing', icon: '💰' },
                       { href: NAV_ROUTES.subscription.plans,        label: 'Plans',         icon: '📋' },
+                      { href: NAV_ROUTES.subscription.planPreview,  label: 'Plan Preview',  icon: '👁️' },
                     ] as const
                   ).map(({ href, label, icon }) => (
                     <Link
