@@ -1,161 +1,210 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useGetPlansQuery, Plan } from '@/features/subscriptionModel/billing/billingApi';
+import { useGetPlansQuery, useGetPlanQuery, Plan, PlanAgentInclusion } from '@/features/subscriptionModel/billing/billingApi';
 
-// Demo feature data for plans that don't have features yet
-const DEMO_FEATURES: Record<string, string[]> = {
-  free: [
-    'Up to 100 API Calls',
-    '1 Agent Access',
-    '500 MB Storage',
-    'Email Support',
-    'Basic Analytics',
-  ],
-  starter: [
-    'Up to 1,000 API Calls',
-    '3 Agent Access',
-    '2 GB Storage',
-    'Priority Email Support',
-    'Advanced Analytics',
-    'Custom Branding',
-  ],
-  professional: [
-    'Up to 10,000 API Calls',
-    '10 Agent Access',
-    '10 GB Storage',
-    'Live Chat Support (Within 48 Hours)',
-    'Full Analytics Suite',
-    'Custom Branding',
-    'API Access',
-    'Team Collaboration',
-  ],
-  enterprise: [
-    'Unlimited API Calls',
-    'Unlimited Agent Access',
-    '100 GB Storage',
-    'Dedicated Support (Within 24 Hours)',
-    'Full Analytics Suite',
-    'White-label Solution',
-    'API Access',
-    'Team Collaboration',
-    'SLA Guarantee',
-    'Custom Integrations',
-  ],
-  custom: [
-    'Customizable API Limits',
-    'Flexible Agent Access',
-    'Scalable Storage',
-    'Dedicated Account Manager',
-    'Custom Features',
-  ],
-};
-
-const PLAN_COLORS: Record<string, { bg: string; accent: string; button: string }> = {
-  free: { bg: 'from-slate-800 to-slate-900', accent: 'text-slate-400', button: 'bg-slate-600 hover:bg-slate-500' },
-  starter: { bg: 'from-slate-800 to-slate-900', accent: 'text-blue-400', button: 'bg-blue-600 hover:bg-blue-500' },
-  professional: { bg: 'from-slate-800 to-slate-900', accent: 'text-purple-400', button: 'bg-purple-600 hover:bg-purple-500' },
-  enterprise: { bg: 'from-slate-800 to-slate-900', accent: 'text-amber-400', button: 'bg-amber-600 hover:bg-amber-500' },
-  custom: { bg: 'from-slate-800 to-slate-900', accent: 'text-emerald-400', button: 'bg-emerald-600 hover:bg-emerald-500' },
-};
-
-const PLAN_SUBTITLES: Record<string, string> = {
-  free: 'For individuals getting started',
-  starter: 'For small teams',
-  professional: 'For growing businesses',
-  enterprise: 'For large organizations',
-  custom: 'Tailored to your needs',
+// Plan type badge styles (consistent with PlansManagement)
+const PLAN_TYPE_STYLES: Record<string, { badge: string; gradient: string }> = {
+  free: { badge: 'bg-emerald-100 text-emerald-800', gradient: 'from-emerald-500 to-teal-500' },
+  starter: { badge: 'bg-blue-100 text-blue-800', gradient: 'from-blue-500 to-sky-500' },
+  professional: { badge: 'bg-purple-100 text-purple-800', gradient: 'from-purple-500 to-violet-500' },
+  enterprise: { badge: 'bg-indigo-100 text-indigo-800', gradient: 'from-indigo-500 to-blue-600' },
+  custom: { badge: 'bg-pink-100 text-pink-800', gradient: 'from-pink-500 to-rose-500' },
 };
 
 interface PricingCardProps {
   plan: Plan;
   isPopular?: boolean;
-  isDarkMode: boolean;
 }
 
-const PricingCard: React.FC<PricingCardProps> = ({ plan, isPopular, isDarkMode }) => {
-  const colors = PLAN_COLORS[plan.plan_type] || PLAN_COLORS.custom;
-  const subtitle = PLAN_SUBTITLES[plan.plan_type] || 'Custom plan';
+// Loading skeleton for cards
+const CardSkeleton = () => (
+  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-pulse">
+    <div className="h-1.5 bg-gray-200" />
+    <div className="p-6 space-y-4">
+      <div className="flex items-center gap-2">
+        <div className="h-6 bg-gray-200 rounded-full w-20" />
+        <div className="h-5 bg-gray-100 rounded-full w-16" />
+      </div>
+      <div className="h-10 bg-gray-200 rounded w-1/2" />
+      <div className="h-4 bg-gray-100 rounded w-3/4" />
+      <div className="space-y-2 pt-4">
+        <div className="h-4 bg-gray-100 rounded w-full" />
+        <div className="h-4 bg-gray-100 rounded w-5/6" />
+        <div className="h-4 bg-gray-100 rounded w-4/5" />
+      </div>
+      <div className="h-12 bg-gray-200 rounded-xl mt-6" />
+    </div>
+  </div>
+);
 
-  // Parse features from feature_list or use demo features
-  const features = plan.feature_list
+// Wrapper component that fetches full plan details
+const PricingCardWrapper: React.FC<PricingCardProps> = ({ plan, isPopular }) => {
+  const { data: fullPlan, isLoading } = useGetPlanQuery(plan.id);
+
+  if (isLoading) {
+    return <CardSkeleton />;
+  }
+
+  // Merge the full plan data with list plan data
+  const mergedPlan = fullPlan || plan;
+
+  return (
+    <PricingCard
+      plan={mergedPlan}
+      isPopular={isPopular}
+    />
+  );
+};
+
+const PricingCard: React.FC<PricingCardProps> = ({ plan, isPopular }) => {
+  const style = PLAN_TYPE_STYLES[plan.plan_type] || PLAN_TYPE_STYLES.custom;
+
+  // Get plan-level features from feature_list (from Create Plan modal)
+  const planFeatures = plan.feature_list
     ? plan.feature_list.split('\n').filter(f => f.trim())
-    : DEMO_FEATURES[plan.plan_type] || DEMO_FEATURES.custom;
+    : [];
 
-  const originalPrice = plan.discount_percentage
+  // Get per-agent features from included_agents (from Assign Agent modal)
+  const agentFeatures: string[] = [];
+  if (plan.included_agents && plan.included_agents.length > 0) {
+    plan.included_agents.forEach((inclusion: PlanAgentInclusion) => {
+      // Only add individual agent features (NOT agent names)
+      if (inclusion.features && inclusion.features.length > 0) {
+        inclusion.features.forEach(f => {
+          if (f.feature_text && f.is_active) {
+            agentFeatures.push(f.feature_text);
+          }
+        });
+      }
+    });
+  }
+
+  // Final features list: only plan features + agent features (NO components)
+  const allFeatures = [...planFeatures, ...agentFeatures];
+  const hasAnyFeatures = allFeatures.length > 0;
+
+  const originalPrice = plan.discount_percentage && parseFloat(plan.discount_percentage) > 0
     ? (parseFloat(plan.base_price) / (1 - parseFloat(plan.discount_percentage) / 100)).toFixed(2)
     : null;
 
   const savingsPercent = plan.discount_percentage ? parseFloat(plan.discount_percentage).toFixed(0) : null;
 
-  if (isDarkMode) {
-    return (
-      <div className={`relative rounded-2xl bg-gradient-to-b ${colors.bg} p-6 border border-slate-700 flex flex-col h-full ${isPopular ? 'ring-2 ring-purple-500 scale-105' : ''}`}>
-        {/* Popular Badge */}
-        {isPopular && (
-          <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-            <span className="px-4 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold rounded-full uppercase tracking-wider">
-              Most Popular
-            </span>
-          </div>
-        )}
+  return (
+    <div className={`relative bg-white rounded-2xl shadow-sm border overflow-hidden flex flex-col h-full transition-all duration-200 hover:shadow-lg ${
+      isPopular ? 'border-purple-300 ring-2 ring-purple-500/20 scale-[1.02]' : 'border-gray-100 hover:border-indigo-200/70'
+    }`}>
+      {/* Accent strip */}
+      <div className={`h-1.5 bg-gradient-to-r ${style.gradient}`} />
 
-        {/* Plan Name */}
-        <h3 className={`text-sm font-bold uppercase tracking-wider ${colors.accent} mb-2`}>
-          {plan.plan_type}
-        </h3>
+      {/* Popular Badge */}
+      {isPopular && (
+        <div className="absolute top-4 right-4">
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold bg-gradient-to-r from-purple-500 to-violet-600 text-white rounded-full shadow-lg">
+            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+            </svg>
+            Most Popular
+          </span>
+        </div>
+      )}
+
+      <div className="p-6 flex-1 flex flex-col">
+        {/* Plan Type Badge & Name */}
+        <div className="mb-4">
+          <div className="flex items-center gap-2 flex-wrap mb-2">
+            <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${style.badge}`}>
+              {plan.plan_type.charAt(0).toUpperCase() + plan.plan_type.slice(1)}
+            </span>
+            {plan.has_trial && plan.trial_period_days > 0 && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-violet-50 text-violet-700 rounded-full text-xs font-medium border border-violet-100">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {plan.trial_period_days}-day trial
+              </span>
+            )}
+          </div>
+          <h3 className="text-xl font-bold text-gray-900">{plan.name}</h3>
+        </div>
 
         {/* Price */}
-        <div className="mb-2">
+        <div className="mb-4">
           <div className="flex items-baseline gap-1">
-            <span className="text-4xl font-bold text-white">${parseFloat(plan.base_price).toFixed(0)}</span>
-            <span className="text-slate-400 text-sm">/{plan.billing_period}</span>
+            <span className="text-4xl font-extrabold text-gray-900">
+              ${parseFloat(plan.base_price).toFixed(0)}
+            </span>
+            <span className="text-gray-500 text-sm font-medium">/{plan.billing_period}</span>
           </div>
-          {originalPrice && (
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-slate-500 line-through text-sm">${originalPrice}</span>
-              <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs font-semibold rounded">
-                {savingsPercent}% save
+          {originalPrice && savingsPercent && parseFloat(savingsPercent) > 0 && (
+            <div className="flex items-center gap-2 mt-1.5">
+              <span className="text-gray-400 line-through text-sm">${originalPrice}</span>
+              <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-semibold rounded">
+                Save {savingsPercent}%
               </span>
             </div>
           )}
         </div>
 
-        {/* Subtitle */}
-        <p className="text-slate-400 text-sm mb-4">{subtitle}</p>
+        {/* Description */}
+        {plan.description ? (
+          <p className="text-sm text-gray-600 mb-4 line-clamp-2">{plan.description}</p>
+        ) : (
+          <p className="text-sm text-gray-400 italic mb-4">No description</p>
+        )}
 
-        {/* Support Badge */}
-        <div className="mb-4">
-          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${colors.accent} bg-white/5`}>
-            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-            </svg>
-            Support within {plan.grace_period_days * 24}h
-          </span>
-        </div>
+        {/* Divider */}
+        <div className="border-t border-gray-100 my-4" />
 
         {/* Features */}
         <div className="flex-1 space-y-3 mb-6">
-          {features.map((feature, idx) => (
-            <div key={idx} className="flex items-start gap-3">
-              <div className={`w-5 h-5 rounded-full ${colors.accent} bg-white/10 flex items-center justify-center flex-shrink-0 mt-0.5`}>
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
+          {hasAnyFeatures ? (
+            allFeatures.slice(0, 8).map((feature, idx) => (
+              <div key={idx} className="flex items-start gap-3">
+                <div className={`w-5 h-5 rounded-full bg-gradient-to-r ${style.gradient} flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <span className="text-gray-700 text-sm">{feature}</span>
               </div>
-              <span className="text-slate-300 text-sm">{feature}</span>
+            ))
+          ) : (
+            <div className="flex items-center justify-center py-6 px-4 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+              <div className="text-center">
+                <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <p className="text-gray-400 text-sm">No features configured</p>
+              </div>
             </div>
-          ))}
+          )}
+          {allFeatures.length > 8 && (
+            <div className="text-sm text-indigo-600 font-medium">
+              +{allFeatures.length - 8} more features
+            </div>
+          )}
         </div>
 
         {/* CTA Button */}
-        <button className={`w-full py-3 px-4 rounded-xl ${colors.button} text-white font-semibold transition-all flex items-center justify-center gap-2`}>
+        <button className={`w-full py-3 px-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
+          plan.plan_type === 'enterprise'
+            ? 'bg-gray-900 hover:bg-gray-800 text-white'
+            : `bg-gradient-to-r ${style.gradient} hover:opacity-90 text-white shadow-sm`
+        }`}>
           {plan.plan_type === 'enterprise' ? (
             <>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
-              Talk to Sales
+              Contact Sales
+            </>
+          ) : plan.plan_type === 'free' ? (
+            <>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              Get Started Free
             </>
           ) : (
             <>
@@ -169,119 +218,26 @@ const PricingCard: React.FC<PricingCardProps> = ({ plan, isPopular, isDarkMode }
 
         {/* Status Badges */}
         <div className="flex items-center justify-center gap-2 mt-4">
-          {plan.is_active && (
-            <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded">Active</span>
-          )}
-          {plan.is_public && (
-            <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 text-xs rounded">Public</span>
-          )}
-          {plan.featured && (
-            <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded">Featured</span>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Light mode card
-  return (
-    <div className={`relative rounded-2xl bg-white p-6 border border-gray-200 shadow-lg flex flex-col h-full ${isPopular ? 'ring-2 ring-indigo-500 scale-105' : ''}`}>
-      {/* Popular Badge */}
-      {isPopular && (
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-          <span className="px-4 py-1 bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-xs font-bold rounded-full uppercase tracking-wider">
-            Most Popular
+          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+            plan.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+          }`}>
+            {plan.is_active ? 'Active' : 'Inactive'}
           </span>
-        </div>
-      )}
-
-      {/* Plan Name */}
-      <h3 className="text-sm font-bold uppercase tracking-wider text-indigo-600 mb-2">
-        {plan.plan_type}
-      </h3>
-
-      {/* Price */}
-      <div className="mb-2">
-        <div className="flex items-baseline gap-1">
-          <span className="text-4xl font-bold text-gray-900">${parseFloat(plan.base_price).toFixed(0)}</span>
-          <span className="text-gray-500 text-sm">/{plan.billing_period}</span>
-        </div>
-        {originalPrice && (
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-gray-400 line-through text-sm">${originalPrice}</span>
-            <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-semibold rounded">
-              {savingsPercent}% save
+          {plan.is_public && (
+            <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+              Public
             </span>
-          </div>
-        )}
-      </div>
-
-      {/* Subtitle */}
-      <p className="text-gray-500 text-sm mb-4">{subtitle}</p>
-
-      {/* Support Badge */}
-      <div className="mb-4">
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium text-indigo-600 bg-indigo-50">
-          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-          </svg>
-          Support within {plan.grace_period_days * 24}h
-        </span>
-      </div>
-
-      {/* Features */}
-      <div className="flex-1 space-y-3 mb-6">
-        {features.map((feature, idx) => (
-          <div key={idx} className="flex items-start gap-3">
-            <div className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center flex-shrink-0 mt-0.5">
-              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <span className="text-gray-600 text-sm">{feature}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* CTA Button */}
-      <button className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition-all flex items-center justify-center gap-2">
-        {plan.plan_type === 'enterprise' ? (
-          <>
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
-            Talk to Sales
-          </>
-        ) : (
-          <>
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-            Get {plan.name}
-          </>
-        )}
-      </button>
-
-      {/* Status Badges */}
-      <div className="flex items-center justify-center gap-2 mt-4">
-        {plan.is_active && (
-          <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">Active</span>
-        )}
-        {plan.is_public && (
-          <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">Public</span>
-        )}
-        {plan.featured && (
-          <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-xs rounded">Featured</span>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
 };
 
 export default function PlanPreviewPage() {
-  const [isDarkMode, setIsDarkMode] = useState(true);
   const [showOnlyPublic, setShowOnlyPublic] = useState(false);
-  const { data: plansResponse, isLoading, error } = useGetPlansQuery({ is_active: true });
+  const [showOnlyActive, setShowOnlyActive] = useState(true);
+  const { data: plansResponse, isLoading, error } = useGetPlansQuery({ is_active: showOnlyActive || undefined });
 
   const plans = plansResponse?.results || [];
   const filteredPlans = showOnlyPublic ? plans.filter(p => p.is_public) : plans;
@@ -299,133 +255,143 @@ export default function PlanPreviewPage() {
                         sortedPlans.find(p => p.plan_type === 'professional')?.id;
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${isDarkMode ? 'bg-slate-900' : 'bg-gray-50'}`}>
-      {/* Header */}
-      <div className={`sticky top-0 z-10 backdrop-blur-sm ${isDarkMode ? 'bg-slate-900/90' : 'bg-white/90'} border-b ${isDarkMode ? 'border-slate-700' : 'border-gray-200'}`}>
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
+    <div className="w-full min-h-screen p-8 bg-gray-50/50">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 mb-8">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             <div>
-              <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-indigo-800 bg-clip-text text-transparent">
                 Plan Preview
               </h1>
-              <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-                Preview how plans appear to end users on the pricing page
+              <p className="text-gray-600 mt-2">
+                Preview how plans appear to customers ({sortedPlans.length} plans)
               </p>
             </div>
 
-            <div className="flex items-center gap-4">
-              {/* Show Only Public Toggle */}
-              <label className="flex items-center gap-2 cursor-pointer">
-                <span className={`text-sm ${isDarkMode ? 'text-slate-300' : 'text-gray-600'}`}>Public only</span>
+            <div className="flex items-center gap-4 flex-wrap">
+              {/* Show Only Active Toggle */}
+              <label className="flex items-center gap-2 cursor-pointer bg-gray-50 px-4 py-2 rounded-xl border border-gray-200">
+                <span className="text-sm font-medium text-gray-700">Active only</span>
                 <button
-                  onClick={() => setShowOnlyPublic(!showOnlyPublic)}
-                  className={`relative w-10 h-5 rounded-full transition-colors ${showOnlyPublic ? 'bg-indigo-600' : isDarkMode ? 'bg-slate-600' : 'bg-gray-300'}`}
+                  onClick={() => setShowOnlyActive(!showOnlyActive)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    showOnlyActive ? 'bg-green-600' : 'bg-gray-300'
+                  }`}
                 >
-                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${showOnlyPublic ? 'translate-x-5' : ''}`} />
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
+                    showOnlyActive ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
                 </button>
               </label>
 
-              {/* Theme Toggle */}
-              <div className={`flex items-center gap-1 p-1 rounded-lg ${isDarkMode ? 'bg-slate-800' : 'bg-gray-100'}`}>
+              {/* Show Only Public Toggle */}
+              <label className="flex items-center gap-2 cursor-pointer bg-gray-50 px-4 py-2 rounded-xl border border-gray-200">
+                <span className="text-sm font-medium text-gray-700">Public only</span>
                 <button
-                  onClick={() => setIsDarkMode(false)}
-                  className={`p-2 rounded-md transition-all ${!isDarkMode ? 'bg-white shadow text-gray-900' : 'text-slate-400 hover:text-white'}`}
+                  onClick={() => setShowOnlyPublic(!showOnlyPublic)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    showOnlyPublic ? 'bg-blue-600' : 'bg-gray-300'
+                  }`}
                 >
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
-                  </svg>
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
+                    showOnlyPublic ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
                 </button>
-                <button
-                  onClick={() => setIsDarkMode(true)}
-                  className={`p-2 rounded-md transition-all ${isDarkMode ? 'bg-slate-700 shadow text-white' : 'text-gray-400 hover:text-gray-900'}`}
-                >
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
-                  </svg>
-                </button>
-              </div>
+              </label>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Info Banner */}
-      <div className={`${isDarkMode ? 'bg-indigo-900/30 border-indigo-500/30' : 'bg-indigo-50 border-indigo-200'} border-b`}>
-        <div className="max-w-7xl mx-auto px-6 py-3">
-          <div className="flex items-center gap-3">
-            <svg className={`w-5 h-5 ${isDarkMode ? 'text-indigo-400' : 'text-indigo-600'}`} fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-            </svg>
-            <p className={`text-sm ${isDarkMode ? 'text-indigo-300' : 'text-indigo-700'}`}>
-              This is a preview of how your plans will appear on the customer-facing pricing page.
-              Plans without custom features will show demo features.
-            </p>
+        {/* Info Banner */}
+        <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 mb-8">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <svg className="w-5 h-5 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="font-semibold text-indigo-900">Customer Pricing Preview</h3>
+              <p className="text-sm text-indigo-700 mt-1">
+                This is how your plans will appear on the customer-facing pricing page.
+                Features are pulled from plan configurations, linked agents, and components.
+              </p>
+            </div>
           </div>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-6 py-12">
-        {/* Pricing Header */}
-        <div className="text-center mb-12">
-          <h2 className={`text-4xl font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-            Choose Your Plan
-          </h2>
-          <p className={`text-lg ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
-            Select the perfect plan for your business needs
-          </p>
         </div>
 
         {/* Loading State */}
         {isLoading && (
-          <div className="flex items-center justify-center py-20">
-            <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {[1, 2, 3, 4].map(i => (
+              <CardSkeleton key={i} />
+            ))}
           </div>
         )}
 
         {/* Error State */}
         {error && (
-          <div className={`text-center py-20 ${isDarkMode ? 'text-red-400' : 'text-red-600'}`}>
-            <p>Failed to load plans. Please try again.</p>
+          <div className="bg-white rounded-2xl shadow-sm border border-red-200 p-8 text-center">
+            <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900">Failed to load plans</h3>
+            <p className="mt-2 text-gray-600">Please try again later</p>
           </div>
         )}
 
         {/* Empty State */}
         {!isLoading && !error && sortedPlans.length === 0 && (
-          <div className={`text-center py-20 ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-            <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm3 1h6v4H7V5zm6 6H7v2h6v-2z" clipRule="evenodd" />
-            </svg>
-            <p className="text-lg font-medium">No plans found</p>
-            <p className="text-sm mt-1">Create some plans to see them here</p>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
+            <div className="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900">No plans found</h3>
+            <p className="mt-2 text-gray-600">Create some plans to see them here</p>
           </div>
         )}
 
         {/* Plans Grid */}
         {!isLoading && !error && sortedPlans.length > 0 && (
-          <div className={`grid gap-6 ${
-            sortedPlans.length === 1 ? 'grid-cols-1 max-w-md mx-auto' :
-            sortedPlans.length === 2 ? 'grid-cols-1 md:grid-cols-2 max-w-3xl mx-auto' :
-            sortedPlans.length === 3 ? 'grid-cols-1 md:grid-cols-3' :
-            'grid-cols-1 md:grid-cols-2 lg:grid-cols-4'
-          }`}>
-            {sortedPlans.map((plan) => (
-              <PricingCard
-                key={plan.id}
-                plan={plan}
-                isPopular={plan.id === popularPlanId}
-                isDarkMode={isDarkMode}
-              />
-            ))}
-          </div>
-        )}
+          <>
+            {/* Pricing Header */}
+            <div className="text-center mb-10">
+              <h2 className="text-3xl font-bold text-gray-900 mb-3">
+                Choose Your Plan
+              </h2>
+              <p className="text-gray-600 text-lg">
+                Select the perfect plan for your business needs
+              </p>
+            </div>
 
-        {/* Footer Note */}
-        <div className={`text-center mt-12 ${isDarkMode ? 'text-slate-500' : 'text-gray-500'}`}>
-          <p className="text-sm">
-            All plans include 14-day free trial. No credit card required.
-          </p>
-        </div>
+            <div className={`grid gap-6 ${
+              sortedPlans.length === 1 ? 'grid-cols-1 max-w-md mx-auto' :
+              sortedPlans.length === 2 ? 'grid-cols-1 md:grid-cols-2 max-w-3xl mx-auto' :
+              sortedPlans.length === 3 ? 'grid-cols-1 md:grid-cols-3 max-w-5xl mx-auto' :
+              'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+            }`}>
+              {sortedPlans.map((plan) => (
+                <PricingCardWrapper
+                  key={plan.id}
+                  plan={plan}
+                  isPopular={plan.id === popularPlanId}
+                />
+              ))}
+            </div>
+
+            {/* Footer Note */}
+            <div className="text-center mt-10">
+              <p className="text-sm text-gray-500">
+                All paid plans include a money-back guarantee. Cancel anytime.
+              </p>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
