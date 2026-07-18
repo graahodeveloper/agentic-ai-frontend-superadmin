@@ -51,7 +51,23 @@
       "Bash(# Get sub_id for user with unlimited wallet\ncd /Users/golamkibriaanik/Desktop/graaho-ai/graaho-ai-agent-backend && docker-compose exec -T web python manage.py dbshell <<'SQL'\nSELECT sub_id FROM users WHERE email = 'golam.anik192+test-workspace-dev-userr-gasdghjx@gmail.com';\nSQL\n)",
       "Bash(# Find the user with Enterprise plan from screenshots\ncd /Users/golamkibriaanik/Desktop/graaho-ai/graaho-ai-agent-backend && docker-compose exec -T web python manage.py dbshell <<'SQL'\nSELECT u.sub_id, u.email, p.name as plan_name, cs.id as subscription_id\nFROM client_subscriptions cs\nJOIN users u ON cs.user_id = u.id\nJOIN plans p ON cs.plan_id = p.id\nWHERE p.name = 'Enterprise' AND cs.status = 'active'\nLIMIT 3;\nSQL\n)",
       "Bash(# Check current wallet state for this user\ncd /Users/golamkibriaanik/Desktop/graaho-ai/graaho-ai-agent-backend && docker-compose exec -T web python manage.py dbshell <<'SQL'\nSELECT w.resource_type, w.total_allocated, w.total_used, w.is_unlimited, w.source\nFROM resource_wallets w\nJOIN users u ON w.user_id = u.id\nWHERE u.sub_id = 'e498f488-7081-7035-2ba1-c545672d36b2'\nAND w.is_active = true;\nSQL\n)",
-      "Bash(# Check agent component pricing for agents in Enterprise plan\ncd /Users/golamkibriaanik/Desktop/graaho-ai/graaho-ai-agent-backend && docker-compose exec -T web python manage.py dbshell <<'SQL'\nSELECT a.name as agent_name, pc.name as component_name, pc.component_type, \n       acp.total_quantity, acp.is_unlimited\nFROM agent_component_pricing acp\nJOIN agent_templates a ON acp.agent_id = a.id\nJOIN plan_components pc ON acp.component_id = pc.id\nWHERE a.id IN (\n    'ba3a8510-9b68-4ff3-9121-1b6076f39890',\n    '116dc669-efa5-4044-9c98-1ff91f2f7b1f',\n    'eec7565a-66b9-410e-9173-d068c7014d96',\n    'c690a026-9f24-42e5-92e4-b411d7cc4e03'\n) AND acp.is_active = true\nORDER BY a.name;\nSQL\n)"
+      "Bash(# Check agent component pricing for agents in Enterprise plan\ncd /Users/golamkibriaanik/Desktop/graaho-ai/graaho-ai-agent-backend && docker-compose exec -T web python manage.py dbshell <<'SQL'\nSELECT a.name as agent_name, pc.name as component_name, pc.component_type, \n       acp.total_quantity, acp.is_unlimited\nFROM agent_component_pricing acp\nJOIN agent_templates a ON acp.agent_id = a.id\nJOIN plan_components pc ON acp.component_id = pc.id\nWHERE a.id IN (\n    'ba3a8510-9b68-4ff3-9121-1b6076f39890',\n    '116dc669-efa5-4044-9c98-1ff91f2f7b1f',\n    'eec7565a-66b9-410e-9173-d068c7014d96',\n    'c690a026-9f24-42e5-92e4-b411d7cc4e03'\n) AND acp.is_active = true\nORDER BY a.name;\nSQL\n)",
+      "Bash(pkill:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(time curl:*)",
+      "Bash(for:*)",
+      "Bash(do curl -s -o /tmp/plans$i.json -w \"try$i: %{http_code} (%{time_total}s)\\n\" --max-time 120 \"http://localhost:8000/api/v1/plans/?admin_id=c35d1db9-f67b-4c60-8784-d96056eb60bf&ordering=-created_at&limit=10&offset=0\")",
+      "Bash(docker-compose down:*)",
+      "Bash(src/components/subscription-model/plan/CreateEditPlanDrawer.tsx )",
+      "Bash(src/components/subscription-model/plan/PlanAgentInclusionManagement.tsx )",
+      "Bash(src/features/subscriptionModel/billing/billingApi.ts )",
+      "Bash(src/app/dashboard/subscription/plan-preview/)",
+      "Bash(apps/agents/models/pricing.py )",
+      "Bash(apps/agents/serializers.py )",
+      "Bash(apps/agents/views/subscription_views.py )",
+      "Bash(apps/agents/migrations/0066_add_plan_agent_feature_model.py)",
+      "Bash(ls:*)"
     ]
   }
 }

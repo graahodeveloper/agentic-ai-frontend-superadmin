@@ -664,12 +664,15 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
   const [updateInclusion, { isLoading: isUpdating }] = useUpdatePlanAgentInclusionMutation();
   const [removeAgent] = useRemoveAgentFromPlanMutation();
   const [updatePlan, { isLoading: isUpdatingPlan }] = useUpdatePlanMutation();
-  const [addFeature, { isLoading: isAddingFeature }] = useAddAgentFeatureMutation();
-  const [deleteFeature, { isLoading: isDeletingFeature }] = useDeleteAgentFeatureMutation();
+  const [addFeature] = useAddAgentFeatureMutation();
+  const [deleteFeature] = useDeleteAgentFeatureMutation();
 
   // Feature management state
   const [newFeatureText, setNewFeatureText] = useState('');
-  const [deletingFeatureId, setDeletingFeatureId] = useState<string | null>(null);
+  // Local pending features (not yet saved to server) - for instant UI updates
+  const [pendingEditFeatures, setPendingEditFeatures] = useState<string[]>([]);
+  // Features marked for deletion (will be deleted on save)
+  const [featuresToDelete, setFeaturesToDelete] = useState<string[]>([]);
 
   // Agent selection limits state
   const [isLimitsModalOpen, setIsLimitsModalOpen] = useState(false);
@@ -924,6 +927,9 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
       display_order: inclusion.display_order,
       feature_description: (inclusion as unknown as { feature_description?: string | null }).feature_description ?? '',
     });
+    // Reset pending feature states when opening modal
+    setPendingEditFeatures([]);
+    setFeaturesToDelete([]);
     setIsEditModalOpen(true);
   }, []);
 
@@ -932,6 +938,8 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
     setIsEditModalOpen(false);
     setSelectedInclusion(null);
     setNewFeatureText('');
+    setPendingEditFeatures([]);
+    setFeaturesToDelete([]);
   }, [isUpdating]);
 
   const handleEditSubmit = async (e: React.FormEvent) => {
@@ -945,6 +953,7 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
     }
 
     try {
+      // 1. Update the inclusion first
       await updateInclusion({
         planId: selectedPlanId,
         inclusionId: selectedInclusion.id,
@@ -958,8 +967,36 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
         },
       }).unwrap();
 
+      // 2. Delete features marked for deletion
+      for (const featureId of featuresToDelete) {
+        try {
+          await deleteFeature({
+            planId: selectedPlanId,
+            inclusionId: selectedInclusion.id,
+            featureId,
+          }).unwrap();
+        } catch {
+          // Continue with other deletions even if one fails
+        }
+      }
+
+      // 3. Add pending features
+      for (const featureText of pendingEditFeatures) {
+        try {
+          await addFeature({
+            planId: selectedPlanId,
+            inclusionId: selectedInclusion.id,
+            data: { feature_text: featureText },
+          }).unwrap();
+        } catch {
+          // Continue with other additions even if one fails
+        }
+      }
+
       setIsEditModalOpen(false);
       setSelectedInclusion(null);
+      setPendingEditFeatures([]);
+      setFeaturesToDelete([]);
       refetch();
       setSuccessMessage('Agent updated successfully!');
     } catch (error: unknown) {
@@ -989,41 +1026,23 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
     }
   };
 
-  // Feature management handlers
-  const handleAddFeature = async () => {
-    if (!selectedPlanId || !selectedInclusion || !newFeatureText.trim()) return;
-
-    try {
-      await addFeature({
-        planId: selectedPlanId,
-        inclusionId: selectedInclusion.id,
-        data: { feature_text: newFeatureText.trim() },
-      }).unwrap();
-      setNewFeatureText('');
-      refetch();
-    } catch (error: unknown) {
-      const apiError = error as ApiErrorResponse;
-      alert(apiError?.data?.detail || apiError?.data?.message || 'Failed to add feature');
-    }
+  // Feature management handlers - now updates local state for instant UI, saves on form submit
+  const handleAddFeatureLocal = () => {
+    if (!newFeatureText.trim()) return;
+    setPendingEditFeatures(prev => [...prev, newFeatureText.trim()]);
+    setNewFeatureText('');
   };
 
-  const handleDeleteFeature = async (featureId: string) => {
-    if (!selectedPlanId || !selectedInclusion) return;
+  const handleRemovePendingFeature = (index: number) => {
+    setPendingEditFeatures(prev => prev.filter((_, i) => i !== index));
+  };
 
-    setDeletingFeatureId(featureId);
-    try {
-      await deleteFeature({
-        planId: selectedPlanId,
-        inclusionId: selectedInclusion.id,
-        featureId,
-      }).unwrap();
-      refetch();
-    } catch (error: unknown) {
-      const apiError = error as ApiErrorResponse;
-      alert(apiError?.data?.detail || apiError?.data?.message || 'Failed to delete feature');
-    } finally {
-      setDeletingFeatureId(null);
-    }
+  const handleMarkFeatureForDeletion = (featureId: string) => {
+    setFeaturesToDelete(prev => [...prev, featureId]);
+  };
+
+  const handleUnmarkFeatureForDeletion = (featureId: string) => {
+    setFeaturesToDelete(prev => prev.filter(id => id !== featureId));
   };
 
   const planStyle = selectedPlan ? getPlanStyle(selectedPlan.plan_type) : null;
@@ -1824,14 +1843,14 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Feature List
                       <span className="ml-1.5 text-xs font-normal text-gray-400">
-                        ({(selectedInclusion as unknown as { features?: PlanAgentFeature[] }).features?.filter(f => f.is_active).length || 0} features)
+                        ({((selectedInclusion as unknown as { features?: PlanAgentFeature[] }).features?.filter(f => f.is_active && !featuresToDelete.includes(f.id)).length || 0) + pendingEditFeatures.length} features)
                       </span>
                     </label>
 
-                    {/* Existing Features */}
+                    {/* Existing Features (from server) */}
                     <div className="space-y-2 mb-3">
                       {((selectedInclusion as unknown as { features?: PlanAgentFeature[] }).features || [])
-                        .filter(f => f.is_active)
+                        .filter(f => f.is_active && !featuresToDelete.includes(f.id))
                         .map((feature) => (
                           <div
                             key={feature.id}
@@ -1845,23 +1864,72 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
                             <span className="flex-1 text-sm text-gray-700">{feature.feature_text}</span>
                             <button
                               type="button"
-                              onClick={() => handleDeleteFeature(feature.id)}
-                              disabled={deletingFeatureId === feature.id || isDeletingFeature}
-                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50"
+                              onClick={() => handleMarkFeatureForDeletion(feature.id)}
+                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
                               title="Remove feature"
                             >
-                              {deletingFeatureId === feature.id ? (
-                                <LoadingSpinner size="sm" />
-                              ) : (
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              )}
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
                             </button>
                           </div>
                         ))}
 
-                      {((selectedInclusion as unknown as { features?: PlanAgentFeature[] }).features || []).filter(f => f.is_active).length === 0 && (
+                      {/* Features marked for deletion (shown with strikethrough) */}
+                      {((selectedInclusion as unknown as { features?: PlanAgentFeature[] }).features || [])
+                        .filter(f => f.is_active && featuresToDelete.includes(f.id))
+                        .map((feature) => (
+                          <div
+                            key={feature.id}
+                            className="flex items-center gap-2 p-2.5 bg-red-50 border border-red-200 rounded-xl group transition-all"
+                          >
+                            <div className="flex-shrink-0 w-5 h-5 bg-red-100 rounded-full flex items-center justify-center">
+                              <svg className="w-3 h-3 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </div>
+                            <span className="flex-1 text-sm text-red-400 line-through">{feature.feature_text}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleUnmarkFeatureForDeletion(feature.id)}
+                              className="p-1.5 text-red-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
+                              title="Undo delete"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                              </svg>
+                            </button>
+                          </div>
+                        ))}
+
+                      {/* Pending Features (not yet saved - shown in green) */}
+                      {pendingEditFeatures.map((featureText, index) => (
+                        <div
+                          key={`pending-${index}`}
+                          className="flex items-center gap-2 p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl group transition-all"
+                        >
+                          <div className="flex-shrink-0 w-5 h-5 bg-emerald-100 rounded-full flex items-center justify-center">
+                            <svg className="w-3 h-3 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                          </div>
+                          <span className="flex-1 text-sm text-emerald-700">{featureText}</span>
+                          <span className="text-xs text-emerald-500 font-medium px-1.5 py-0.5 bg-emerald-100 rounded">New</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePendingFeature(index)}
+                            className="p-1.5 text-emerald-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            title="Remove"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+
+                      {/* Empty state */}
+                      {((selectedInclusion as unknown as { features?: PlanAgentFeature[] }).features || []).filter(f => f.is_active && !featuresToDelete.includes(f.id)).length === 0 && pendingEditFeatures.length === 0 && (
                         <div className="p-4 bg-gray-50 border border-dashed border-gray-200 rounded-xl text-center">
                           <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -1881,30 +1949,25 @@ const PlanAgentInclusionManagement = ({ planId, embedded = false }: PlanAgentInc
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             e.preventDefault();
-                            handleAddFeature();
+                            handleAddFeatureLocal();
                           }
                         }}
-                        disabled={isAddingFeature}
                         placeholder="e.g., Up to 150 API calls, Priority support..."
-                        className="flex-1 px-3.5 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:opacity-50 transition-all text-sm"
+                        className="flex-1 px-3.5 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
                       />
                       <button
                         type="button"
-                        onClick={handleAddFeature}
-                        disabled={!newFeatureText.trim() || isAddingFeature}
+                        onClick={handleAddFeatureLocal}
+                        disabled={!newFeatureText.trim()}
                         className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
                       >
-                        {isAddingFeature ? (
-                          <LoadingSpinner size="sm" className="text-white" />
-                        ) : (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                          </svg>
-                        )}
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
                         Add
                       </button>
                     </div>
-                    <p className="text-xs text-gray-500 mt-2">Press Enter or click Add to add a feature. Features will appear on the user-facing pricing page.</p>
+                    <p className="text-xs text-gray-500 mt-2">Press Enter or click Add to add a feature. Changes will be saved when you click Update.</p>
                   </div>
                 </div>
 
