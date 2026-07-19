@@ -155,9 +155,10 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
   const {
     data: templateFieldsData,
     isLoading: isLoadingFields,
+    refetch: refetchTemplateFields,
   } = useGetTemplateFieldsByTemplateIdQuery(
     { template_id: editTemplate?.id || '', admin_id: adminId || '' },
-    { skip: !isEditMode || !editTemplate?.id || !adminId }
+    { skip: !isEditMode || !editTemplate?.id || !adminId, refetchOnMountOrArgChange: true }
   );
 
   // Debug log to see raw API response
@@ -185,6 +186,11 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
       setTemplateFields([]);
       setExpandedFieldIndex(null);
       setIsProcessingFields(false);
+
+      // Refetch template fields when drawer opens in edit mode
+      if (isEditMode && editTemplate?.id && adminId) {
+        refetchTemplateFields();
+      }
 
       if (isEditMode && templateData) {
         setFormData({
@@ -219,7 +225,7 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
         });
       }
     }
-  }, [isOpen, isEditMode, templateData, templateError, editTemplate]);
+  }, [isOpen, isEditMode, templateData, templateError, editTemplate, adminId, refetchTemplateFields]);
 
   // Prepopulate fields when template fields data is loaded
   useEffect(() => {
@@ -514,25 +520,26 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
     }
   };
 
-  const updateTemplateFields = async (): Promise<boolean> => {
+  const updateTemplateFields = async (templateId: string): Promise<boolean> => {
     if (templateFields.length === 0) {
       return true; // No fields to update
     }
 
     try {
       setIsProcessingFields(true);
-      console.log('Updating template fields:', templateFields);
+      console.log('Processing template fields:', templateFields);
 
-      let successCount = 0;
-      let errorCount = 0;
+      // Separate new fields (no id) from existing fields (has id)
+      const newFields = templateFields.filter(f => !f.id);
+      const existingFields = templateFields.filter(f => f.id);
 
-      // Update each field individually
-      for (const field of templateFields) {
-        if (!field.id) {
-          console.warn('Skipping field without ID:', field);
-          continue;
-        }
+      let updateSuccessCount = 0;
+      let updateErrorCount = 0;
+      let createSuccessCount = 0;
+      let createErrorCount = 0;
 
+      // Update existing fields
+      for (const field of existingFields) {
         try {
           const fieldData: Record<string, string | number | boolean | FieldChoice[] | undefined> = {
             field_name: field.field_name.toLowerCase().replace(/\s+/g, '_'),
@@ -555,32 +562,76 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
           if (field.max_value !== undefined) fieldData.max_value = field.max_value;
 
           await updateTemplateField({
-            field_id: field.id,
+            field_id: field.id!,
             admin_id: adminId!,
             data: fieldData
           }).unwrap();
 
-          successCount++;
+          updateSuccessCount++;
           console.log('Field updated successfully:', field.id);
         } catch (error) {
-          errorCount++;
+          updateErrorCount++;
           console.error('Error updating field:', field.id, error);
         }
       }
 
-      if (errorCount > 0) {
+      // Create new fields if any
+      if (newFields.length > 0) {
+        try {
+          console.log('Creating new fields for template:', templateId);
+
+          const fieldsData = newFields.map(field => ({
+            field_name: field.field_name.toLowerCase().replace(/\s+/g, '_'),
+            field_label: field.field_label,
+            field_type: field.field_type,
+            is_required: field.is_required || false,
+            is_sensitive: field.is_sensitive || false,
+            display_order: field.display_order,
+            field_group: field.field_group || 'configuration',
+            placeholder: field.placeholder || '',
+            default_value: field.default_value || '',
+            help_text: field.help_text || '',
+            min_length: field.min_length,
+            max_length: field.max_length,
+            min_value: field.min_value,
+            max_value: field.max_value,
+            choices: field.choices || []
+          }));
+
+          const createResult = await bulkCreateFields({
+            admin_id: adminId!,
+            data: {
+              agent_template: templateId,
+              fields: fieldsData
+            }
+          }).unwrap();
+
+          createSuccessCount = createResult.created_count;
+          createErrorCount = createResult.errors_count;
+
+          console.log('New fields created:', createResult);
+        } catch (error) {
+          createErrorCount = newFields.length;
+          console.error('Error creating new fields:', error);
+        }
+      }
+
+      const totalErrors = updateErrorCount + createErrorCount;
+      const totalSuccess = updateSuccessCount + createSuccessCount;
+
+      if (totalErrors > 0) {
         setSaveMessage({
           type: 'warning',
-          text: `Template updated. ${successCount} field(s) updated, ${errorCount} field(s) failed.`,
+          text: `Template updated. ${totalSuccess} field(s) saved, ${totalErrors} field(s) failed.`,
         });
         return false;
       }
 
       return true;
     } catch (error: unknown) {
-      console.error('Error updating template fields:', error);
+      console.error('Error processing template fields:', error);
       const e = error as APIError;
-      let errorMessage = 'Template updated but failed to update fields.';
+      let errorMessage = 'Template updated but failed to process fields.';
 
       if (e.data?.detail) {
         errorMessage = e.data.detail;
@@ -588,9 +639,9 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
         errorMessage = e.message;
       }
 
-      setSaveMessage({ 
-        type: 'error', 
-        text: errorMessage 
+      setSaveMessage({
+        type: 'error',
+        text: errorMessage
       });
       return false;
     } finally {
@@ -629,19 +680,19 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
       if (isEditMode && editTemplate) {
         // Update existing template
         console.log('Updating agent template with data:', templateData);
-        const result = await updateAgentTemplate({ 
-          id: editTemplate.id, 
-          admin_id: adminId, 
-          data: templateData 
+        const result = await updateAgentTemplate({
+          id: editTemplate.id,
+          admin_id: adminId,
+          data: templateData
         }).unwrap();
         console.log('Agent template updated successfully:', result);
         templateId = editTemplate.id;
-        
-        // Update fields if any exist
-        const fieldsSuccess = await updateTemplateFields();
-        
+
+        // Update existing fields and create new fields if any
+        const fieldsSuccess = await updateTemplateFields(templateId);
+
         successMessage = `Agent template "${formData.name}" updated successfully${templateFields.length > 0 ? ` with ${templateFields.length} field(s)` : ''}!`;
-        
+
         setSaveMessage({
           type: fieldsSuccess ? 'success' : 'warning',
           text: successMessage,
@@ -1052,24 +1103,22 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
                     <div>
                       <h3 className="text-lg font-medium text-gray-900">Input Fields Configuration</h3>
                       <p className="text-sm text-gray-500 mt-1">
-                        {isEditMode 
-                          ? 'Manage template fields configuration' 
+                        {isEditMode
+                          ? 'Manage template fields configuration'
                           : 'Configure custom fields for agent instances created from this template'
                         }
                       </p>
                     </div>
-                    {!isEditMode && (
-                      <button
-                        onClick={addField}
-                        className="inline-flex items-center justify-center gap-2 px-3 py-2 sm:px-4 sm:py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg text-sm sm:text-base font-medium transition-all shadow-md hover:shadow-lg whitespace-nowrap"
-                      >
-                        <svg className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        <span className="hidden xs:inline sm:inline">Add Field</span>
-                        <span className="inline xs:hidden sm:hidden">Add</span>
-                      </button>
-                    )}
+                    <button
+                      onClick={addField}
+                      className="inline-flex items-center justify-center gap-2 px-3 py-2 sm:px-4 sm:py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg text-sm sm:text-base font-medium transition-all shadow-md hover:shadow-lg whitespace-nowrap"
+                    >
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span className="hidden xs:inline sm:inline">Add Field</span>
+                      <span className="inline xs:hidden sm:hidden">Add</span>
+                    </button>
                   </div>
 
                   {templateFields.length === 0 ? (
@@ -1079,24 +1128,22 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
                       </svg>
                       <h3 className="mt-2 text-sm font-medium text-gray-900">No fields configured</h3>
                       <p className="mt-1 text-sm text-gray-500">
-                        {isEditMode 
-                          ? 'This template does not have any fields configured yet'
+                        {isEditMode
+                          ? 'This template does not have any fields configured yet. Click "Add Field" to add one.'
                           : 'Get started by adding a field to customize your template'
                         }
                       </p>
-                      {!isEditMode && (
-                        <div className="mt-6">
-                          <button
-                            onClick={addField}
-                            className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
-                          >
-                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                            Add Your First Field
-                          </button>
-                        </div>
-                      )}
+                      <div className="mt-6">
+                        <button
+                          onClick={addField}
+                          className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
+                        >
+                          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          Add Your First Field
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <div className="space-y-4">
