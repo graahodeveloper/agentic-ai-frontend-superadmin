@@ -13,6 +13,11 @@ let tokenCache: {
 
 const TOKEN_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
+// ─── Token Size Limits ────────────────────────────────────────────────────────
+// JWT tokens should typically be under 8KB. Anything larger indicates corruption
+// or a serious issue that needs re-authentication
+const MAX_TOKEN_SIZE = 8 * 1024; // 8KB - reasonable limit for JWT
+
 // ─── Token Storage Keys ───────────────────────────────────────────────────────
 export const TOKEN_STORAGE_KEY = 'superAdminToken';
 export const REFRESH_TOKEN_STORAGE_KEY = 'superAdminRefreshToken';
@@ -106,6 +111,60 @@ export const clearTokenCache = (): void => {
   tokenCache = { token: null, expiry: 0 };
 };
 
+/**
+ * Validate token format and size to prevent 431 errors
+ * Returns true if token is valid, false otherwise
+ */
+const isTokenValid = (token: string | null): boolean => {
+  if (!token) return false;
+
+  // Check token size - if too large, it's likely corrupted
+  if (token.length > MAX_TOKEN_SIZE) {
+    console.error('[Auth] Token exceeds maximum size limit. Token may be corrupted.');
+    return false;
+  }
+
+  // Basic JWT format validation (header.payload.signature)
+  const parts = token.split('.');
+  if (parts.length !== 3) {
+    console.error('[Auth] Token does not have valid JWT format.');
+    return false;
+  }
+
+  // Check for obvious corruption patterns
+  if (token.includes('[object') || token.includes('undefined') || token.includes('null')) {
+    console.error('[Auth] Token contains invalid data patterns.');
+    return false;
+  }
+
+  return true;
+};
+
+/**
+ * Handle corrupted or oversized token by clearing and redirecting
+ */
+const handleInvalidToken = (): void => {
+  console.error('[Auth] Invalid token detected. Clearing tokens and redirecting to login.');
+  clearTokens();
+
+  if (typeof window !== 'undefined') {
+    window.location.href = '/auth';
+  }
+};
+
+// ─── Startup Token Validation ─────────────────────────────────────────────────
+// Validate tokens on module load to catch corruption early
+if (typeof window !== 'undefined') {
+  const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+  if (token && !isTokenValid(token)) {
+    console.error('[Auth] Startup: Invalid token detected. Clearing all tokens.');
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+    localStorage.removeItem(USER_STORAGE_KEY);
+    localStorage.removeItem('isSuperAdminLoggedIn');
+  }
+}
+
 // ─── Base URL ─────────────────────────────────────────────────────────────────
 
 export const getBaseUrl = (): string => {
@@ -122,7 +181,8 @@ export const getBaseUrl = (): string => {
 export const baseQueryWithAuth = fetchBaseQuery({
   baseUrl: getBaseUrl(),
   mode: 'cors',
-  credentials: 'include',
+  // NOTE: credentials omitted - using JWT Bearer token, not cookies
+  // This prevents 431 errors from accumulated cookies
   prepareHeaders: (headers, { endpoint }) => {
     const url = typeof endpoint === 'string' ? endpoint : '';
 
@@ -131,7 +191,14 @@ export const baseQueryWithAuth = fetchBaseQuery({
       const token = getCachedToken();
 
       if (token) {
-        headers.set('Authorization', `Bearer ${token}`);
+        // Validate token before adding to headers to prevent 431 errors
+        if (!isTokenValid(token)) {
+          // Schedule token cleanup (can't do sync redirect in prepareHeaders)
+          setTimeout(() => handleInvalidToken(), 0);
+          // Don't add invalid token to headers
+        } else {
+          headers.set('Authorization', `Bearer ${token}`);
+        }
       }
     }
 
@@ -153,6 +220,18 @@ export const baseQueryWithReauth: BaseQueryFn<
   FetchBaseQueryError
 > = async (args, api, extraOptions) => {
   let result = await baseQueryWithAuth(args, api, extraOptions);
+
+  // Check for 431 Request Header Fields Too Large - indicates token corruption
+  if (result.error && result.error.status === 431) {
+    console.error('[Auth] 431 Error - Request headers too large. Clearing tokens.');
+    clearTokens();
+
+    if (typeof window !== 'undefined') {
+      window.location.href = '/auth';
+    }
+
+    return result;
+  }
 
   // Check for 401 Unauthorized
   if (result.error && result.error.status === 401) {
@@ -221,7 +300,7 @@ export const baseQueryWithReauth: BaseQueryFn<
 export const baseQueryWithoutAuth = fetchBaseQuery({
   baseUrl: getBaseUrl(),
   mode: 'cors',
-  credentials: 'include',
+  // NOTE: credentials omitted - using JWT Bearer token, not cookies
   prepareHeaders: (headers) => {
     headers.set('Content-Type', 'application/json');
     headers.set('Accept', 'application/json');
