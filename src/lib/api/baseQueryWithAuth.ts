@@ -68,7 +68,7 @@ export const setTokens = (accessToken: string, refreshToken?: string): void => {
 };
 
 /**
- * Clear all auth tokens
+ * Clear all auth tokens and cookies
  */
 export const clearTokens = (): void => {
   if (typeof window === 'undefined') return;
@@ -78,6 +78,43 @@ export const clearTokens = (): void => {
   localStorage.removeItem('isSuperAdminLoggedIn');
   // Clear cache
   tokenCache = { token: null, expiry: 0 };
+};
+
+/**
+ * Nuclear option: Clear ALL storage and cookies to fix 431 errors
+ * This is called when we detect header size issues
+ */
+export const clearAllStorageAndCookies = (): void => {
+  if (typeof window === 'undefined') return;
+
+  // Clear all localStorage
+  localStorage.clear();
+
+  // Clear all sessionStorage
+  sessionStorage.clear();
+
+  // Clear all cookies for current domain
+  const cookies = document.cookie.split(';');
+  for (const cookie of cookies) {
+    const eqPos = cookie.indexOf('=');
+    const name = eqPos > -1 ? cookie.substring(0, eqPos).trim() : cookie.trim();
+    if (name) {
+      // Clear for current path and all parent paths
+      document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+      document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=${window.location.hostname}`;
+      // Also try without domain for subdomains
+      const domainParts = window.location.hostname.split('.');
+      if (domainParts.length > 1) {
+        const rootDomain = domainParts.slice(-2).join('.');
+        document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=.${rootDomain}`;
+      }
+    }
+  }
+
+  // Clear token cache
+  tokenCache = { token: null, expiry: 0 };
+
+  console.log('[Auth] Cleared all storage and cookies');
 };
 
 /**
@@ -157,12 +194,41 @@ const handleInvalidToken = (): void => {
 if (typeof window !== 'undefined') {
   const token = localStorage.getItem(TOKEN_STORAGE_KEY);
   if (token && !isTokenValid(token)) {
-    console.error('[Auth] Startup: Invalid token detected. Clearing all tokens.');
-    localStorage.removeItem(TOKEN_STORAGE_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
-    localStorage.removeItem(USER_STORAGE_KEY);
-    localStorage.removeItem('isSuperAdminLoggedIn');
+    console.error('[Auth] Startup: Invalid token detected. Clearing all storage.');
+    clearAllStorageAndCookies();
   }
+}
+
+// ─── Global Fetch Interceptor for 431 Errors ──────────────────────────────────
+// This catches 431 errors even outside RTK Query
+if (typeof window !== 'undefined') {
+  const originalFetch = window.fetch;
+  window.fetch = async (...args) => {
+    try {
+      const response = await originalFetch(...args);
+
+      // Check for 431 error
+      if (response.status === 431) {
+        console.error('[Auth] Global: 431 Error detected. Clearing ALL storage and cookies.');
+        clearAllStorageAndCookies();
+        window.location.href = '/auth';
+      }
+
+      return response;
+    } catch (error) {
+      // Network errors that might indicate header issues
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        // Check if this might be a header size issue by checking storage size
+        const totalStorageSize = JSON.stringify(localStorage).length + JSON.stringify(sessionStorage).length;
+        if (totalStorageSize > 50000) { // 50KB threshold
+          console.error('[Auth] Global: Possible header size issue detected. Clearing storage.');
+          clearAllStorageAndCookies();
+          window.location.href = '/auth';
+        }
+      }
+      throw error;
+    }
+  };
 }
 
 // ─── Base URL ─────────────────────────────────────────────────────────────────
@@ -221,10 +287,10 @@ export const baseQueryWithReauth: BaseQueryFn<
 > = async (args, api, extraOptions) => {
   let result = await baseQueryWithAuth(args, api, extraOptions);
 
-  // Check for 431 Request Header Fields Too Large - indicates token corruption
+  // Check for 431 Request Header Fields Too Large - indicates token/cookie corruption
   if (result.error && result.error.status === 431) {
-    console.error('[Auth] 431 Error - Request headers too large. Clearing tokens.');
-    clearTokens();
+    console.error('[Auth] 431 Error - Request headers too large. Clearing ALL storage and cookies.');
+    clearAllStorageAndCookies();
 
     if (typeof window !== 'undefined') {
       window.location.href = '/auth';
