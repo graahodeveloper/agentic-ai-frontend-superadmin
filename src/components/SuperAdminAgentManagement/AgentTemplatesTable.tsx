@@ -29,6 +29,14 @@ const getAgentTypeGradient = (agentType: string) => {
       return 'from-orange-500 to-amber-500';
     case 'chatbot':
       return 'from-teal-500 to-cyan-500';
+    case 'ocr':
+      return 'from-amber-500 to-yellow-500';
+    case 'idp':
+      return 'from-rose-500 to-pink-500';
+    case 'whatsapp':
+      return 'from-green-500 to-lime-500';
+    case 'instagram':
+      return 'from-pink-500 to-fuchsia-500';
     default:
       return 'from-gray-500 to-slate-500';
   }
@@ -74,6 +82,40 @@ const getAgentTypeIcon = (agentType: string) => {
         <div className="inline-flex items-center justify-center w-10 h-10 bg-teal-100 rounded-xl flex-shrink-0">
           <svg className="w-5 h-5 text-teal-600" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd"/>
+          </svg>
+        </div>
+      );
+    case 'ocr':
+      return (
+        <div className="inline-flex items-center justify-center w-10 h-10 bg-amber-100 rounded-xl flex-shrink-0">
+          <svg className="w-5 h-5 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd"/>
+          </svg>
+        </div>
+      );
+    case 'idp':
+      return (
+        <div className="inline-flex items-center justify-center w-10 h-10 bg-rose-100 rounded-xl flex-shrink-0">
+          <svg className="w-5 h-5 text-rose-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V8z" clipRule="evenodd"/>
+          </svg>
+        </div>
+      );
+    case 'whatsapp':
+      return (
+        <div className="inline-flex items-center justify-center w-10 h-10 bg-green-100 rounded-xl flex-shrink-0">
+          <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M10 0a10 10 0 00-8.5 15.3L0 20l4.9-1.3A10 10 0 1010 0zm0 18a8 8 0 01-4.1-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8 8 0 1110 18zm4.6-5.8c-.2-.1-1.4-.7-1.6-.8-.2-.1-.4-.1-.5.1-.2.2-.6.8-.8 1-.1.1-.3.2-.5.1-.2-.1-1-.4-1.9-1.2-.7-.6-1.2-1.4-1.3-1.6-.1-.2 0-.4.1-.5.1-.1.2-.3.4-.4.1-.1.2-.2.2-.4.1-.1 0-.3 0-.4s-.5-1.3-.7-1.8c-.2-.5-.4-.4-.5-.4h-.5c-.2 0-.4.1-.6.3-.2.2-.8.8-.8 1.9s.8 2.2.9 2.4c.1.1 1.6 2.5 3.9 3.5.6.2 1 .4 1.3.5.6.2 1.1.2 1.5.1.5-.1 1.4-.6 1.6-1.1.2-.6.2-1 .1-1.1-.1-.1-.3-.2-.5-.3z"/>
+          </svg>
+        </div>
+      );
+    case 'instagram':
+      return (
+        <div className="inline-flex items-center justify-center w-10 h-10 bg-pink-100 rounded-xl flex-shrink-0">
+          <svg className="w-5 h-5 text-pink-600" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M10 1.8c2.7 0 3 0 4 .1 1 0 1.5.2 1.9.3.5.2.8.4 1.1.7.3.3.5.7.7 1.1.1.4.3.9.3 1.9.1 1.1.1 1.4.1 4s0 3-.1 4c0 1-.2 1.5-.3 1.9-.2.5-.4.8-.7 1.1-.3.3-.7.5-1.1.7-.4.1-.9.3-1.9.3-1.1.1-1.4.1-4 .1s-3 0-4-.1c-1 0-1.5-.2-1.9-.3-.5-.2-.8-.4-1.1-.7-.3-.3-.5-.7-.7-1.1-.1-.4-.3-.9-.3-1.9-.1-1.1-.1-1.4-.1-4s0-3 .1-4c0-1 .2-1.5.3-1.9.2-.5.4-.8.7-1.1.3-.3.7-.5 1.1-.7.4-.1.9-.3 1.9-.3 1.1-.1 1.4-.1 4-.1M10 0C7.3 0 6.9 0 5.9.1 4.8.1 4 .3 3.4.6c-.7.3-1.3.6-1.9 1.2-.6.6-1 1.2-1.2 1.9C0 4.3-.2 5-.1 6.1 0 7.1 0 7.5 0 10.2s0 3.1.1 4.1c.1 1.1.3 1.9.6 2.5.3.7.6 1.3 1.2 1.9.6.6 1.2 1 1.9 1.2.6.3 1.4.5 2.5.6 1 .1 1.4.1 4.1.1s3.1 0 4.1-.1c1.1-.1 1.9-.3 2.5-.6.7-.3 1.3-.6 1.9-1.2.6-.6 1-1.2 1.2-1.9.3-.6.5-1.4.6-2.5.1-1 .1-1.4.1-4.1s0-3.1-.1-4.1c-.1-1.1-.3-1.9-.6-2.5-.3-.7-.6-1.3-1.2-1.9-.6-.6-1.2-1-1.9-1.2C16 .3 15.2.1 14.1.1 13.1 0 12.7 0 10 0z"/>
+            <path d="M10 4.9a5.1 5.1 0 100 10.2 5.1 5.1 0 000-10.2zm0 8.4a3.3 3.3 0 110-6.6 3.3 3.3 0 010 6.6z"/>
+            <circle cx="15.3" cy="4.7" r="1.2"/>
           </svg>
         </div>
       );

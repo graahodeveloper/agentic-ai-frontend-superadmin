@@ -82,7 +82,8 @@ const FIELD_GROUPS = [
   'custom'
 ];
 
-const AGENT_VARIANTS = [
+// External agent variants - for agents that integrate with external platforms
+const EXTERNAL_AGENT_VARIANTS = [
   { value: 'facebook', label: 'Facebook' },
   { value: 'whatsapp', label: 'WhatsApp' },
   { value: 'instagram', label: 'Instagram' },
@@ -90,7 +91,13 @@ const AGENT_VARIANTS = [
   { value: 'idp', label: 'IDP (Document Processing)' },
 ];
 
-// Predefined field names for the dropdown - Updated with WhatsApp and IDP fields
+// Internal agent variants - for agents used within the platform
+const INTERNAL_AGENT_VARIANTS = [
+  { value: '', label: 'None (Standard Internal Agent)' },
+  { value: 'ocr', label: 'OCR (Optical Character Recognition)' },
+];
+
+// Predefined field names for the dropdown - Updated with WhatsApp, IDP and OCR fields
 const PREDEFINED_FIELD_NAMES = [
   // Facebook fields
   { value: 'app_secret', label: 'App Secret' },
@@ -106,6 +113,13 @@ const PREDEFINED_FIELD_NAMES = [
   { value: 'api_endpoint', label: 'API Endpoint' },
   { value: 'auth_credentials', label: 'Authentication Credentials' },
   { value: 'field_mappings', label: 'Field Mappings' },
+  // OCR fields
+  { value: 'ocr_engine', label: 'OCR Engine' },
+  { value: 'supported_languages', label: 'Supported Languages' },
+  { value: 'confidence_threshold', label: 'Confidence Threshold' },
+  { value: 'output_format', label: 'Output Format' },
+  { value: 'image_preprocessing', label: 'Image Preprocessing' },
+  { value: 'text_extraction_mode', label: 'Text Extraction Mode' },
   { value: 'custom', label: 'Choose Field Name' }
 ];
 
@@ -119,7 +133,7 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [formData, setFormData] = useState<FormData>({
     name: '',
-    agent_variant: 'facebook',
+    agent_variant: '', // Empty for internal agents, will be set when external is selected
     description: '',
     agent_type: 'internal',
     agent_role: '',
@@ -216,7 +230,7 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
       } else {
         setFormData({
           name: '',
-          agent_variant: 'facebook',
+          agent_variant: '', // Empty for internal agents (default)
           description: '',
           agent_type: 'internal',
           agent_role: '',
@@ -355,7 +369,22 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
   };
 
   const handleInputChange = (field: keyof FormData, value: string | boolean) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => {
+      const newData = { ...prev, [field]: value };
+
+      // Reset variant when agent_type changes to maintain consistency
+      if (field === 'agent_type') {
+        if (value === 'external') {
+          // Default to 'facebook' for external agents
+          newData.agent_variant = 'facebook';
+        } else {
+          // Default to empty (standard internal) for internal agents
+          newData.agent_variant = '';
+        }
+      }
+
+      return newData;
+    });
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
@@ -666,7 +695,8 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
 
       const templateData = {
         name: formData.name.trim(),
-        agent_variant: formData.agent_type === 'external' ? formData.agent_variant : undefined,
+        // For external agents, variant is required; for internal, it's optional (OCR or empty)
+        agent_variant: formData.agent_variant || undefined,
         description: formData.description.trim(),
         agent_type: formData.agent_type,
         agent_role: formData.agent_role.trim(),
@@ -934,33 +964,42 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
                     )}
                   </div>
 
-                  {/* Agent Variant - Only show for external agents */}
-                  {formData.agent_type === 'external' && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Agent Variant <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        value={formData.agent_variant}
-                        onChange={(e) => handleInputChange('agent_variant', e.target.value)}
-                        className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors bg-white ${
-                          errors.agent_variant ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
-                      >
-                        {AGENT_VARIANTS.map(variant => (
-                          <option key={variant.value} value={variant.value}>
-                            {variant.label}
-                          </option>
-                        ))}
-                      </select>
-                      {errors.agent_variant && (
-                        <p className="mt-1 text-sm text-red-600">{errors.agent_variant}</p>
-                      )}
-                      <p className="mt-1 text-xs text-gray-500">
-                        Select the platform where this agent will be deployed
-                      </p>
-                    </div>
-                  )}
+                  {/* Agent Variant - Different options based on agent type */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Agent Variant {formData.agent_type === 'external' && <span className="text-red-500">*</span>}
+                      {formData.agent_type === 'internal' && <span className="text-gray-400 text-xs ml-1">(Optional)</span>}
+                    </label>
+                    <select
+                      value={formData.agent_variant}
+                      onChange={(e) => handleInputChange('agent_variant', e.target.value)}
+                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors bg-white ${
+                        errors.agent_variant ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                      }`}
+                    >
+                      {formData.agent_type === 'external'
+                        ? EXTERNAL_AGENT_VARIANTS.map(variant => (
+                            <option key={variant.value} value={variant.value}>
+                              {variant.label}
+                            </option>
+                          ))
+                        : INTERNAL_AGENT_VARIANTS.map(variant => (
+                            <option key={variant.value} value={variant.value}>
+                              {variant.label}
+                            </option>
+                          ))
+                      }
+                    </select>
+                    {errors.agent_variant && (
+                      <p className="mt-1 text-sm text-red-600">{errors.agent_variant}</p>
+                    )}
+                    <p className="mt-1 text-xs text-gray-500">
+                      {formData.agent_type === 'external'
+                        ? 'Select the platform where this agent will be deployed'
+                        : 'Select a specialized variant or leave as standard internal agent'
+                      }
+                    </p>
+                  </div>
 
                   <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-4">
                     <div className="flex">

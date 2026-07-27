@@ -67,7 +67,13 @@
       "Bash(apps/agents/serializers.py )",
       "Bash(apps/agents/views/subscription_views.py )",
       "Bash(apps/agents/migrations/0066_add_plan_agent_feature_model.py)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(jq:*)",
+      "Bash(while read line)",
+      "Bash(do echo \"$line\")",
+      "Bash(npm install:*)",
+      "WebFetch(domain:app-dev.koronik.ai)",
+      "Bash(git fetch:*)"
     ]
   }
 }
