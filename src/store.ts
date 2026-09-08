@@ -12,6 +12,7 @@ import { cmsSettingsApi } from '@/features/cmsSettings/cmsSettingsApi';
 import { demoUsersApi } from '@/features/demoUsers/demoUsersApi';
 import { performanceAnalyticsApi } from '@/features/performanceAnalytics/performanceAnalyticsApi';
 import { mlAnalyticsApi } from '@/features/mlAnalytics/mlAnalyticsApi';
+import { rbacApi } from '@/features/rbac/rbacApi';
 
 export const store = configureStore({
   reducer: {
@@ -28,6 +29,7 @@ export const store = configureStore({
     [demoUsersApi.reducerPath]: demoUsersApi.reducer,
     [performanceAnalyticsApi.reducerPath]: performanceAnalyticsApi.reducer,
     [mlAnalyticsApi.reducerPath]: mlAnalyticsApi.reducer,
+    [rbacApi.reducerPath]: rbacApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
@@ -49,7 +51,8 @@ export const store = configureStore({
     .concat(cmsSettingsApi.middleware)
     .concat(demoUsersApi.middleware)
     .concat(performanceAnalyticsApi.middleware)
-    .concat(mlAnalyticsApi.middleware),
+    .concat(mlAnalyticsApi.middleware)
+    .concat(rbacApi.middleware),
 });
 
 export type RootState = ReturnType<typeof store.getState>;
