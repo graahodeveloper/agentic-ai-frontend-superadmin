@@ -5,3 +5,4 @@
 - [Dashboard UI idioms](dashboard-ui-idioms.md) — this repo's page/card/table conventions.
 - [Sidebar layout](sidebar-layout.md) — how a nav entry is added in src/app/dashboard/layout.tsx.
 - [RTK Query conventions](rtk-query-conventions.md) — createApi slice shape and store registration.
+- [Agent template drawer](agent-template-drawer.md) — SuperAdminCreateAgentTemplateDrawer.tsx's 4-site FormData sync trap and agentTemplateApi.ts's duplicated template-shape surface.

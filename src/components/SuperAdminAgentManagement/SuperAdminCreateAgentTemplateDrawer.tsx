@@ -33,6 +33,7 @@ interface FormData {
   agent_role: string;
   is_active: boolean;
   is_public: boolean;
+  supports_human_handover: boolean;
 }
 
 interface APIFieldResponse {
@@ -139,6 +140,7 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
     agent_role: '',
     is_active: true,
     is_public: false,
+    supports_human_handover: false,
   });
   const [templateFields, setTemplateFields] = useState<TemplateField[]>([]);
   const [errors, setErrors] = useState<Partial<FormData>>({});
@@ -215,6 +217,7 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
           agent_role: (templateData as AgentTemplate).agent_role || '',
           is_active: templateData.is_active,
           is_public: templateData.is_public,
+          supports_human_handover: templateData.supports_human_handover || false,
         });
       } else if (isEditMode && editTemplate && templateError) {
         console.warn('Failed to fetch latest template data, using cached version');
@@ -226,6 +229,7 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
           agent_role: (editTemplate as AgentTemplate).agent_role || '',
           is_active: editTemplate.is_active,
           is_public: editTemplate.is_public,
+          supports_human_handover: editTemplate.supports_human_handover || false,
         });
       } else {
         setFormData({
@@ -236,6 +240,7 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
           agent_role: '',
           is_active: true,
           is_public: false,
+          supports_human_handover: false,
         });
       }
     }
@@ -381,6 +386,13 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
           // Default to empty (standard internal) for internal agents
           newData.agent_variant = '';
         }
+      }
+
+      // Human handover only applies to the website variant; force it back to
+      // false whenever the variant (directly, or via agent_type reset above)
+      // moves away from 'website' so a hidden checkbox can never stay true.
+      if (newData.agent_variant !== 'website') {
+        newData.supports_human_handover = false;
       }
 
       return newData;
@@ -702,6 +714,7 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
         agent_role: formData.agent_role.trim(),
         is_active: formData.is_active,
         is_public: formData.is_public,
+        supports_human_handover: formData.supports_human_handover,
       };
 
       let templateId: string;
@@ -1000,6 +1013,25 @@ const SuperAdminCreateAgentTemplateDrawer: React.FC<SuperAdminCreateAgentTemplat
                       }
                     </p>
                   </div>
+
+                  {/* Include Real Human Agent - Only for website variant */}
+                  {formData.agent_variant === 'website' && (
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                      <div className="flex items-center">
+                        <input
+                          id="supports_human_handover"
+                          type="checkbox"
+                          checked={formData.supports_human_handover}
+                          onChange={(e) => handleInputChange('supports_human_handover', e.target.checked)}
+                          className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="supports_human_handover" className="ml-3">
+                          <span className="text-sm font-medium text-gray-700">Include real human agent</span>
+                          <p className="text-sm text-gray-500">Allow a customer to ask to be transferred to a real person during the conversation</p>
+                        </label>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-4">
                     <div className="flex">

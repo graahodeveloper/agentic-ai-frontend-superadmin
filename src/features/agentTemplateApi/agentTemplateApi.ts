@@ -26,6 +26,7 @@ export interface AgentTemplate {
   is_template: boolean;
   is_active: boolean;
   is_public: boolean;
+  supports_human_handover: boolean;
   activations_count: number;
   active_activations_count: number;
   instances_count: number;
@@ -257,6 +258,7 @@ export interface CreateAgentTemplateRequest {
   website?: string;
   is_active: boolean;
   is_public: boolean;
+  supports_human_handover: boolean;
 }
 
 export interface CreateAgentTemplateResponse {
@@ -286,6 +288,7 @@ export interface CreateAgentTemplateResponse {
     is_template: boolean;
     is_active: boolean;
     is_public: boolean;
+    supports_human_handover: boolean;
     additional_info?: Record<string, unknown>;
     activations_count: number;
     active_activations_count: number;
@@ -310,6 +313,7 @@ export interface UpdateAgentTemplateRequest {
   website?: string;
   is_active?: boolean;
   is_public?: boolean;
+  supports_human_handover?: boolean;
 }
 
 export interface AssignAdminToTemplateRequest {
@@ -1069,6 +1073,7 @@ export const agentTemplateApi = createApi({
               is_template: boolean;
               is_active: boolean;
               is_public: boolean;
+              supports_human_handover: boolean;
               additional_info: Record<string, unknown>;
               activations_count: number;
               active_activations_count: number;
@@ -1103,6 +1108,7 @@ export const agentTemplateApi = createApi({
               is_template: apiResponse.template.is_template,
               is_active: apiResponse.template.is_active,
               is_public: apiResponse.template.is_public,
+              supports_human_handover: apiResponse.template.supports_human_handover,
               activations_count: apiResponse.template.activations_count,
               active_activations_count: apiResponse.template.active_activations_count,
               instances_count: apiResponse.template.instances_count,
@@ -1163,6 +1169,7 @@ export const agentTemplateApi = createApi({
               is_template: false,
               is_active: false,
               is_public: false,
+              supports_human_handover: false,
               activations_count: 0,
               active_activations_count: 0,
               instances_count: 0,
