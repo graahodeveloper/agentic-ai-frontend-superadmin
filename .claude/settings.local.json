@@ -73,7 +73,8 @@
       "Bash(do echo \"$line\")",
       "Bash(npm install:*)",
       "WebFetch(domain:app-dev.koronik.ai)",
-      "Bash(git fetch:*)"
+      "Bash(git fetch:*)",
+      "Bash(cd *)"
     ]
   }
 }
