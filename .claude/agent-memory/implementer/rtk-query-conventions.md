@@ -35,3 +35,20 @@ Verified against `src/features/performanceAnalytics/performanceAnalyticsApi.ts` 
   `[{ type, id }, type]` (bare string) so the list-level `providesTags: [type]` on the
   collection query also refetches. See `rbacApi.ts` (`OrganizationModules` tag) for a
   concrete example.
+- For a `queryFn`-based endpoint that must call the raw base query directly (bypass another
+  endpoint's own `query`/`transformResponse`), call `baseQueryWithReauth(args, api,
+  extraOptions)` straight from inside `queryFn` — see `authApi.ts` login/logout and
+  `cmsSettingsApi.ts` upload-image for the existing pattern in this repo. Don't use the 4th
+  `queryFn` arg (`fetchWithBQ`); none of the existing code does.
+- `GET users/` (`UsersViewSet`) has no `pagination_class`, inherits the project-wide DRF
+  default `PageNumberPagination` with `PAGE_SIZE=20`, and has **no**
+  `page_size_query_param` — `limit`/`page_size` query params are silently ignored, 20 rows
+  per page always. To read more than one page you must walk `page=1,2,3…` by hand; a
+  `queryFn` endpoint is the right tool (see `userApi.ts`'s `getUserDirectorySnapshot`,
+  added for SA-047 2026-10-05, which walks pages in concurrent batches of 4 and fails
+  closed if any page errors). For a count-only need (no rows), a one-shot `page=1` request
+  and reading just `response.count` is cheaper — see `getUserCohortCount` in the same file.
+  `UsersViewSet.get_queryset()` also tenancy-scopes `list` (superadmin → everything,
+  org-scoped actor → their org only) *after* query-param filtering, so two different pages
+  hitting the same filtered `users/` endpoint as the same actor are guaranteed to agree —
+  useful when a ticket requires two UIs to show a provably consistent number.
