@@ -271,6 +271,90 @@ export interface UserCreatedAgentsListResponse {
   results?: UserCreatedAgent[];
 }
 
+// ============ SETTINGS → SUMMARY SUPPORT (SA-047) ============
+//
+// `GET users/` is served by `UsersViewSet`, which declares no `pagination_class`,
+// so it falls back to the project-wide default `PageNumberPagination` with
+// `PAGE_SIZE = 20` and NO `page_size_query_param`. In other words: the server
+// always returns 20 rows per page no matter what `limit`/`page_size` the client
+// sends, and paging is the only way to see more than one page of rows. The
+// existing `getUsers` endpoint above still sends `limit`, which the server
+// silently ignores — that is pre-existing behaviour and is left untouched here,
+// but the new endpoints below deliberately do not copy that param.
+export const USERS_PAGE_SIZE = 20;
+
+// Hard cap on how many pages `getUserDirectorySnapshot` will walk in one call.
+// 25 pages * 20 rows/page = 500 users scanned per snapshot. Capped at 25 (not
+// higher) because each `users/` page costs 60+ backend DB queries — see
+// `UsersSerializer`'s three `SerializerMethodField`s (`get_agent_access`,
+// `get_agent_access_count`, `get_workspaces`), each of which runs a fresh
+// per-row query and defeats the viewset's `prefetch_related`. The scan's page
+// count, not anything on this side, is what dominates this page's load time.
+export const DEFAULT_MAX_SNAPSHOT_PAGES = 25;
+
+export interface UserCohortCountParams {
+  is_active?: boolean;
+  role?: string;
+  user_type?: string;
+}
+
+export interface UserCohortCountResponse {
+  count: number;
+}
+
+// Serializer fields documented for `UsersSerializer`. All optional except `id`:
+// the API may omit fields depending on the endpoint/version, and this type is
+// intentionally separate from the shared `User` type in `@/types/auth` (which
+// several other screens depend on and must not be reshaped by this slice).
+export interface DirectoryUser {
+  id: string;
+  sub_id?: string | null;
+  first_name?: string;
+  last_name?: string;
+  full_name?: string;
+  email?: string;
+  mobile?: string | null;
+  country?: string | null;
+  role?: string;
+  customer_used_token?: string | number;
+  password_set?: boolean;
+  is_active?: boolean;
+  user_type?: string;
+  organization_name?: string | null;
+  creator_name?: string | null;
+  agent_access_count?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface UserDirectorySnapshot {
+  users: DirectoryUser[];
+  totalCount: number;
+  scannedCount: number;
+  truncated: boolean;
+  fetchedAt: string;
+}
+
+export interface GetUserDirectorySnapshotParams {
+  maxPages?: number;
+}
+
+// Shape of one raw page of `users/` — this is the untransformed DRF response,
+// used only internally while the snapshot endpoint walks pages by hand.
+interface UsersPageResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: DirectoryUser[];
+}
+
+const isUsersPageResponse = (value: unknown): value is UsersPageResponse =>
+  typeof value === 'object' &&
+  value !== null &&
+  'results' in value &&
+  Array.isArray((value as { results?: unknown }).results) &&
+  'count' in value;
+
 
 export const userApi = createApi({
   reducerPath: 'userApi',
@@ -505,6 +589,152 @@ export const userApi = createApi({
       providesTags: ['User'],
     }),
 
+    // ============ SETTINGS → SUMMARY SUPPORT (SA-047) ============
+
+    // Count-only cohort query. This hits `users/` with the same filters and
+    // reads the same DRF `count` field as `getUsers` above — `is_active: true`
+    // is the exact figure Manage User's "Active" filter shows, because it is
+    // the identical request shape against the identical tenancy-scoped
+    // queryset (superadmin sees everything, an org-scoped actor sees only
+    // their org — see `UsersViewSet.get_queryset()`). Summary and Manage User
+    // therefore agree by construction, for any actor, not only for a
+    // superadmin. `transformResponse` discards `results` so the cache entry
+    // stays small — this endpoint only ever needs the count.
+    getUserCohortCount: builder.query<UserCohortCountResponse, UserCohortCountParams>({
+      query: ({ is_active, role, user_type }) => {
+        const params = new URLSearchParams({ page: '1' });
+        if (is_active !== undefined) params.append('is_active', is_active.toString());
+        if (role) params.append('role', role);
+        if (user_type) params.append('user_type', user_type);
+
+        return {
+          url: `users/?${params.toString()}`,
+          method: 'GET',
+        };
+      },
+      transformResponse: (response: unknown): UserCohortCountResponse => {
+        if (typeof response === 'object' && response !== null && 'count' in response) {
+          const rawCount = (response as { count: unknown }).count;
+          const count = Number(rawCount);
+          return { count: Number.isFinite(count) ? count : 0 };
+        }
+        throw new Error('Invalid response format');
+      },
+      providesTags: ['User'],
+    }),
+
+    // Pages through the user directory to gather real rows for the analytics
+    // that a count alone cannot answer (token usage, role/country mix, signup
+    // recency). Fetches page 1 ordered by `-customer_used_token` so the
+    // heaviest consumers are already in hand even if the scan is capped, then
+    // walks the remaining pages in bounded concurrent batches of 4. If any
+    // page errors, the whole call fails closed — a half-scan is never
+    // returned dressed up as a complete one.
+    //
+    // Because this and `getUserCohortCount` both carry `providesTags: ['User']`,
+    // the existing `toggleUserStatus` / `deleteUser` / `updateUser` mutations
+    // (which already `invalidatesTags: ['User']`) refetch both automatically,
+    // which is part of why Summary stays in sync with Manage User.
+    getUserDirectorySnapshot: builder.query<UserDirectorySnapshot, GetUserDirectorySnapshotParams | void>({
+      queryFn: async (arg, api, extraOptions) => {
+        const maxPages = Math.max(1, Math.floor(arg?.maxPages ?? DEFAULT_MAX_SNAPSHOT_PAGES));
+
+        const fetchPage = (page: number) => {
+          // The sort key MUST be deterministic. `customer_used_token` defaults
+          // to 0, so in any real directory most rows tie on it, and LIMIT/OFFSET
+          // paging over a non-unique ORDER BY lets the database return rows in a
+          // different order for each page — silently skipping some users and
+          // repeating others across the scan. `-created_at` breaks the tie.
+          // It has to be `created_at` specifically: DRF's OrderingFilter
+          // silently DROPS terms outside `ordering_fields`, and `id` is not in
+          // that list on `UsersViewSet`, so ordering by it would be a no-op.
+          const params = new URLSearchParams({
+            page: page.toString(),
+            ordering: '-customer_used_token,-created_at',
+          });
+          return baseQueryWithReauth(
+            { url: `users/?${params.toString()}`, method: 'GET' },
+            api,
+            extraOptions
+          );
+        };
+
+        const firstPageResult = await fetchPage(1);
+        if (firstPageResult.error) {
+          return { error: firstPageResult.error };
+        }
+
+        if (!isUsersPageResponse(firstPageResult.data)) {
+          return {
+            error: { status: 'CUSTOM_ERROR', error: 'Invalid response format from users/' },
+          };
+        }
+
+        const firstPage = firstPageResult.data;
+        const totalCount = Number(firstPage.count) || 0;
+
+        // Dedupe by id as well as ordering deterministically. Two users created
+        // in the same instant with equal token counts would still tie, and a
+        // concurrent insert can shift rows between page requests regardless of
+        // sort stability. Counting one user twice would overstate the token
+        // total and corrupt `scannedCount`/`truncated`, so identity is enforced
+        // here rather than assumed from the server's paging.
+        const seenIds = new Set<string>();
+        const allUsers: DirectoryUser[] = [];
+        const collect = (rows: DirectoryUser[]) => {
+          for (const row of rows) {
+            if (row.id && seenIds.has(row.id)) continue;
+            if (row.id) seenIds.add(row.id);
+            allUsers.push(row);
+          }
+        };
+
+        collect(firstPage.results);
+
+        const pagesNeeded = Math.min(Math.ceil(totalCount / USERS_PAGE_SIZE), maxPages);
+
+        const remainingPages: number[] = [];
+        for (let page = 2; page <= pagesNeeded; page += 1) {
+          remainingPages.push(page);
+        }
+
+        const BATCH_SIZE = 6;
+        for (let i = 0; i < remainingPages.length; i += BATCH_SIZE) {
+          const batch = remainingPages.slice(i, i + BATCH_SIZE);
+          const batchResults = await Promise.all(batch.map((page) => fetchPage(page)));
+
+          for (const result of batchResults) {
+            if (result.error) {
+              // Fail closed: one bad page invalidates the whole snapshot.
+              return { error: result.error };
+            }
+            if (isUsersPageResponse(result.data)) {
+              collect(result.data.results);
+            }
+          }
+        }
+
+        const scannedCount = allUsers.length;
+
+        return {
+          data: {
+            users: allUsers,
+            totalCount,
+            scannedCount,
+            truncated: scannedCount < totalCount,
+            fetchedAt: new Date().toISOString(),
+          },
+        };
+      },
+      // Each scan is expensive (see `DEFAULT_MAX_SNAPSHOT_PAGES` above — tens
+      // of backend DB queries per page), so a cached snapshot is kept for 5
+      // minutes after the last component unsubscribes. Navigating away from
+      // Summary and back within that window reuses the cached scan instead
+      // of re-running it.
+      keepUnusedDataFor: 300,
+      providesTags: ['User'],
+    }),
+
     // Delete user (admin)
     deleteUser: builder.mutation<{ message: string }, string>({
       query: (userId) => ({
@@ -636,6 +866,9 @@ export const {
   useGetUserProfileQuery,
   useUpdateUserMutation,
   useGetUsersQuery,
+  // Settings → Summary hooks (SA-047)
+  useGetUserCohortCountQuery,
+  useGetUserDirectorySnapshotQuery,
   useDeleteUserMutation,
   useToggleUserStatusMutation,
   // User Created Agent hooks
