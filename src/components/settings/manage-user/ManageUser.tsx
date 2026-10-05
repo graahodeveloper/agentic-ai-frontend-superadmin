@@ -5,6 +5,7 @@ import {
   // useUpdateUserMutation, 
   // useDeleteUserMutation,
   useToggleUserStatusMutation,
+  USERS_PAGE_SIZE,
   // UpdateUserRequest,
 } from '@/features/user/userApi';
 // import { User } from '@/types/auth';;
@@ -58,8 +59,13 @@ const UserManagementInterface = () => {
     error,
     refetch 
   } = useGetUsersQuery({
+    // `limit` is sent for consistency with the endpoint's signature, but the
+    // server ignores it: `UsersViewSet` declares no `pagination_class`, so it
+    // uses the project default `PAGE_SIZE = 20` with no `page_size_query_param`.
+    // The pagination maths below must therefore use the server's real page
+    // size, not a number of this page's choosing.
     page: currentPage,
-    limit: 10,
+    limit: USERS_PAGE_SIZE,
     email: searchTerm || undefined,
     is_active: statusFilter === 'all' ? undefined : statusFilter === 'active'
   });
@@ -135,7 +141,7 @@ const usersDataTyped = usersData as unknown as UsersResponse;
 
 const users = usersDataTyped?.results || [];
 const totalCount = usersDataTyped?.count || 0;
-const totalPages = Math.ceil(totalCount / 10);
+const totalPages = Math.ceil(totalCount / USERS_PAGE_SIZE);
 
 
   return (
@@ -327,10 +333,10 @@ const totalPages = Math.ceil(totalCount / 10);
                     <div>
                       <p className="text-sm text-gray-700">
                         Showing{' '}
-                        <span className="font-medium">{(currentPage - 1) * 10 + 1}</span>
+                        <span className="font-medium">{(currentPage - 1) * USERS_PAGE_SIZE + 1}</span>
                         {' '}to{' '}
                         <span className="font-medium">
-                          {Math.min(currentPage * 10, totalCount)}
+                          {Math.min(currentPage * USERS_PAGE_SIZE, totalCount)}
                         </span>
                         {' '}of{' '}
                         <span className="font-medium">{totalCount}</span>
