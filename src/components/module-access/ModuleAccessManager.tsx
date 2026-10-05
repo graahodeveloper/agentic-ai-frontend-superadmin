@@ -34,6 +34,7 @@ const ModuleAccessManager = () => {
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [orgSearch, setOrgSearch] = useState('');
 
   const {
     data: orgsData,
@@ -43,6 +44,16 @@ const ModuleAccessManager = () => {
   } = useGetGrantableOrganizationsQuery();
 
   const organizations = useMemo(() => orgsData?.organizations ?? [], [orgsData]);
+
+  // Client-side filter: `GET rbac/organizations/` takes no query params and
+  // returns every organization in one unpaginated response, so the whole list
+  // is already in memory and a round trip per keystroke would buy nothing.
+  // If that endpoint ever gains a `search` param, move this to the server.
+  const orgQuery = orgSearch.trim().toLowerCase();
+  const filteredOrganizations = useMemo(
+    () => (orgQuery ? organizations.filter((org) => org.name.toLowerCase().includes(orgQuery)) : organizations),
+    [organizations, orgQuery]
+  );
 
   const {
     data: modulesData,
@@ -120,7 +131,48 @@ const ModuleAccessManager = () => {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-4 py-3.5 border-b border-gray-100">
           <h2 className="text-sm font-bold text-gray-900">Organizations</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Select an organization to manage its module access</p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {orgQuery
+              ? `${filteredOrganizations.length} of ${organizations.length} ${
+                  organizations.length === 1 ? 'organization' : 'organizations'
+                }`
+              : 'Select an organization to manage its module access'}
+          </p>
+
+          {/* Shown only once the list has loaded with something in it, so an
+              empty backend does not present a box with nothing to search. */}
+          {organizations.length > 0 && (
+            <div className="relative mt-3">
+              <svg
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                value={orgSearch}
+                onChange={(e) => setOrgSearch(e.target.value)}
+                placeholder="Search organizations…"
+                aria-label="Search organizations"
+                className="w-full pl-9 pr-9 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#262782]/30 focus:border-[#262782] bg-white transition-all"
+              />
+              {orgSearch && (
+                <button
+                  type="button"
+                  onClick={() => setOrgSearch('')}
+                  aria-label="Clear organization search"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {isLoadingOrgs ? (
@@ -162,9 +214,29 @@ const ModuleAccessManager = () => {
               <p className="text-gray-500 text-xs mt-1">There are no organizations to configure yet.</p>
             </div>
           </div>
+        ) : filteredOrganizations.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-3 px-4">
+            <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center">
+              <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <div className="text-center">
+              <p className="text-gray-800 text-sm font-semibold">No matching organizations</p>
+              <p className="text-gray-500 text-xs mt-1 break-words">
+                Nothing matches &ldquo;{orgSearch.trim()}&rdquo;.
+              </p>
+            </div>
+            <button
+              onClick={() => setOrgSearch('')}
+              className="px-4 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all"
+            >
+              Clear search
+            </button>
+          </div>
         ) : (
           <ul className="max-h-[560px] overflow-y-auto divide-y divide-gray-50">
-            {organizations.map((org: GrantableOrganization) => {
+            {filteredOrganizations.map((org: GrantableOrganization) => {
               const isActive = org.id === selectedOrgId;
               return (
                 <li key={org.id}>
