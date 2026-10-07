@@ -1,4 +1,4 @@
-// src/features/files/fileApi.ts
+// src/features/files/fileApi.tss
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { getBaseUrl, getAccessToken } from '@/lib/api/baseQueryWithAuth';
 
