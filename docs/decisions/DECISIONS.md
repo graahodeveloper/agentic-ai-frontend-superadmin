@@ -82,3 +82,55 @@ backend resolver's layering rather than with those two lines.
 the organization. Re-deriving delegation rules client-side: this page writes the org-level pool
 only, and who inside the organization receives it is decided by the backend resolver and the org
 app's per-user flow, never here.
+
+---
+
+## 2026-10-05 — Summary's headline counts come from server `count`, never from a client-side filter
+
+**Decision.** Total / Active / Inactive on `/dashboard/settings/summary` are read from DRF's
+`count` on three filtered `GET users/` requests (`?`, `?is_active=true`, `?is_active=false`) via
+`getUserCohortCount`. No headline figure is ever computed by filtering a page of `results`.
+
+**Why.** SA-047's root cause was exactly that: `Summary.tsx` filtered page-1 rows for "Active
+Users" and displayed the result against the global `count`, so the two could never agree. Reading
+`count` makes Summary and Manage User agree *by construction* — same endpoint, same actor, so
+the same tenancy scope (`UsersViewSet.get_queryset()` scopes `list` by organization unless the
+actor holds `Permissions.ALL`) and the same number.
+
+**Rules out.** Deriving any displayed total, or any cohort count, from `results.length` or a
+`.filter()` over a page. Presenting a figure from the paged scan as a directory total without the
+truncation note.
+
+---
+
+## 2026-10-05 — The client may not choose the `users/` page size; `USERS_PAGE_SIZE` is the single source
+
+**Decision.** `USERS_PAGE_SIZE = 20` is exported from `src/features/user/userApi.ts` and is the
+only page-size number any caller of `users/` may use in pagination arithmetic.
+
+**Why.** `UsersViewSet` declares no `pagination_class`, so it inherits the project default
+(`config/settings/base.py`: `PageNumberPagination`, `PAGE_SIZE: 20`) and exposes **no**
+`page_size_query_param`. The `limit` the frontend had been sending was silently ignored, and
+`ManageUser.tsx` computed `totalPages` and "Showing X to Y" against an invented 10 — producing a
+pager with roughly twice the real page count and row ranges that never matched what was on screen.
+
+**Rules out.** Any literal page-size number in pagination maths. Expecting `?limit=` or
+`?page_size=` to work against `users/` — changing the page size requires a backend
+`pagination_class`, not a client parameter.
+
+---
+
+## 2026-10-05 — A paged scan of `users/` must order deterministically and dedupe by id
+
+**Decision.** `getUserDirectorySnapshot` pages with `ordering=-customer_used_token,-created_at`
+and enforces identity with a `Set` of seen ids while accumulating rows.
+
+**Why.** `customer_used_token` defaults to 0, so most rows tie on it. LIMIT/OFFSET paging over a
+non-unique ORDER BY lets the database return rows in a different order per page, silently skipping
+and duplicating users — which would corrupt the token total, every breakdown, and
+`scannedCount`/`truncated`. The tiebreaker must be `created_at` specifically: DRF's
+`OrderingFilter` silently drops terms outside `ordering_fields`, and `id` is not in that list on
+`UsersViewSet`, so ordering by it would be a no-op that merely looks correct.
+
+**Rules out.** Paging any `users/` scan on a single non-unique sort key. Assuming the server's
+paging guarantees each row is seen exactly once.
