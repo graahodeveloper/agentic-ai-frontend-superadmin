@@ -36,6 +36,32 @@ export interface AgentTemplate {
   agent_role: string | null | undefined;
 }
 
+// Template deletion preview (GET agent-templates/:id/deletion-impact/)
+export interface TemplateDeletionImpactRow {
+  model: string;
+  label: string;
+  count: number;
+}
+
+export interface TemplateDeletionImpact {
+  template: { id: string; name: string; agent_id: string };
+  instances_count: number;
+  active_instances_count: number;
+  can_delete: boolean;
+  requires_cascade: boolean;
+  blockers: (TemplateDeletionImpactRow & { message: string })[];
+  will_delete: TemplateDeletionImpactRow[];
+  will_delete_total: number;
+  retained: (TemplateDeletionImpactRow & { note: string })[];
+}
+
+export interface DeleteAgentTemplateResponse {
+  message: string;
+  deleted_instances_count: number;
+  deleted_total: number;
+  deleted: Record<string, number>;
+}
+
 export interface AgentTemplatesResponse {
   count: number;
   next: string | null;
@@ -1189,14 +1215,29 @@ export const agentTemplateApi = createApi({
       },
     }),
 
-    deleteAgentTemplate: builder.mutation<{ message: string }, { id: string; admin_id: string }>({
+    getTemplateDeletionImpact: builder.query<TemplateDeletionImpact, { id: string; admin_id: string }>({
       query: ({ id, admin_id }) => ({
-        url: `agent-templates/${id}/?admin_id=${encodeURIComponent(admin_id)}`,
+        url: `agent-templates/${id}/deletion-impact/?admin_id=${encodeURIComponent(admin_id)}`,
+        method: 'GET',
+      }),
+      // Always reflect the current state of the template's dependents.
+      keepUnusedDataFor: 0,
+    }),
+
+    deleteAgentTemplate: builder.mutation<DeleteAgentTemplateResponse, { id: string; admin_id: string; cascade?: boolean }>({
+      query: ({ id, admin_id, cascade }) => ({
+        url: `agent-templates/${id}/?admin_id=${encodeURIComponent(admin_id)}${cascade ? '&cascade=true' : ''}`,
         method: 'DELETE',
       }),
-      invalidatesTags: (result, error, { admin_id }) => [
+      // The template's instances, activations, assignments and fields are removed with it.
+      invalidatesTags: (result, error, { admin_id }) => error ? [] : [
         { type: 'AgentTemplate', id: admin_id },
-        'AgentTemplate'
+        'AgentTemplate',
+        'AgentInstance',
+        'Activation',
+        'TemplateAssignment',
+        'AdminAssignment',
+        'TemplateField',
       ],
     }),
 
@@ -1322,6 +1363,7 @@ export const {
   useCreateAgentTemplateMutation,
   useUpdateAgentTemplateMutation,
   useDeleteAgentTemplateMutation,
+  useGetTemplateDeletionImpactQuery,
   useAssignAdminToTemplateMutation,
   useBulkCreateTemplateFieldsMutation,
   useGetTemplateFieldsByTemplateIdQuery,

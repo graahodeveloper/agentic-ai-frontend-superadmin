@@ -5,6 +5,7 @@ import {
   getAdminIdFromStorage
 } from '@/features/agentTemplateApi/agentTemplateApi';
 import ViewInstancesDrawer from './ViewInstancesDrawer';
+import DeleteTemplateModal from './DeleteTemplateModal';
 import AgentComponentPricingManagement from '@/components/subscription-model/plan/AgentComponentPricingManagement';
 
 interface AgentTemplatesTableProps {
@@ -208,6 +209,7 @@ interface TemplateCardProps {
   onViewInstances: (template: AgentTemplate) => void;
   onEdit: (template: AgentTemplate) => void;
   onPricing: (template: AgentTemplate) => void;
+  onDelete: (template: AgentTemplate) => void;
 }
 
 const TemplateCard: React.FC<TemplateCardProps> = ({
@@ -219,6 +221,7 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
   onViewInstances,
   onEdit,
   onPricing,
+  onDelete,
 }) => {
   const gradient = getAgentTypeGradient(template.agent_variant || template.agent_type);
 
@@ -381,6 +384,17 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
               </svg>
               Edit
             </button>
+
+            <button
+              onClick={() => onDelete(template)}
+              className="flex-shrink-0 flex items-center justify-center text-red-600 hover:text-red-700 hover:bg-red-50 transition-all duration-200 px-3 py-2 rounded-xl text-sm font-semibold border border-red-200"
+              title="Delete template"
+              aria-label={`Delete template ${template.name}`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
           </div>
         </div>
       </div>
@@ -405,6 +419,10 @@ const AgentTemplatesTable: React.FC<AgentTemplatesTableProps> = ({
 
   // Component Pricing modal
   const [pricingTemplate, setPricingTemplate] = useState<AgentTemplate | null>(null);
+
+  // Delete confirmation modal
+  const [deletingTemplate, setDeletingTemplate] = useState<AgentTemplate | null>(null);
+  const [deleteNotice, setDeleteNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Frontend Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -552,6 +570,29 @@ const AgentTemplatesTable: React.FC<AgentTemplatesTableProps> = ({
     onRefresh();
   };
 
+  const handleDeleteClick = (template: AgentTemplate) => {
+    if (!adminId) {
+      setActionMessages(prev => ({
+        ...prev,
+        [template.id]: { type: 'error', text: 'Admin ID not found' }
+      }));
+      return;
+    }
+    setDeletingTemplate(template);
+  };
+
+  const handleTemplateDeleted = (message: string) => {
+    setDeletingTemplate(null);
+    setDeleteNotice({ type: 'success', text: message });
+    setTimeout(() => setDeleteNotice(null), 5000);
+    onRefresh();
+  };
+
+  // Keep the page in range when a delete empties the last page.
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
   const handlePageChange = (page: number) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
@@ -605,6 +646,16 @@ const AgentTemplatesTable: React.FC<AgentTemplatesTableProps> = ({
 
   return (
     <>
+      {deleteNotice && (
+        <div className={`mb-4 p-3 rounded-xl text-sm font-medium ${
+          deleteNotice.type === 'success'
+            ? 'bg-green-50 text-green-700 border border-green-200'
+            : 'bg-red-50 text-red-700 border border-red-200'
+        }`}>
+          {deleteNotice.text}
+        </div>
+      )}
+
       {/* Card Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
         {paginatedTemplates.map((template) => (
@@ -618,6 +669,7 @@ const AgentTemplatesTable: React.FC<AgentTemplatesTableProps> = ({
             onViewInstances={handleViewInstancesClick}
             onEdit={handleEditClick}
             onPricing={handleOpenPricing}
+            onDelete={handleDeleteClick}
           />
         ))}
       </div>
@@ -706,6 +758,17 @@ const AgentTemplatesTable: React.FC<AgentTemplatesTableProps> = ({
           key={pricingTemplate.id}
           template={pricingTemplate}
           onClose={handleClosePricing}
+        />
+      )}
+
+      {/* Delete Template Modal */}
+      {deletingTemplate && adminId && (
+        <DeleteTemplateModal
+          key={deletingTemplate.id}
+          template={deletingTemplate}
+          adminId={adminId}
+          onClose={() => setDeletingTemplate(null)}
+          onDeleted={handleTemplateDeleted}
         />
       )}
     </>
