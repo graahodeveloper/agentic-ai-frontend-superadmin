@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   useGetDemoUsersQuery,
   useGetDemoUsersStatsQuery,
@@ -11,15 +11,6 @@ import {
 } from '@/features/demoUsers/demoUsersApi';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const formatDate = (dateString: string | null | undefined) => {
-  if (!dateString) return '—';
-  return new Date(dateString).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-};
 
 const formatDateTime = (dateString: string | null | undefined) => {
   if (!dateString) return '—';
@@ -208,6 +199,154 @@ function NoteModal({
   );
 }
 
+// ─── Details Modal ────────────────────────────────────────────────────────────
+
+function DetailField({
+  label,
+  value,
+}: {
+  label: string;
+  value?: string | number | boolean | null;
+}) {
+  const display =
+    value === null || value === undefined || value === '' ? '—' : String(value);
+  return (
+    <div>
+      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
+      <p className="text-sm text-gray-800 mt-1 break-words">{display}</p>
+    </div>
+  );
+}
+
+function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-3 pb-2 border-b border-gray-100">
+        {title}
+      </h4>
+      {children}
+    </div>
+  );
+}
+
+function DetailsModal({ user, onClose }: { user: DemoUser; onClose: () => void }) {
+  // Escape closes, matching what users expect of a read-only panel.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const fullName =
+    user.full_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
+
+  return (
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center"
+      style={{ background: 'rgba(15,15,35,0.6)', backdropFilter: 'blur(8px)' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="demo-user-details-title"
+        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col overflow-hidden animate-[fadeInUp_0.2s_ease-out]"
+      >
+        <div className="h-1 bg-gradient-to-r from-indigo-400 to-indigo-600 w-full flex-shrink-0" />
+
+        <div className="px-6 py-5 flex items-start justify-between gap-4 border-b border-gray-100 flex-shrink-0">
+          <div className="min-w-0">
+            <h3 id="demo-user-details-title" className="text-lg font-bold text-gray-900 truncate">
+              {fullName}
+            </h3>
+            <p className="text-sm text-gray-500 mt-0.5 truncate">{user.email}</p>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close details"
+            className="p-2 -mr-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all flex-shrink-0"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="p-6 overflow-y-auto space-y-6">
+          <DetailSection title="Person">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <DetailField label="Full name" value={fullName} />
+              <DetailField label="Email" value={user.email} />
+              <DetailField label="Phone" value={user.phone} />
+              <DetailField label="Job title" value={user.job_title} />
+            </div>
+          </DetailSection>
+
+          <DetailSection title="Company">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <DetailField label="Company" value={user.company_name} />
+              <DetailField label="Source" value={user.source} />
+            </div>
+          </DetailSection>
+
+          <DetailSection title="Interest">
+            <div className="space-y-4">
+              <DetailField label="Interest" value={user.interest} />
+              <div>
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                  Additional preferences
+                </p>
+                <p className="text-sm text-gray-800 mt-1 whitespace-pre-wrap break-words">
+                  {user.additional_preferences || '—'}
+                </p>
+              </div>
+            </div>
+          </DetailSection>
+
+          <DetailSection title="Activity">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <DetailField label="Status" value={user.status} />
+              <DetailField label="Demo sessions" value={user.demo_sessions_count ?? 0} />
+              <DetailField label="First demo access" value={formatDateTime(user.demo_accessed_at)} />
+              <DetailField label="Last active" value={formatDateTime(user.last_activity_at)} />
+              <DetailField label="Registered" value={formatDateTime(user.created_at)} />
+              <DetailField label="Last updated" value={formatDateTime(user.updated_at)} />
+            </div>
+          </DetailSection>
+
+          <DetailSection title="Conversion">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <DetailField label="Converted" value={user.is_converted ? 'Yes' : 'No'} />
+              <DetailField label="Converted user" value={user.converted_user_email} />
+              <DetailField label="Converted at" value={formatDateTime(user.converted_at)} />
+            </div>
+          </DetailSection>
+
+          <DetailSection title="Admin">
+            <div>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                Internal notes
+              </p>
+              <p className="text-sm text-gray-800 mt-1 whitespace-pre-wrap break-words">
+                {user.admin_notes || '—'}
+              </p>
+            </div>
+          </DetailSection>
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-100 flex justify-end flex-shrink-0 bg-gray-50/60">
+          <button
+            onClick={onClose}
+            className="px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Stat Card ────────────────────────────────────────────────────────────────
 
 function StatCard({
@@ -252,6 +391,7 @@ const DemoUsersList = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteModalUser, setDeleteModalUser] = useState<DemoUser | null>(null);
   const [noteModalUser, setNoteModalUser] = useState<DemoUser | null>(null);
+  const [detailsModalUser, setDetailsModalUser] = useState<DemoUser | null>(null);
 
   // Debounce search input
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -515,11 +655,8 @@ const DemoUsersList = () => {
                 <thead>
                   <tr style={{ background: 'linear-gradient(135deg,#f8faff,#f4f7fe)' }}>
                     <th className="px-5 py-3.5 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">User</th>
-                    <th className="px-5 py-3.5 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Contact</th>
                     <th className="px-5 py-3.5 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Company</th>
                     <th className="px-5 py-3.5 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-5 py-3.5 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Sessions</th>
-                    <th className="px-5 py-3.5 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Last Active</th>
                     <th className="px-5 py-3.5 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Registered</th>
                     <th className="px-5 py-3.5 text-right text-[11px] font-bold text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
@@ -542,27 +679,24 @@ const DemoUsersList = () => {
                               {getInitials(user)}
                             </div>
                             <div className="min-w-0">
-                              <p className="text-sm font-semibold text-gray-900 truncate max-w-[140px]">
+                              <p className="text-sm font-semibold text-gray-900 truncate max-w-[200px]">
                                 {user.full_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown'}
                               </p>
-                              {user.job_title && (
-                                <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[140px]">
-                                  {user.job_title}
-                                </p>
-                              )}
+                              <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[200px]">
+                                {user.email}
+                              </p>
                             </div>
                           </div>
                         </td>
 
-                        {/* Contact */}
-                        <td className="px-5 py-4 whitespace-nowrap">
-                          <p className="text-sm text-gray-800 truncate max-w-[180px]">{user.email}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">{user.phone || '—'}</p>
-                        </td>
-
                         {/* Company */}
                         <td className="px-5 py-4 whitespace-nowrap">
-                          <p className="text-sm text-gray-700 truncate max-w-[120px]">{user.company_name || '—'}</p>
+                          <p className="text-sm text-gray-700 truncate max-w-[160px]">{user.company_name || '—'}</p>
+                          {user.job_title && (
+                            <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[160px]">
+                              {user.job_title}
+                            </p>
+                          )}
                         </td>
 
                         {/* Status */}
@@ -580,19 +714,6 @@ const DemoUsersList = () => {
                           </select>
                         </td>
 
-                        {/* Sessions */}
-                        <td className="px-5 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-gray-800">{user.demo_sessions_count ?? 0}</span>
-                            <span className="text-xs text-gray-400">visits</span>
-                          </div>
-                        </td>
-
-                        {/* Last Active */}
-                        <td className="px-5 py-4 whitespace-nowrap">
-                          <p className="text-sm text-gray-600">{formatDate(user.last_activity_at || user.demo_accessed_at)}</p>
-                        </td>
-
                         {/* Registered */}
                         <td className="px-5 py-4 whitespace-nowrap">
                           <p className="text-sm text-gray-600">{formatDateTime(user.created_at)}</p>
@@ -601,6 +722,14 @@ const DemoUsersList = () => {
                         {/* Actions */}
                         <td className="px-5 py-4 whitespace-nowrap text-right">
                           <div className="flex items-center justify-end gap-1">
+                            {/* Details */}
+                            <button
+                              onClick={() => setDetailsModalUser(user)}
+                              className="px-2.5 py-1.5 mr-1 rounded-lg text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-all"
+                            >
+                              Details
+                            </button>
+
                             {/* Mark as engaged (only for new users) */}
                             {user.status === 'new' && (
                               <button
@@ -713,6 +842,14 @@ const DemoUsersList = () => {
           isDeleting={isDeleting}
           onConfirm={handleDeleteConfirm}
           onCancel={() => setDeleteModalUser(null)}
+        />
+      )}
+
+      {/* ── Details Modal ─────────────────────────────────────────────────────── */}
+      {detailsModalUser && (
+        <DetailsModal
+          user={detailsModalUser}
+          onClose={() => setDetailsModalUser(null)}
         />
       )}
 

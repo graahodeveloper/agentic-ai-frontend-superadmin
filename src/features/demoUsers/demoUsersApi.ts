@@ -14,6 +14,7 @@ export interface DemoUser {
   company_name?: string;
   job_title?: string;
   interest?: string;
+  additional_preferences?: string | null;
   source?: string;
   status?: 'new' | 'engaged' | 'converted' | 'inactive';
   demo_accessed_at?: string | null;
